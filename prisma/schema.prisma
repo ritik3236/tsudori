@@ -1,0 +1,317 @@
+// Tsudori — Education Management Platform
+// Schema is multi-tenant from day one: every tenant-owned row carries an
+// `instituteId`, and all data access is scoped through that boundary
+// (see src/lib/tenant.ts). RBAC is data-driven (Role + Permission tables) so
+// new roles/permissions are added as data, never as code changes.
+//
+// Identity lives in the `neon_auth` schema, which is owned and managed by Neon
+// Auth (Better Auth). We map its `user` table here (see model User) but DO NOT
+// manage it with Prisma migrations — Neon Auth creates and maintains it. The
+// `multiSchema` setup lets our `public` tables FK across to it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["public", "neon_auth"]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity, tenancy & access control
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The platform user, owned by Neon Auth (Better Auth) in the `neon_auth` schema.
+/// Read-only from the app's perspective — rows are created by Neon Auth on
+/// sign-up. We map it so domain data can FK to a stable identity. Platform
+/// super-admin status is carried by Better Auth's `role` column (`"admin"`).
+/// NOTE: managed by Neon Auth; never created/altered by Prisma migrations.
+model User {
+  id            String    @id @db.Uuid
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  /// Better Auth admin-plugin role. `"admin"` == platform super admin.
+  role          String?
+  banned        Boolean?
+  banReason     String?
+  banExpires    DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @db.Timestamptz(3)
+  updatedAt     DateTime  @db.Timestamptz(3)
+
+  memberships      Membership[]
+  markedAttendance Attendance[] @relation("AttendanceMarkedBy")
+  recordedPayments FeePayment[] @relation("PaymentRecordedBy")
+
+  @@map("user")
+  @@schema("neon_auth")
+}
+
+enum InstituteStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@schema("public")
+}
+
+/// The tenant. A single deployment can host many institutes; in v1 it usually
+/// holds one, but the boundary exists so SaaS multi-tenancy needs no migration.
+model Institute {
+  id          String          @id @default(cuid())
+  name        String
+  slug        String          @unique
+  email       String?
+  phone       String?
+  addressLine String?
+  city        String?
+  state       String?
+  country     String          @default("India")
+  currency    String          @default("INR")
+  locale      String          @default("en-IN")
+  timezone    String          @default("Asia/Kolkata")
+  status      InstituteStatus @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  memberships Membership[]
+  roles       Role[]
+  classes     Class[]
+  students    Student[]
+  attendance  Attendance[]
+  payments    FeePayment[]
+  settings    Setting[]
+
+  @@schema("public")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+
+  @@schema("public")
+}
+
+/// A user's role within one institute. The (user, institute) pair is unique,
+/// so a user holds exactly one role per institute they belong to.
+model Membership {
+  id          String           @id @default(cuid())
+  userId      String           @db.Uuid
+  instituteId String
+  roleId      String
+  status      MembershipStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, instituteId])
+  @@index([instituteId])
+  @@index([roleId])
+  @@schema("public")
+}
+
+/// A named bundle of permissions. `instituteId == null` marks a system template
+/// role (e.g. seeded SUPER_ADMIN); institute-scoped roles can be customised per
+/// tenant without affecting others.
+model Role {
+  id          String   @id @default(cuid())
+  key         String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  instituteId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute   Institute?       @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  memberships Membership[]
+
+  @@unique([instituteId, key])
+  @@index([instituteId])
+  @@schema("public")
+}
+
+/// A single capability, e.g. `student:create`. Grouped by `module` so the UI can
+/// render permission matrices per feature area.
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  module      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@schema("public")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Academic domain (V1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ClassStatus {
+  ACTIVE
+  INACTIVE
+
+  @@schema("public")
+}
+
+/// A class/grade/batch. One class has many students.
+model Class {
+  id                String      @id @default(cuid())
+  instituteId       String
+  name              String
+  section           String?
+  defaultMonthlyFee Decimal?    @db.Decimal(10, 2)
+  status            ClassStatus @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  students  Student[]
+
+  @@unique([instituteId, name])
+  @@index([instituteId])
+  @@schema("public")
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+
+  @@schema("public")
+}
+
+model Student {
+  id            String        @id @default(cuid())
+  instituteId   String
+  /// Human-facing student id, sequential per institute (assigned in the service
+  /// layer within a transaction — Postgres can't auto-increment per-tenant).
+  serialNo      Int
+  rollNumber    String?
+  fullName      String
+  classId       String?
+  guardianName  String?
+  contactNumber String?
+  email         String?
+  admissionDate DateTime      @db.Date
+  monthlyFee    Decimal       @db.Decimal(10, 2)
+  status        StudentStatus @default(ACTIVE)
+  notes         String?
+  /// Soft-archive: archived students drop out of active lists but keep history.
+  archivedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  institute  Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  class      Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  attendance Attendance[]
+  payments   FeePayment[]
+
+  @@unique([instituteId, serialNo])
+  @@index([instituteId, status])
+  @@index([instituteId, classId])
+  @@index([instituteId, fullName])
+  @@schema("public")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+
+  @@schema("public")
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  instituteId String
+  studentId   String
+  date        DateTime         @db.Date
+  status      AttendanceStatus
+  note        String?
+  markedById  String?          @db.Uuid
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy  User?     @relation("AttendanceMarkedBy", fields: [markedById], references: [id], onDelete: SetNull)
+
+  /// One record per student per day — prevents duplicate attendance.
+  @@unique([studentId, date])
+  @@index([instituteId, date])
+  @@schema("public")
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+
+  @@schema("public")
+}
+
+model FeePayment {
+  id           String        @id @default(cuid())
+  instituteId  String
+  studentId    String
+  amount       Decimal       @db.Decimal(10, 2)
+  /// The fee period this payment is applied to (nullable for ad-hoc payments).
+  periodMonth  Int?
+  periodYear   Int?
+  method       PaymentMethod @default(CASH)
+  paidAt       DateTime      @default(now())
+  /// Sequential receipt number per institute (assigned in the service layer).
+  receiptNo    Int
+  note         String?
+  recordedById String?       @db.Uuid
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  institute  Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedBy User?     @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([instituteId, receiptNo])
+  @@index([instituteId, paidAt])
+  @@index([studentId])
+  @@schema("public")
+}
+
+/// Flexible per-institute key/value config for anything not worth a column yet.
+model Setting {
+  id          String   @id @default(cuid())
+  instituteId String
+  key         String
+  value       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+
+  @@unique([instituteId, key])
+  @@schema("public")
+}

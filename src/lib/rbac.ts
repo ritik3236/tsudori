@@ -1,0 +1,112 @@
+// Data-driven RBAC. Permissions are the unit of authorization; roles are bundles
+// of permissions stored in the DB. This file is the single source of truth that
+// the seed script writes into the Role/Permission tables, and that runtime checks
+// read back. Adding a capability = add a key here + re-seed; no code branching.
+
+export const PERMISSION_MODULES = [
+  "student",
+  "attendance",
+  "fee",
+  "class",
+  "report",
+  "setting",
+  "institute",
+  "member",
+] as const
+
+export type PermissionModule = (typeof PERMISSION_MODULES)[number]
+
+/** Every capability in the platform. `module:action` convention. */
+export const PERMISSIONS = {
+  STUDENT_READ: "student:read",
+  STUDENT_CREATE: "student:create",
+  STUDENT_UPDATE: "student:update",
+  STUDENT_ARCHIVE: "student:archive",
+
+  ATTENDANCE_READ: "attendance:read",
+  ATTENDANCE_MARK: "attendance:mark",
+
+  FEE_READ: "fee:read",
+  FEE_RECORD: "fee:record",
+
+  CLASS_READ: "class:read",
+  CLASS_MANAGE: "class:manage",
+
+  REPORT_VIEW: "report:view",
+
+  SETTING_READ: "setting:read",
+  SETTING_MANAGE: "setting:manage",
+
+  INSTITUTE_MANAGE: "institute:manage",
+
+  MEMBER_READ: "member:read",
+  MEMBER_MANAGE: "member:manage",
+} as const
+
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+
+export const ALL_PERMISSIONS: Permission[] = Object.values(PERMISSIONS)
+
+/** Maps a permission key back to its module, for building permission matrices. */
+export function permissionModule(permission: Permission): PermissionModule {
+  return permission.split(":")[0] as PermissionModule
+}
+
+// ─── System role templates ───────────────────────────────────────────────────
+// Seeded once. The `key` is stable and referenced in code; names/permissions are
+// data and can be customised per institute later without touching this file.
+
+export const ROLE_KEYS = {
+  SUPER_ADMIN: "SUPER_ADMIN",
+  INSTITUTE_ADMIN: "INSTITUTE_ADMIN",
+  TEACHER: "TEACHER",
+} as const
+
+export type RoleKey = (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]
+
+type RoleTemplate = {
+  key: RoleKey
+  name: string
+  description: string
+  /** "*" grants every permission; otherwise an explicit allow-list. */
+  permissions: Permission[] | "*"
+}
+
+export const SYSTEM_ROLES: RoleTemplate[] = [
+  {
+    key: ROLE_KEYS.SUPER_ADMIN,
+    name: "Super Admin",
+    description: "Platform owner. Full access across all institutes.",
+    permissions: "*",
+  },
+  {
+    key: ROLE_KEYS.INSTITUTE_ADMIN,
+    name: "Institute Admin",
+    description: "Owner/manager of an institute. Full access within their institute.",
+    permissions: "*",
+  },
+  {
+    key: ROLE_KEYS.TEACHER,
+    name: "Teacher / Staff",
+    description: "Marks attendance and views students; no fee or settings access.",
+    permissions: [
+      PERMISSIONS.STUDENT_READ,
+      PERMISSIONS.ATTENDANCE_READ,
+      PERMISSIONS.ATTENDANCE_MARK,
+      PERMISSIONS.CLASS_READ,
+      PERMISSIONS.REPORT_VIEW,
+    ],
+  },
+]
+
+export function resolveRolePermissions(template: RoleTemplate): Permission[] {
+  return template.permissions === "*" ? ALL_PERMISSIONS : template.permissions
+}
+
+/** Pure check used by both server guards and UI gating. */
+export function hasPermission(
+  granted: ReadonlySet<string>,
+  required: Permission
+): boolean {
+  return granted.has(required)
+}
