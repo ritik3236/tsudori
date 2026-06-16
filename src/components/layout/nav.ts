@@ -2,6 +2,7 @@ import {
   BarChart3,
   CalendarCheck,
   LayoutDashboard,
+  School,
   Settings,
   Users,
   Wallet,
@@ -39,6 +40,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Users,
     activeColor: "text-violet-600 dark:text-violet-400",
     permission: PERMISSIONS.STUDENT_READ,
+  },
+  {
+    label: "Classes",
+    href: "/classes",
+    icon: School,
+    activeColor: "text-orange-600 dark:text-orange-400",
+    permission: PERMISSIONS.CLASS_READ,
   },
   {
     label: "Attendance",

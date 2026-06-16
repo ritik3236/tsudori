@@ -1,10 +1,10 @@
 import { buildQuery, http } from "@/lib/http"
 import type {
-  ClassOption,
   Paginated,
   StudentDetail,
   StudentListItem,
 } from "@/features/students/types"
+import type { ClassListItem } from "@/features/classes/types"
 import type {
   StudentCreateInput,
   StudentUpdateInput,
@@ -31,5 +31,5 @@ export const studentsApi = {
 }
 
 export const classesApi = {
-  list: () => http.get<ClassOption[]>("/api/classes"),
+  list: () => http.get<ClassListItem[]>("/api/classes"),
 }

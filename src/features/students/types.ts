@@ -48,8 +48,3 @@ export type Paginated<T> = {
   pageSize: number
   totalPages: number
 }
-
-export type ClassOption = {
-  id: string
-  name: string
-}
