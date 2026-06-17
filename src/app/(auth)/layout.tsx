@@ -2,6 +2,7 @@ import Link from "next/link"
 import { GraduationCap } from "lucide-react"
 
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants"
+import { LoginRedirectOverlay } from "@/components/auth/login-redirect-overlay"
 
 export default function AuthLayout({
   children,
@@ -20,6 +21,8 @@ export default function AuthLayout({
         </span>
       </Link>
       {children}
+      {/* Covers the login → dashboard redirect with the loader (login only). */}
+      <LoginRedirectOverlay />
     </div>
   )
 }
