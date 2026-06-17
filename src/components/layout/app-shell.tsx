@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { APP_NAME } from "@/lib/constants"
 import { visibleNavItems, type NavItem } from "@/components/layout/nav"
 import { BottomNav } from "@/components/layout/bottom-nav"
+import { RefreshButton } from "@/components/layout/refresh-button"
 import { Badge } from "@/components/ui/badge"
 
 type AppShellProps = {
@@ -58,6 +59,7 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
               </p>
             </div>
 
+            <RefreshButton />
             <UserButton size="icon" />
           </div>
         </header>
