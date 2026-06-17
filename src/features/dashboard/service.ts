@@ -1,7 +1,7 @@
 import "server-only"
 
 import { prisma } from "@/lib/prisma"
-import { todayInAppTz, appDayBounds, appMonthBounds } from "@/lib/timezone"
+import { todayInAppTz, appDayBounds, appMonthBounds } from "@/lib/date-helper"
 
 export type DashboardStats = {
   totalStudents: number

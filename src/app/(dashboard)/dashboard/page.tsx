@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 import { can, getTenantContext } from "@/lib/tenant"
-import { APP_TIMEZONE } from "@/lib/timezone"
+import { APP_TIMEZONE } from "@/lib/date-helper"
 import { PERMISSIONS } from "@/lib/rbac"
 import { getDashboardStats } from "@/features/dashboard/service"
 import { cn } from "@/lib/utils"

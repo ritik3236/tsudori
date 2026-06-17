@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { NotFoundError } from "@/lib/errors"
-import { appDateToUtc, utcToAppDateStr, appMonthBounds } from "@/lib/timezone"
+import { appDateToUtc, utcToAppDateStr, appMonthBounds } from "@/lib/date-helper"
 import type { MarkAttendanceInput, BulkMarkInput } from "./schema"
 import type {
   DayAttendance,

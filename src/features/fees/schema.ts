@@ -1,7 +1,7 @@
 import { z } from "zod"
 
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/constants"
-import { appDateToUtc } from "@/lib/timezone"
+import { appDateToUtc } from "@/lib/date-helper"
 
 export const PAYMENT_METHODS = [
   "CASH",

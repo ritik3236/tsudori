@@ -1,10 +1,5 @@
-// Locale-aware formatting. Defaults match an Indian institute (₹, lakh grouping,
-// DD/MM/YYYY) but every helper accepts a locale/currency override so a future
-// multi-region tenant can pass its own from the Institute record.
-
-import { isValid } from "date-fns"
-import { APP_TIMEZONE, APP_TZ_OFFSET_MS, utcToAppDateStr } from "@/lib/timezone"
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+// Non-date formatting (currency, numbers, initials).
+// Date/timezone formatting lives in src/lib/date-helper.ts.
 
 const DEFAULT_LOCALE = "en-IN"
 const DEFAULT_CURRENCY = "INR"
@@ -36,52 +31,6 @@ export function formatNumber(value: Numeric, locale = DEFAULT_LOCALE): string {
   return Number.isNaN(n) ? "—" : new Intl.NumberFormat(locale).format(n)
 }
 
-function asDate(value: Date | string | number | null | undefined): Date | null {
-  if (value == null) return null
-  const d = value instanceof Date ? value : new Date(value)
-  return isValid(d) ? d : null
-}
-
-function toAppDateStr(d: Date): string {
-  return utcToAppDateStr(d)
-}
-
-/** 17/06/2026 — displayed in IST */
-export function formatDateShort(value: Date | string | number | null | undefined): string {
-  const d = asDate(value)
-  if (!d) return "—"
-  const [year, month, day] = toAppDateStr(d).split("-")
-  return `${day}/${month}/${year}`
-}
-
-/** 17 Jun 2026 — displayed in IST */
-export function formatDateLong(value: Date | string | number | null | undefined): string {
-  const d = asDate(value)
-  if (!d) return "—"
-  const [year, month, day] = toAppDateStr(d).split("-")
-  return `${day} ${MONTHS_SHORT[parseInt(month) - 1]} ${year}`
-}
-
-/** 17 Jun 2026, 3:45 PM — displayed in IST */
-export function formatDateTime(value: Date | string | number | null | undefined): string {
-  const d = asDate(value)
-  if (!d) return "—"
-  const [year, month, day] = toAppDateStr(d).split("-")
-  const time = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
-    timeZone: APP_TIMEZONE,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(d)
-  return `${day} ${MONTHS_SHORT[parseInt(month) - 1]} ${year}, ${time}`
-}
-
-/** ISO yyyy-MM-dd in IST, for date inputs and API params. */
-export function toDateInputValue(value: Date | string | number | null | undefined): string {
-  const d = asDate(value)
-  return d ? toAppDateStr(d) : ""
-}
-
 export function getInitials(name: string): string {
   return name
     .trim()
@@ -90,3 +39,11 @@ export function getInitials(name: string): string {
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("")
 }
+
+// Re-export date helpers so existing imports from "@/lib/format" keep working.
+export {
+  formatDateShort,
+  formatDateLong,
+  formatDateTime,
+  toDateInputValue,
+} from "@/lib/date-helper"
