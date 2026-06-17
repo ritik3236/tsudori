@@ -2,7 +2,14 @@
 // DD/MM/YYYY) but every helper accepts a locale/currency override so a future
 // multi-region tenant can pass its own from the Institute record.
 
-import { format as formatDate, isValid } from "date-fns"
+import { isValid } from "date-fns"
+
+// IST = UTC+5:30 (fixed offset, no DST). All date storage uses UTC timestamps
+// where the intended IST calendar date is preserved. View helpers convert UTC→IST
+// by adding the fixed offset and extracting date parts from the shifted value.
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+const IST_TZ = "Asia/Kolkata"
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
 const DEFAULT_LOCALE = "en-IN"
 const DEFAULT_CURRENCY = "INR"
@@ -40,28 +47,46 @@ function asDate(value: Date | string | number | null | undefined): Date | null {
   return isValid(d) ? d : null
 }
 
-/** 16/06/2026 */
+// Shift UTC timestamp to IST and return yyyy-MM-dd date string.
+// India has no DST so the +5:30 offset is constant.
+function toISTDateStr(d: Date): string {
+  return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+/** 17/06/2026 — displayed in IST */
 export function formatDateShort(value: Date | string | number | null | undefined): string {
   const d = asDate(value)
-  return d ? formatDate(d, "dd/MM/yyyy") : "—"
+  if (!d) return "—"
+  const [year, month, day] = toISTDateStr(d).split("-")
+  return `${day}/${month}/${year}`
 }
 
-/** 16 Jun 2026 */
+/** 17 Jun 2026 — displayed in IST */
 export function formatDateLong(value: Date | string | number | null | undefined): string {
   const d = asDate(value)
-  return d ? formatDate(d, "dd MMM yyyy") : "—"
+  if (!d) return "—"
+  const [year, month, day] = toISTDateStr(d).split("-")
+  return `${day} ${MONTHS_SHORT[parseInt(month) - 1]} ${year}`
 }
 
-/** 16 Jun 2026, 3:45 PM */
+/** 17 Jun 2026, 3:45 PM — displayed in IST */
 export function formatDateTime(value: Date | string | number | null | undefined): string {
   const d = asDate(value)
-  return d ? formatDate(d, "dd MMM yyyy, h:mm a") : "—"
+  if (!d) return "—"
+  const [year, month, day] = toISTDateStr(d).split("-")
+  const time = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    timeZone: IST_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d)
+  return `${day} ${MONTHS_SHORT[parseInt(month) - 1]} ${year}, ${time}`
 }
 
-/** ISO yyyy-MM-dd, for date inputs and API params. */
+/** ISO yyyy-MM-dd in IST, for date inputs and API params. */
 export function toDateInputValue(value: Date | string | number | null | undefined): string {
   const d = asDate(value)
-  return d ? formatDate(d, "yyyy-MM-dd") : ""
+  return d ? toISTDateStr(d) : ""
 }
 
 export function getInitials(name: string): string {

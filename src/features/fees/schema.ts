@@ -100,7 +100,7 @@ export function formValuesToInput(
     periodMonth: Number(v.periodMonth),
     periodYear: Number(v.periodYear),
     method: v.method,
-    paidAt: new Date(v.paidAt),
+    paidAt: new Date(`${v.paidAt}T00:00:00+05:30`),
     note: v.note || null,
   }
 }

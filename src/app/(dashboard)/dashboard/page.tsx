@@ -54,10 +54,14 @@ export default async function DashboardPage() {
   const att = stats.attendance
 
   const now = new Date()
-  const hour = now.getHours()
+  const IST_TZ = "Asia/Kolkata"
+  const hour = parseInt(
+    new Intl.DateTimeFormat("en-IN", { timeZone: IST_TZ, hour: "numeric", hour12: false }).format(now)
+  )
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
   const today = new Intl.DateTimeFormat("en-IN", {
+    timeZone: IST_TZ,
     weekday: "long",
     day: "numeric",
     month: "long",

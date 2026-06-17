@@ -215,7 +215,7 @@ model Student {
   guardianName  String?
   contactNumber String?
   email         String?
-  admissionDate DateTime      @db.Date
+  admissionDate DateTime      @db.Timestamptz(3)
   monthlyFee    Decimal       @db.Decimal(10, 2)
   status        StudentStatus @default(ACTIVE)
   notes         String?
@@ -249,7 +249,7 @@ model Attendance {
   id          String           @id @default(cuid())
   instituteId String
   studentId   String
-  date        DateTime         @db.Date
+  date        DateTime         @db.Timestamptz(3)
   status      AttendanceStatus
   note        String?
   markedById  String?          @db.Uuid

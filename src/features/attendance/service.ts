@@ -9,13 +9,16 @@ import type {
 } from "./types"
 import type { AttendanceStatus } from "@prisma/client"
 
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
+
+// "2026-06-17" interpreted as IST midnight → UTC timestamp (2026-06-16T18:30:00Z)
 function parseDate(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number)
-  return new Date(Date.UTC(year, month - 1, day))
+  return new Date(`${dateStr}T00:00:00+05:30`)
 }
 
+// UTC timestamp → IST calendar date string "2026-06-17"
 function toDateStr(date: Date): string {
-  return date.toISOString().slice(0, 10)
+  return new Date(date.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
 }
 
 function computeSummary(students: StudentAttendance[]) {
@@ -28,11 +31,56 @@ function computeSummary(students: StudentAttendance[]) {
   }
 }
 
+export const ALL_CLASSES = "__all__"
+
+async function getAttendanceDayAll(instituteId: string, date: string): Promise<DayAttendance> {
+  const students = await prisma.student.findMany({
+    where: { instituteId, status: "ACTIVE", archivedAt: null },
+    orderBy: [{ classId: "asc" }, { serialNo: "asc" }],
+    select: { id: true, fullName: true, serialNo: true, rollNumber: true },
+  })
+
+  const dateObj = parseDate(date)
+  const existing = await prisma.attendance.findMany({
+    where: {
+      instituteId,
+      studentId: { in: students.map((s) => s.id) },
+      date: dateObj,
+    },
+    select: { id: true, studentId: true, status: true, note: true },
+  })
+
+  const byStudent = new Map(existing.map((a) => [a.studentId, a]))
+
+  const records: StudentAttendance[] = students.map((s) => {
+    const a = byStudent.get(s.id) ?? null
+    return {
+      studentId: s.id,
+      studentName: s.fullName,
+      serialNo: s.serialNo,
+      rollNumber: s.rollNumber,
+      attendanceId: a?.id ?? null,
+      status: (a?.status ?? null) as AttendanceStatus | null,
+      note: a?.note ?? null,
+    }
+  })
+
+  return {
+    date,
+    classId: ALL_CLASSES,
+    className: "All Classes",
+    students: records,
+    summary: computeSummary(records),
+  }
+}
+
 export async function getAttendanceDay(
   instituteId: string,
   classId: string,
   date: string
 ): Promise<DayAttendance> {
+  if (classId === ALL_CLASSES) return getAttendanceDayAll(instituteId, date)
+
   const cls = await prisma.class.findFirst({
     where: { id: classId, instituteId },
     select: { id: true, name: true, section: true },
@@ -40,7 +88,7 @@ export async function getAttendanceDay(
   if (!cls) throw new NotFoundError("Class not found")
 
   const students = await prisma.student.findMany({
-    where: { classId, instituteId, archivedAt: null },
+    where: { classId, instituteId, status: "ACTIVE", archivedAt: null },
     orderBy: { serialNo: "asc" },
     select: { id: true, fullName: true, serialNo: true, rollNumber: true },
   })
@@ -148,6 +196,7 @@ export async function markBulkAttendance(
     )
   )
 
+  if (input.classId === ALL_CLASSES) return getAttendanceDayAll(instituteId, input.date)
   return getAttendanceDay(instituteId, input.classId, input.date)
 }
 
@@ -163,8 +212,10 @@ export async function getMonthlyReport(
   if (!cls) throw new NotFoundError("Class not found")
 
   const [year, mon] = month.split("-").map(Number)
-  const startDate = new Date(Date.UTC(year, mon - 1, 1))
-  const endDate = new Date(Date.UTC(year, mon, 0))
+  const startDate = new Date(`${year}-${String(mon).padStart(2, "0")}-01T00:00:00+05:30`)
+  const nextYear = mon === 12 ? year + 1 : year
+  const nextMon = mon === 12 ? 1 : mon + 1
+  const endDate = new Date(`${nextYear}-${String(nextMon).padStart(2, "0")}-01T00:00:00+05:30`)
 
   const students = await prisma.student.findMany({
     where: { classId, instituteId, archivedAt: null },
@@ -176,7 +227,7 @@ export async function getMonthlyReport(
     where: {
       instituteId,
       studentId: { in: students.map((s) => s.id) },
-      date: { gte: startDate, lte: endDate },
+      date: { gte: startDate, lt: endDate },
     },
     select: { studentId: true, date: true, status: true },
     orderBy: { date: "asc" },

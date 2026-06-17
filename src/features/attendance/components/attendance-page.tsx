@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { toDateInputValue } from "@/lib/format"
@@ -18,7 +18,7 @@ import { useClasses } from "@/features/classes/hooks"
 import { AttendanceDayView } from "./attendance-day-view"
 import { AttendanceReport } from "./attendance-report"
 
-const NO_CLASS = "__none__"
+const ALL_CLASSES = "__all__"
 
 function todayStr() {
   return toDateInputValue(new Date())
@@ -47,26 +47,16 @@ type Props = { canMark: boolean }
 export function AttendancePage({ canMark }: Props) {
   const { data: classes } = useClasses()
   const [tab, setTab] = useState<"mark" | "report">("mark")
-  const [classId, setClassId] = useState<string>(NO_CLASS)
+  const [classId, setClassId] = useState<string>(ALL_CLASSES)
   const [date, setDate] = useState<string>(todayStr())
   const [month, setMonth] = useState<string>(currentMonth())
 
   const activeClasses = classes?.filter((c) => c.status === "ACTIVE") ?? []
+  const isAll = classId === ALL_CLASSES
 
-  // Auto-select the first class when data loads
-  const didAutoSelect = useRef(false)
-  useEffect(() => {
-    if (!didAutoSelect.current && classId === NO_CLASS && activeClasses.length > 0) {
-      didAutoSelect.current = true
-      setClassId(activeClasses[0].id)
-    }
-  }, [activeClasses, classId])
-  const selectedClass = classId !== NO_CLASS ? classId : null
-
-  const selectedName =
-    classId !== NO_CLASS
-      ? (activeClasses.find((c) => c.id === classId)?.name ?? "Select class")
-      : "Select class"
+  const selectedName = isAll
+    ? "All classes"
+    : (activeClasses.find((c) => c.id === classId)?.name ?? "All classes")
 
   return (
     <Tabs
@@ -79,17 +69,15 @@ export function AttendancePage({ canMark }: Props) {
       </TabsList>
 
       <div className="mt-4 space-y-4">
-        {/* Controls row — always one line */}
+        {/* Controls row */}
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <Select value={classId} onValueChange={(v) => setClassId(v ?? NO_CLASS)}>
+            <Select value={classId} onValueChange={(v) => setClassId(v ?? ALL_CLASSES)}>
               <SelectTrigger className="w-full">
-                <SelectValue>
-                  {() => selectedName}
-                </SelectValue>
+                <SelectValue>{() => selectedName}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_CLASS}>Select class</SelectItem>
+                <SelectItem value={ALL_CLASSES}>All classes</SelectItem>
                 {activeClasses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
@@ -132,33 +120,32 @@ export function AttendancePage({ canMark }: Props) {
         </div>
 
         <TabsContent value="mark">
-          {selectedClass ? (
-            <AttendanceDayView
-              classId={selectedClass}
-              date={date}
-              canMark={canMark}
-            />
-          ) : (
-            <ClassPrompt />
-          )}
+          <AttendanceDayView classId={classId} date={date} canMark={canMark} />
         </TabsContent>
 
         <TabsContent value="report">
-          {selectedClass ? (
-            <AttendanceReport classId={selectedClass} month={month} />
+          {isAll ? (
+            activeClasses.length === 0 ? (
+              <p className="text-muted-foreground py-16 text-center text-sm">
+                No active classes found.
+              </p>
+            ) : (
+              <div className="space-y-6">
+                {activeClasses.map((c) => (
+                  <div key={c.id}>
+                    <p className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+                      {c.name}{c.section ? ` / ${c.section}` : ""}
+                    </p>
+                    <AttendanceReport classId={c.id} month={month} />
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-            <ClassPrompt />
+            <AttendanceReport classId={classId} month={month} />
           )}
         </TabsContent>
       </div>
     </Tabs>
-  )
-}
-
-function ClassPrompt() {
-  return (
-    <p className="text-muted-foreground py-16 text-center text-sm">
-      Select a class to continue.
-    </p>
   )
 }
