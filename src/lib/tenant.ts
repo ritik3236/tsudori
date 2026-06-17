@@ -1,5 +1,6 @@
 import "server-only"
 
+import { cache } from "react"
 import { cookies } from "next/headers"
 import type { Institute, Membership, Role, User } from "@prisma/client"
 
@@ -36,7 +37,10 @@ export type TenantContext = {
  *   3. For a super admin with no memberships, the first institute on the platform.
  * Throws ForbiddenError when no institute can be resolved.
  */
-export async function getTenantContext(): Promise<TenantContext> {
+// cache()-wrapped: the (dashboard) layout AND the page both call this in the same
+// request. Without caching, the full auth → membership → permissions query chain
+// would run twice per page load; cache() makes it run once.
+export const getTenantContext = cache(async (): Promise<TenantContext> => {
   let user = await requireUser()
 
   let memberships = await prisma.membership.findMany({
@@ -102,7 +106,7 @@ export async function getTenantContext(): Promise<TenantContext> {
   throw new ForbiddenError(
     "Your account isn't linked to an institute yet. Ask an admin for an invite."
   )
-}
+})
 
 /**
  * If the signed-in user's email matches BOOTSTRAP_ADMIN_EMAIL and no admin is

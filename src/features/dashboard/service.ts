@@ -36,31 +36,17 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
 
   const activeWhere = { instituteId, status: "ACTIVE" as const, archivedAt: null }
 
-  // Fetch active student IDs first so we can scope attendance counts to them.
-  const activeStudents = await prisma.student.findMany({
-    where: activeWhere,
-    select: { id: true },
-  })
-  const activeStudentIds = activeStudents.map((s) => s.id)
-
-  const attendanceWhere = {
-    instituteId,
-    date: { gte: dayStart, lt: dayEnd },
-    studentId: { in: activeStudentIds },
-  }
-
+  // Wave 1: everything that doesn't depend on the active-student id list runs in
+  // parallel (the fee/payment queries don't need it). Only the attendance counts
+  // do, so they wait for activeStudents — but no longer block the fee queries.
   const [
-    present,
-    absent,
-    leave,
+    activeStudents,
     collectedAgg,
     expectedAgg,
     collectedForOutstanding,
     recentPayments,
   ] = await Promise.all([
-    prisma.attendance.count({ where: { ...attendanceWhere, status: "PRESENT" } }),
-    prisma.attendance.count({ where: { ...attendanceWhere, status: "ABSENT" } }),
-    prisma.attendance.count({ where: { ...attendanceWhere, status: "LEAVE" } }),
+    prisma.student.findMany({ where: activeWhere, select: { id: true } }),
     prisma.feePayment.aggregate({
       where: { instituteId, paidAt: { gte: monthStart, lt: monthEnd } },
       _sum: { amount: true },
@@ -70,11 +56,7 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
       _sum: { monthlyFee: true },
     }),
     prisma.feePayment.aggregate({
-      where: {
-        instituteId,
-        periodMonth: tm,
-        periodYear: ty,
-      },
+      where: { instituteId, periodMonth: tm, periodYear: ty },
       _sum: { amount: true },
     }),
     prisma.feePayment.findMany({
@@ -83,6 +65,20 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
       take: 5,
       include: { student: { select: { fullName: true } } },
     }),
+  ])
+
+  const activeStudentIds = activeStudents.map((s) => s.id)
+  const attendanceWhere = {
+    instituteId,
+    date: { gte: dayStart, lt: dayEnd },
+    studentId: { in: activeStudentIds },
+  }
+
+  // Wave 2: attendance counts, scoped to active students.
+  const [present, absent, leave] = await Promise.all([
+    prisma.attendance.count({ where: { ...attendanceWhere, status: "PRESENT" } }),
+    prisma.attendance.count({ where: { ...attendanceWhere, status: "ABSENT" } }),
+    prisma.attendance.count({ where: { ...attendanceWhere, status: "LEAVE" } }),
   ])
 
   const expected = Number(expectedAgg._sum.monthlyFee ?? 0)

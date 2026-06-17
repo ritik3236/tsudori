@@ -1,5 +1,6 @@
 import "server-only"
 
+import { cache } from "react"
 import type { User } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
@@ -16,13 +17,15 @@ import { UnauthorizedError } from "@/lib/errors"
  * Returns the platform User for the signed-in Neon Auth session, or null when
  * there is no active session (or the auth record hasn't synced yet).
  */
-export async function getCurrentUser(): Promise<User | null> {
+// cache() dedupes within a single server request: the layout and the page both
+// resolve auth, but the session lookup + user query run only once.
+export const getCurrentUser = cache(async (): Promise<User | null> => {
   const { data: session } = await auth.getSession()
   const authUserId = session?.user?.id
   if (!authUserId) return null
 
   return prisma.user.findUnique({ where: { id: authUserId } })
-}
+})
 
 /** Same as getCurrentUser but throws when unauthenticated. */
 export async function requireUser(): Promise<User> {
