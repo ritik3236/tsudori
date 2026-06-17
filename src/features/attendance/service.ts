@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { NotFoundError } from "@/lib/errors"
+import { ALL_CLASSES } from "@/lib/constants"
 import { appDateToUtc, utcToAppDateStr, appMonthBounds } from "@/lib/date-helper"
 import type { MarkAttendanceInput, BulkMarkInput } from "./schema"
 import type {
@@ -22,8 +23,6 @@ function computeSummary(students: StudentAttendance[]) {
     total: students.length,
   }
 }
-
-export const ALL_CLASSES = "__all__"
 
 async function getAttendanceDayAll(instituteId: string, date: string): Promise<DayAttendance> {
   const students = await prisma.student.findMany({

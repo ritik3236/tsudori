@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react"
 
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
+import { DEFAULT_PAGE_SIZE, FILTER_ALL as ALL } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
 import { useClassOptions, useStudents } from "@/features/students/hooks"
@@ -30,8 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-const ALL = "all"
 
 type StudentsTableProps = {
   canEdit: boolean

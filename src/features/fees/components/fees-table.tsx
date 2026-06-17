@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight, Search, Wallet } from "lucide-react"
 
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
+import { DEFAULT_PAGE_SIZE, FILTER_ALL as ALL } from "@/lib/constants"
 import { formatCurrency } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { useClassOptions } from "@/features/students/hooks"
@@ -30,8 +30,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-const ALL = "all"
 
 export function FeesTable({ canRecord }: { canRecord: boolean }) {
   const [search, setSearch] = useState("")

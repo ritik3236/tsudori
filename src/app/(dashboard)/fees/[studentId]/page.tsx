@@ -7,6 +7,7 @@ import { can, getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
+import { MONTHS_SHORT as MONTHS } from "@/lib/constants"
 import { formatCurrency, formatDateLong } from "@/lib/format"
 import { getStudentFee } from "@/features/fees/service"
 import { METHOD_LABELS } from "@/features/fees/schema"
@@ -17,21 +18,6 @@ import { RecordPaymentButton } from "@/features/fees/components/record-payment-b
 import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
 
 export const metadata: Metadata = { title: "Student fees" }
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-]
 
 export default async function StudentFeesPage({
   params,

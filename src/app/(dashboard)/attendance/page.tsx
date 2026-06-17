@@ -4,11 +4,12 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 import { can, getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
+import { ALL_CLASSES } from "@/lib/constants"
 import { todayInAppTz } from "@/lib/date-helper"
 import { classKeys } from "@/features/classes/api"
 import { listClasses } from "@/features/classes/service"
 import { attendanceKeys } from "@/features/attendance/keys"
-import { ALL_CLASSES, getAttendanceDay } from "@/features/attendance/service"
+import { getAttendanceDay } from "@/features/attendance/service"
 import { AttendancePage } from "@/features/attendance/components/attendance-page"
 
 export const metadata: Metadata = { title: "Attendance" }

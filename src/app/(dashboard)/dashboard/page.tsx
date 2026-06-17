@@ -16,6 +16,7 @@ import { APP_TIMEZONE } from "@/lib/date-helper"
 import { PERMISSIONS } from "@/lib/rbac"
 import { getDashboardStats } from "@/features/dashboard/service"
 import { cn } from "@/lib/utils"
+import { AVATAR_TINTS as AVATAR } from "@/lib/constants"
 import { formatCurrency, formatDateShort, getInitials } from "@/lib/format"
 import { EmptyState } from "@/components/shared/empty-state"
 
@@ -32,13 +33,6 @@ const CHIP: Record<Scheme, string> = {
   rose: "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 }
 
-const AVATAR = [
-  "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200",
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
-  "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
-  "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200",
-  "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200",
-]
 
 /** ₹10.8k / ₹1.2L / ₹3Cr — short money for the compact stat strip. */
 function compactInr(n: number): string {

@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation"
 import { Receipt, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import {
+  AVATAR_TINTS as AVATAR,
+  FILTER_ALL as ALL,
+  MONTHS_SHORT as MONTHS,
+} from "@/lib/constants"
 import { formatCurrency, getInitials } from "@/lib/format"
 import { useFeeOverview, useStudentFees } from "@/features/fees/hooks"
 import { useClassOptions } from "@/features/students/hooks"
@@ -23,11 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
-
 const STATUS_LABEL: Record<FeeStatus, string> = {
   PAID: "Paid",
   PARTIAL: "Partial",
@@ -35,16 +35,6 @@ const STATUS_LABEL: Record<FeeStatus, string> = {
   ADVANCE: "Advance",
   WAIVED: "Waived",
 }
-
-const AVATAR = [
-  "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-200",
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
-  "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
-  "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-200",
-  "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200",
-]
-
-const ALL = "all"
 
 function monthStrip() {
   const now = new Date()

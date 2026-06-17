@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
+import { ALL_CLASSES } from "@/lib/constants"
 import { toDateInputValue } from "@/lib/format"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -17,8 +18,6 @@ import {
 import { useClasses } from "@/features/classes/hooks"
 import { AttendanceDayView } from "./attendance-day-view"
 import { AttendanceReport } from "./attendance-report"
-
-const ALL_CLASSES = "__all__"
 
 function todayStr() {
   return toDateInputValue(new Date())
