@@ -52,6 +52,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={true}
               aria-current={active ? "page" : undefined}
               className={cn(tabClass, active ? item.activeColor : inactiveClass)}
             >
@@ -99,6 +100,7 @@ export function BottomNav({ items }: { items: NavItem[] }) {
                     <Link
                       key={item.href}
                       href={item.href}
+                      prefetch={true}
                       onClick={() => setMoreOpen(false)}
                       aria-current={active ? "page" : undefined}
                       className={cn(

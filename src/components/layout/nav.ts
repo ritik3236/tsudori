@@ -42,13 +42,6 @@ export const NAV_ITEMS: NavItem[] = [
     permission: PERMISSIONS.STUDENT_READ,
   },
   {
-    label: "Classes",
-    href: "/classes",
-    icon: School,
-    activeColor: "text-orange-600 dark:text-orange-400",
-    permission: PERMISSIONS.CLASS_READ,
-  },
-  {
     label: "Attendance",
     href: "/attendance",
     icon: CalendarCheck,
@@ -63,6 +56,13 @@ export const NAV_ITEMS: NavItem[] = [
     activeColor: "text-amber-600 dark:text-amber-400",
     permission: PERMISSIONS.FEE_READ,
     comingSoon: true,
+  },
+  {
+    label: "Classes",
+    href: "/classes",
+    icon: School,
+    activeColor: "text-orange-600 dark:text-orange-400",
+    permission: PERMISSIONS.CLASS_READ,
   },
   {
     label: "Reports",

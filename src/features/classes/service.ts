@@ -18,6 +18,15 @@ export async function listClassOptions(
   })
 }
 
+export async function getClass(instituteId: string, id: string): Promise<ClassListItem> {
+  const cls = await prisma.class.findFirst({
+    where: { id, instituteId },
+    include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+  })
+  if (!cls) throw new NotFoundError("Class not found.")
+  return toListItem(cls)
+}
+
 export async function listClasses(instituteId: string): Promise<ClassListItem[]> {
   const rows = await prisma.class.findMany({
     where: { instituteId },

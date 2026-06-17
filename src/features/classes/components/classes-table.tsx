@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Search, School } from "lucide-react"
 import { useState } from "react"
 
@@ -73,7 +74,12 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
               filtered.map((cls) => (
                 <TableRow key={cls.id}>
                   <TableCell>
-                    <span className="font-medium">{cls.name}</span>
+                    <Link
+                      href={`/classes/${cls.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {cls.name}
+                    </Link>
                     {cls.section && (
                       <Badge variant="secondary" className="ml-2">
                         {cls.section}
@@ -121,7 +127,12 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
             <div key={cls.id} className="bg-card relative rounded-xl border p-3.5">
               <div className={canManage ? "pr-9" : undefined}>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">{cls.name}</span>
+                  <Link
+                    href={`/classes/${cls.id}`}
+                    className="text-sm font-medium hover:underline"
+                  >
+                    {cls.name}
+                  </Link>
                   {cls.section && (
                     <Badge variant="secondary" className="text-xs">
                       {cls.section}

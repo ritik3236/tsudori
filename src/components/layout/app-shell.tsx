@@ -36,6 +36,7 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
           <div className="flex h-14 items-center gap-3 px-4 lg:px-6">
             <Link
               href="/dashboard"
+              prefetch={true}
               aria-label={APP_NAME}
               className="flex items-center gap-2 lg:hidden"
             >
@@ -52,8 +53,9 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
           </div>
         </header>
 
-        {/* Bottom padding clears the fixed bottom nav (mobile) + home indicator */}
-        <main className="flex-1 px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8">
+        {/* Subtle tinted page bg so white cards separate (they blend on pure white).
+            Bottom padding clears the fixed bottom nav + home indicator. */}
+        <main className="flex-1 bg-[#f1f0f8] px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8 dark:bg-transparent">
           {children}
         </main>
       </div>
@@ -99,6 +101,7 @@ function SidebarNav({
           <Link
             key={item.href}
             href={item.href}
+            prefetch={true}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(

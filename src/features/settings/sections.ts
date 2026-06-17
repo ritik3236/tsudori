@@ -1,6 +1,5 @@
 import {
   Bell,
-  GraduationCap,
   IndianRupee,
   SlidersHorizontal,
   University,
@@ -41,15 +40,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     permission: PERMISSIONS.SETTING_READ,
     comingSoon: true,
   },
-  {
-    label: "Classes & grades",
-    description: "Configure the classes and grades students belong to.",
-    href: "/settings/classes",
-    icon: GraduationCap,
-    permission: PERMISSIONS.CLASS_READ,
-    comingSoon: true,
-  },
-  {
+{
     label: "Fees configuration",
     description: "Default fees, payment methods, and receipt numbering.",
     href: "/settings/fees",

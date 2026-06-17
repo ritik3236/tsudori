@@ -10,10 +10,20 @@ import type { ClassCreateInput, ClassUpdateInput } from "@/features/classes/sche
 export const classKeys = {
   all: ["classes"] as const,
   lists: () => [...classKeys.all, "list"] as const,
+  details: () => [...classKeys.all, "detail"] as const,
+  detail: (id: string) => [...classKeys.details(), id] as const,
 }
 
 function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)
+}
+
+export function useClass(id: string) {
+  return useQuery({
+    queryKey: classKeys.detail(id),
+    queryFn: () => classesApi.get(id),
+    enabled: Boolean(id),
+  })
 }
 
 export function useClasses() {

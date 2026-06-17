@@ -4,6 +4,7 @@ import type { ClassCreateInput, ClassUpdateInput } from "@/features/classes/sche
 
 export const classesApi = {
   list: () => http.get<ClassListItem[]>("/api/classes"),
+  get: (id: string) => http.get<ClassListItem>(`/api/classes/${id}`),
   create: (data: ClassCreateInput) => http.post<ClassListItem>("/api/classes", data),
   update: (id: string, data: ClassUpdateInput) =>
     http.patch<ClassListItem>(`/api/classes/${id}`, data),
