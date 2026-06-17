@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { NotFoundError } from "@/lib/errors"
+import { appDateToUtc, utcToAppDateStr, appMonthBounds } from "@/lib/timezone"
 import type { MarkAttendanceInput, BulkMarkInput } from "./schema"
 import type {
   DayAttendance,
@@ -9,17 +10,8 @@ import type {
 } from "./types"
 import type { AttendanceStatus } from "@prisma/client"
 
-const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
-
-// "2026-06-17" interpreted as IST midnight → UTC timestamp (2026-06-16T18:30:00Z)
-function parseDate(dateStr: string): Date {
-  return new Date(`${dateStr}T00:00:00+05:30`)
-}
-
-// UTC timestamp → IST calendar date string "2026-06-17"
-function toDateStr(date: Date): string {
-  return new Date(date.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
-}
+const parseDate = appDateToUtc
+const toDateStr = utcToAppDateStr
 
 function computeSummary(students: StudentAttendance[]) {
   return {
@@ -211,11 +203,7 @@ export async function getMonthlyReport(
   })
   if (!cls) throw new NotFoundError("Class not found")
 
-  const [year, mon] = month.split("-").map(Number)
-  const startDate = new Date(`${year}-${String(mon).padStart(2, "0")}-01T00:00:00+05:30`)
-  const nextYear = mon === 12 ? year + 1 : year
-  const nextMon = mon === 12 ? 1 : mon + 1
-  const endDate = new Date(`${nextYear}-${String(nextMon).padStart(2, "0")}-01T00:00:00+05:30`)
+  const [startDate, endDate] = appMonthBounds(month)
 
   const students = await prisma.student.findMany({
     where: { classId, instituteId, archivedAt: null },

@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/constants"
+import { appDateToUtc } from "@/lib/timezone"
 
 // Two related schemas:
 //  • studentCreateSchema / studentUpdateSchema — the API/domain contract. Optional
@@ -81,7 +82,7 @@ export function formValuesToInput(values: StudentFormValues): StudentCreateInput
     guardianName: values.guardianName || null,
     contactNumber: values.contactNumber || null,
     email: values.email || null,
-    admissionDate: new Date(`${values.admissionDate}T00:00:00+05:30`),
+    admissionDate: appDateToUtc(values.admissionDate),
     monthlyFee: Number(values.monthlyFee),
     status: values.status,
     notes: values.notes || null,

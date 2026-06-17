@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { can, getTenantContext } from "@/lib/tenant"
+import { APP_TIMEZONE } from "@/lib/timezone"
 import { PERMISSIONS } from "@/lib/rbac"
 import { getDashboardStats } from "@/features/dashboard/service"
 import { cn } from "@/lib/utils"
@@ -54,14 +55,13 @@ export default async function DashboardPage() {
   const att = stats.attendance
 
   const now = new Date()
-  const IST_TZ = "Asia/Kolkata"
   const hour = parseInt(
-    new Intl.DateTimeFormat("en-IN", { timeZone: IST_TZ, hour: "numeric", hour12: false }).format(now)
+    new Intl.DateTimeFormat("en-IN", { timeZone: APP_TIMEZONE, hour: "numeric", hour12: false }).format(now)
   )
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
   const today = new Intl.DateTimeFormat("en-IN", {
-    timeZone: IST_TZ,
+    timeZone: APP_TIMEZONE,
     weekday: "long",
     day: "numeric",
     month: "long",

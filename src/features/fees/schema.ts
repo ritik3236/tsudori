@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/constants"
+import { appDateToUtc } from "@/lib/timezone"
 
 export const PAYMENT_METHODS = [
   "CASH",
@@ -100,7 +101,7 @@ export function formValuesToInput(
     periodMonth: Number(v.periodMonth),
     periodYear: Number(v.periodYear),
     method: v.method,
-    paidAt: new Date(`${v.paidAt}T00:00:00+05:30`),
+    paidAt: appDateToUtc(v.paidAt),
     note: v.note || null,
   }
 }

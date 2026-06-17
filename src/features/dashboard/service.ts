@@ -1,6 +1,7 @@
 import "server-only"
 
 import { prisma } from "@/lib/prisma"
+import { todayInAppTz, appDayBounds, appMonthBounds } from "@/lib/timezone"
 
 export type DashboardStats = {
   totalStudents: number
@@ -27,20 +28,11 @@ export type DashboardStats = {
  * expected fees (active students × monthly fee) minus what's been collected.
  */
 export async function getDashboardStats(instituteId: string): Promise<DashboardStats> {
-  const now = new Date()
-  // Resolve current IST date — UTC can be one calendar day behind IST between
-  // 00:00 and 05:30 IST. All date values are stored as IST midnight expressed in
-  // UTC (e.g. "2026-06-17" IST → 2026-06-16T18:30:00Z).
-  const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000
-  const todayIST = new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+  const todayIST = todayInAppTz()
   const [ty, tm] = todayIST.split("-").map(Number)
-  const dayStart = new Date(`${todayIST}T00:00:00+05:30`)
-  const dayEnd = new Date(dayStart.getTime() + 86400000)
+  const [dayStart, dayEnd] = appDayBounds(todayIST)
   const monthStr = `${ty}-${String(tm).padStart(2, "0")}`
-  const monthStart = new Date(`${monthStr}-01T00:00:00+05:30`)
-  const nextYear = tm === 12 ? ty + 1 : ty
-  const nextMon = tm === 12 ? 1 : tm + 1
-  const monthEnd = new Date(`${nextYear}-${String(nextMon).padStart(2, "0")}-01T00:00:00+05:30`)
+  const [monthStart, monthEnd] = appMonthBounds(monthStr)
 
   const activeWhere = { instituteId, status: "ACTIVE" as const, archivedAt: null }
 
