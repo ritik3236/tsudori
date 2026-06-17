@@ -1,6 +1,7 @@
 import { PrismaClient, type AttendanceStatus } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { config as loadEnv } from "dotenv"
+import { DateTime } from "luxon"
 
 import {
   ALL_PERMISSIONS,
@@ -13,6 +14,17 @@ import {
 } from "../src/lib/rbac"
 
 loadEnv()
+
+const APP_TIMEZONE = "Asia/Kolkata"
+
+// All date helpers use Luxon so dates are correctly stored as IST midnight → UTC.
+function istMidnight(dateStr: string): Date {
+  return DateTime.fromISO(dateStr, { zone: APP_TIMEZONE }).toJSDate()
+}
+
+function nowIST(): DateTime {
+  return DateTime.now().setZone(APP_TIMEZONE)
+}
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DIRECT_URL as string),
@@ -105,8 +117,13 @@ async function seedDemoData(instituteId: string) {
     classByName.set(c.name, cls.id)
   }
 
-  const today = new Date()
-  const admissionBase = new Date(today.getFullYear(), today.getMonth() - 4, 1)
+  const today = nowIST()
+  // Admission date: first day of the month 4 months ago, at IST midnight → UTC.
+  const admissionDate = istMidnight(
+    today.minus({ months: 4 }).startOf("month").toISODate()!
+  )
+  const currentMonth = today.month
+  const currentYear = today.year
 
   for (let i = 0; i < DEMO_STUDENTS.length; i++) {
     const s = DEMO_STUDENTS[i]
@@ -119,22 +136,21 @@ async function seedDemoData(instituteId: string) {
         classId: classByName.get(s.className) ?? null,
         guardianName: s.guardianName,
         contactNumber: s.contactNumber,
-        admissionDate: admissionBase,
+        admissionDate,
         monthlyFee: s.monthlyFee,
         status: "ACTIVE",
       },
     })
 
-    // Attendance for the last 5 days (skip weekends), mostly present.
+    // Attendance for the last 10 days (skip weekends), mostly present.
     const attendance: { instituteId: string; studentId: string; date: Date; status: AttendanceStatus }[] = []
-    for (let d = 0; d < 5; d++) {
-      const date = new Date(today)
-      date.setDate(today.getDate() - d)
-      const day = date.getDay()
-      if (day === 0 || day === 6) continue
+    for (let d = 0; d < 10; d++) {
+      const dt = today.startOf("day").minus({ days: d })
+      // Luxon weekday: 1=Mon … 6=Sat, 7=Sun
+      if (dt.weekday >= 6) continue
       const roll = (i + d) % 7
       const status: AttendanceStatus = roll === 0 ? "ABSENT" : roll === 1 ? "LEAVE" : "PRESENT"
-      attendance.push({ instituteId, studentId: student.id, date, status })
+      attendance.push({ instituteId, studentId: student.id, date: dt.toJSDate(), status })
     }
     if (attendance.length) {
       await prisma.attendance.createMany({ data: attendance, skipDuplicates: true })
@@ -142,15 +158,19 @@ async function seedDemoData(instituteId: string) {
 
     // ~70% of students have paid this month's fee.
     if (i % 10 < 7) {
+      const payDay = Math.min(i + 1, 28)
+      const paidAt = istMidnight(
+        today.set({ day: payDay }).startOf("day").toISODate()!
+      )
       await prisma.feePayment.create({
         data: {
           instituteId,
           studentId: student.id,
           amount: s.monthlyFee,
-          periodMonth: today.getMonth() + 1,
-          periodYear: today.getFullYear(),
+          periodMonth: currentMonth,
+          periodYear: currentYear,
           method: "CASH",
-          paidAt: new Date(today.getFullYear(), today.getMonth(), Math.min(i + 1, 28)),
+          paidAt,
           receiptNo: i + 1,
           note: "Monthly tuition fee",
         },
