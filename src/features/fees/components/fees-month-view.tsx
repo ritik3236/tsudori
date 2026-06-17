@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Receipt, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -287,6 +288,7 @@ function Row({
   canRecord: boolean
   sel: { month: number; year: number }
 }) {
+  const router = useRouter()
   return (
     <div className="bg-card flex items-center gap-3 rounded-2xl border p-3">
       <span
@@ -297,7 +299,12 @@ function Row({
       >
         {getInitials(s.fullName)}
       </span>
-      <Link href={`/fees/${s.studentId}`} className="min-w-0 flex-1">
+      <Link
+        href={`/fees/${s.studentId}`}
+        className="min-w-0 flex-1"
+        onMouseEnter={() => router.prefetch(`/fees/${s.studentId}`)}
+        onFocus={() => router.prefetch(`/fees/${s.studentId}`)}
+      >
         <div className="truncate text-sm font-medium hover:underline">
           {s.fullName}
         </div>

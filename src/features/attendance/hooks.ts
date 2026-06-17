@@ -5,18 +5,11 @@ import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
 import { attendanceApi } from "./api"
-import type { DayAttendance, StudentAttendance } from "./types"
+import { attendanceKeys } from "./keys"
+import type { DayAttendance } from "./types"
 import type { BulkMarkInput, MarkAttendanceInput } from "./schema"
 
-export const attendanceKeys = {
-  all: ["attendance"] as const,
-  days: () => [...attendanceKeys.all, "day"] as const,
-  day: (classId: string, date: string) =>
-    [...attendanceKeys.days(), classId, date] as const,
-  reports: () => [...attendanceKeys.all, "report"] as const,
-  report: (classId: string, month: string) =>
-    [...attendanceKeys.reports(), classId, month] as const,
-}
+export { attendanceKeys }
 
 function computeSummary(students: DayAttendance["students"]) {
   return {

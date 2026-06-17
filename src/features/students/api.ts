@@ -19,6 +19,16 @@ export type StudentListParams = {
   pageSize?: number
 }
 
+// Query-key factory. Lives here (not in the "use client" hooks file) so server
+// components can import it for prefetch without crossing the client boundary.
+export const studentKeys = {
+  all: ["students"] as const,
+  lists: () => [...studentKeys.all, "list"] as const,
+  list: (params: StudentListParams) => [...studentKeys.lists(), params] as const,
+  details: () => [...studentKeys.all, "detail"] as const,
+  detail: (id: string) => [...studentKeys.details(), id] as const,
+}
+
 export const studentsApi = {
   list: (params: StudentListParams) =>
     http.get<Paginated<StudentListItem>>(`/api/students${buildQuery(params)}`),

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Search, School } from "lucide-react"
 import { useState } from "react"
 
@@ -26,8 +27,12 @@ type ClassesTableProps = {
 }
 
 export function ClassesTable({ canManage }: ClassesTableProps) {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const { data: classes, isLoading } = useClasses()
+
+  // Warm the (server-rendered) class detail route on intent.
+  const prefetchClass = (id: string) => router.prefetch(`/classes/${id}`)
 
   const filtered = classes
     ? classes.filter((c) =>
@@ -77,6 +82,8 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
                     <Link
                       href={`/classes/${cls.id}`}
                       className="font-medium hover:underline"
+                      onMouseEnter={() => prefetchClass(cls.id)}
+                      onFocus={() => prefetchClass(cls.id)}
                     >
                       {cls.name}
                     </Link>
@@ -125,7 +132,12 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
         ) : filtered.length > 0 ? (
           filtered.map((cls) => (
             <div key={cls.id} className="bg-card relative rounded-xl border transition-colors hover:bg-muted/40">
-              <Link href={`/classes/${cls.id}`} className="block p-3.5">
+              <Link
+                href={`/classes/${cls.id}`}
+                className="block p-3.5"
+                onMouseEnter={() => prefetchClass(cls.id)}
+                onFocus={() => prefetchClass(cls.id)}
+              >
                 <div className={canManage ? "pr-9" : undefined}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{cls.name}</span>

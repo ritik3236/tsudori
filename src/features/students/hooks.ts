@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { ApiError } from "@/lib/http"
 import {
   classesApi,
+  studentKeys,
   studentsApi,
   type StudentListParams,
 } from "@/features/students/api"
@@ -19,13 +20,7 @@ import type {
   StudentUpdateInput,
 } from "@/features/students/schema"
 
-export const studentKeys = {
-  all: ["students"] as const,
-  lists: () => [...studentKeys.all, "list"] as const,
-  list: (params: StudentListParams) => [...studentKeys.lists(), params] as const,
-  details: () => [...studentKeys.all, "detail"] as const,
-  detail: (id: string) => [...studentKeys.details(), id] as const,
-}
+export { studentKeys }
 
 export function useStudents(params: StudentListParams) {
   return useQuery({

@@ -4,15 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
-import { classesApi } from "@/features/classes/api"
+import { classKeys, classesApi } from "@/features/classes/api"
 import type { ClassCreateInput, ClassUpdateInput } from "@/features/classes/schema"
 
-export const classKeys = {
-  all: ["classes"] as const,
-  lists: () => [...classKeys.all, "list"] as const,
-  details: () => [...classKeys.all, "detail"] as const,
-  detail: (id: string) => [...classKeys.details(), id] as const,
-}
+export { classKeys }
 
 function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)

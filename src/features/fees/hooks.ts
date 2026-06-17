@@ -9,16 +9,10 @@ import {
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
-import { feesApi, type FeeListParams } from "@/features/fees/api"
+import { feeKeys, feesApi, type FeeListParams } from "@/features/fees/api"
 import type { RecordPaymentInput, WaiveFeeInput } from "@/features/fees/schema"
 
-export const feeKeys = {
-  all: ["fees"] as const,
-  lists: () => [...feeKeys.all, "list"] as const,
-  list: (params: FeeListParams) => [...feeKeys.lists(), params] as const,
-  details: () => [...feeKeys.all, "detail"] as const,
-  detail: (id: string) => [...feeKeys.details(), id] as const,
-}
+export { feeKeys }
 
 function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)
@@ -42,7 +36,7 @@ export function useStudentFee(id: string) {
 
 export function useFeeOverview(classId?: string) {
   return useQuery({
-    queryKey: [...feeKeys.all, "overview", classId ?? null],
+    queryKey: feeKeys.overview(classId ?? null),
     queryFn: () => feesApi.overview(classId),
     staleTime: 30_000,
   })

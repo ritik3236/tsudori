@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react"
 
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
@@ -38,6 +39,7 @@ type StudentsTableProps = {
 }
 
 export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<string>(ALL)
@@ -45,6 +47,9 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
   const [page, setPage] = useState(1)
 
   const { data: classes } = useClassOptions()
+
+  // Warm the (server-rendered) profile route on intent, so the click feels instant.
+  const prefetchProfile = (id: string) => router.prefetch(`/students/${id}`)
 
   // Debounce the search box; reset to page 1 whenever the query changes.
   useEffect(() => {
@@ -141,6 +146,8 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
                     <Link
                       href={`/students/${s.id}`}
                       className="font-medium hover:underline"
+                      onMouseEnter={() => prefetchProfile(s.id)}
+                      onFocus={() => prefetchProfile(s.id)}
                     >
                       {s.fullName}
                     </Link>
@@ -213,7 +220,12 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
                 isPlaceholderData && "opacity-60"
               )}
             >
-              <Link href={`/students/${s.id}`} className="block p-3.5">
+              <Link
+                href={`/students/${s.id}`}
+                className="block p-3.5"
+                onMouseEnter={() => prefetchProfile(s.id)}
+                onFocus={() => prefetchProfile(s.id)}
+              >
                 <div className="pr-9">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{s.fullName}</p>
