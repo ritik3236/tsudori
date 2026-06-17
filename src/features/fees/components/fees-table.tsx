@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Phone, Search, Users } from "lucide-react"
+import { ChevronLeft, ChevronRight, Search, Wallet } from "lucide-react"
 
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
-import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
-import { useClassOptions, useStudents } from "@/features/students/hooks"
-import { StudentRowActions } from "@/features/students/components/student-row-actions"
+import { cn } from "@/lib/utils"
+import { useClassOptions } from "@/features/students/hooks"
+import { useStudentFees } from "@/features/fees/hooks"
+import { FeeStatusBadge } from "@/features/fees/components/fee-status-badge"
+import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import {
   Select,
@@ -32,12 +33,7 @@ import {
 
 const ALL = "all"
 
-type StudentsTableProps = {
-  canEdit: boolean
-  canArchive: boolean
-}
-
-export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
+export function FeesTable({ canRecord }: { canRecord: boolean }) {
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<string>(ALL)
@@ -46,7 +42,6 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
 
   const { data: classes } = useClassOptions()
 
-  // Debounce the search box; reset to page 1 whenever the query changes.
   useEffect(() => {
     const t = setTimeout(() => {
       setQ(search)
@@ -55,16 +50,16 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading, isPlaceholderData } = useStudents({
+  const { data, isLoading, isPlaceholderData } = useStudentFees({
     q: q || undefined,
-    status: status === ALL ? undefined : (status as "ACTIVE" | "INACTIVE"),
+    status:
+      status === ALL ? undefined : (status as "PAID" | "PARTIAL" | "UNPAID" | "ADVANCE"),
     classId: classId === ALL ? undefined : classId,
     page,
     pageSize: DEFAULT_PAGE_SIZE,
   })
 
-  const showActions = canEdit || canArchive
-  const colSpan = showActions ? 7 : 6
+  const colSpan = canRecord ? 6 : 5
 
   return (
     <div className="space-y-4">
@@ -74,7 +69,7 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, guardian, contact, or ID…"
+            placeholder="Search by name, guardian, or ID…"
             className="pl-9"
           />
         </div>
@@ -88,8 +83,10 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
             placeholder="Status"
             options={[
               { value: ALL, label: "All statuses" },
-              { value: "ACTIVE", label: "Active" },
-              { value: "INACTIVE", label: "Inactive" },
+              { value: "UNPAID", label: "Unpaid" },
+              { value: "PARTIAL", label: "Partial" },
+              { value: "PAID", label: "Paid" },
+              { value: "ADVANCE", label: "Advance" },
             ]}
           />
           <FilterSelect
@@ -107,19 +104,17 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
         </div>
       </div>
 
-      {/* Desktop: dense table. Hidden on mobile where a horizontal scroll of 7
-          columns would be unusable. */}
-      <div className="hidden rounded-xl border md:block">
+      {/* Desktop table */}
+      <div className="hidden overflow-hidden rounded-xl border md:block">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">ID</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead>Student</TableHead>
               <TableHead>Class</TableHead>
-              <TableHead>Guardian</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead className="text-right">Monthly Fee</TableHead>
-              {showActions && <TableHead className="w-12" />}
+              <TableHead className="text-right">Monthly fee</TableHead>
+              <TableHead className="text-right">Paid (this month)</TableHead>
+              <TableHead className="text-right">Pending</TableHead>
+              {canRecord && <TableHead className="w-32" />}
             </TableRow>
           </TableHeader>
           <TableBody className={isPlaceholderData ? "opacity-60" : undefined}>
@@ -133,40 +128,53 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
               ))
             ) : data && data.items.length > 0 ? (
               data.items.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {s.serialNo}
-                  </TableCell>
+                <TableRow key={s.studentId}>
                   <TableCell>
                     <Link
-                      href={`/students/${s.id}`}
+                      href={`/fees/${s.studentId}`}
                       className="font-medium hover:underline"
                     >
                       {s.fullName}
                     </Link>
                     <div className="mt-0.5">
-                      <StatusBadge active={s.status === "ACTIVE"} />
+                      <FeeStatusBadge status={s.status} />
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {s.className ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {s.guardianName ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {s.contactNumber ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
+                  <TableCell className="text-right tabular-nums">
                     {formatCurrency(s.monthlyFee)}
                   </TableCell>
-                  {showActions && (
-                    <TableCell>
-                      <StudentRowActions
-                        studentId={s.id}
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrency(s.paidThisMonth)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {s.advance > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        +{formatCurrency(s.advance)}
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          s.pendingThisMonth > 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {formatCurrency(s.pendingThisMonth)}
+                      </span>
+                    )}
+                  </TableCell>
+                  {canRecord && (
+                    <TableCell className="text-right">
+                      <RecordPaymentButton
+                        studentId={s.studentId}
                         studentName={s.fullName}
-                        canEdit={canEdit}
-                        canArchive={canArchive}
+                        monthlyFee={s.monthlyFee}
+                        label="Record"
+                        variant="outline"
+                        size="sm"
                       />
                     </TableCell>
                   )}
@@ -175,16 +183,7 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={colSpan} className="p-0">
-                  <EmptyState
-                    icon={Users}
-                    title="No students found"
-                    description={
-                      q || status !== ALL || classId !== ALL
-                        ? "Try adjusting your search or filters."
-                        : "Add your first student to get started."
-                    }
-                    className="border-0"
-                  />
+                  <FeesEmpty filtered={Boolean(q) || status !== ALL || classId !== ALL} />
                 </TableCell>
               </TableRow>
             )}
@@ -192,71 +191,83 @@ export function StudentsTable({ canEdit, canArchive }: StudentsTableProps) {
         </Table>
       </div>
 
-      {/* Mobile: a denser, fully tappable card per student. The whole info area is
-          a link to the profile; the actions menu sits outside it to avoid nesting
-          interactive elements. */}
+      {/* Mobile cards */}
       <div className="space-y-2.5 md:hidden">
         {isLoading ? (
           Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-card rounded-xl border p-3.5">
               <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="mt-2 h-3 w-1/2" />
-              <Skeleton className="mt-3 h-4 w-full" />
+              <Skeleton className="mt-3 h-3 w-full" />
             </div>
           ))
         ) : data && data.items.length > 0 ? (
           data.items.map((s) => (
             <div
-              key={s.id}
+              key={s.studentId}
               className={cn(
-                "bg-card relative rounded-xl border transition-colors hover:bg-muted/40",
+                "bg-card rounded-xl border p-3.5",
                 isPlaceholderData && "opacity-60"
               )}
             >
-              <Link href={`/students/${s.id}`} className="block p-3.5">
-                <div className="pr-9">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{s.fullName}</p>
-                    <StatusBadge active={s.status === "ACTIVE"} />
-                  </div>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <Link
+                    href={`/fees/${s.studentId}`}
+                    className="font-medium hover:underline"
+                  >
+                    {s.fullName}
+                  </Link>
                   <p className="text-muted-foreground mt-0.5 truncate text-xs">
                     ID {s.serialNo}
                     {s.className ? ` · ${s.className}` : ""}
-                    {s.guardianName ? ` · ${s.guardianName}` : ""}
                   </p>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground inline-flex min-w-0 items-center gap-1.5 text-sm tabular-nums">
-                      <Phone className="size-3.5 shrink-0" />
-                      <span className="truncate">{s.contactNumber ?? "—"}</span>
-                    </span>
-                    <span className="shrink-0 font-semibold tabular-nums">
-                      {formatCurrency(s.monthlyFee)}
-                    </span>
-                  </div>
                 </div>
-              </Link>
-              {showActions && (
-                <div className="absolute top-2 right-2">
-                  <StudentRowActions
-                    studentId={s.id}
+                <FeeStatusBadge status={s.status} />
+              </div>
+              <div className="mt-3 flex items-end justify-between gap-2">
+                <div className="text-xs">
+                  {s.advance > 0 ? (
+                    <>
+                      <span className="text-muted-foreground">Advance </span>
+                      <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(s.advance)}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground">Pending </span>
+                      <span
+                        className={cn(
+                          "font-semibold tabular-nums",
+                          s.pendingThisMonth > 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-foreground"
+                        )}
+                      >
+                        {formatCurrency(s.pendingThisMonth)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        of {formatCurrency(s.monthlyFee)}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {canRecord && (
+                  <RecordPaymentButton
+                    studentId={s.studentId}
                     studentName={s.fullName}
-                    canEdit={canEdit}
-                    canArchive={canArchive}
+                    monthlyFee={s.monthlyFee}
+                    label="Record"
+                    variant="outline"
+                    size="sm"
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))
         ) : (
-          <EmptyState
-            icon={Users}
-            title="No students found"
-            description={
-              q || status !== ALL || classId !== ALL
-                ? "Try adjusting your search or filters."
-                : "Add your first student to get started."
-            }
-          />
+          <FeesEmpty filtered={Boolean(q) || status !== ALL || classId !== ALL} />
         )}
       </div>
 
@@ -316,5 +327,20 @@ function FilterSelect({
         ))}
       </SelectContent>
     </Select>
+  )
+}
+
+function FeesEmpty({ filtered }: { filtered: boolean }) {
+  return (
+    <EmptyState
+      icon={Wallet}
+      title="No students found"
+      description={
+        filtered
+          ? "Try adjusting your search or filters."
+          : "Add students to start tracking fees."
+      }
+      className="border-0"
+    />
   )
 }

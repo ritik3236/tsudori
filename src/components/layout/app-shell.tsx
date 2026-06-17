@@ -19,6 +19,13 @@ type AppShellProps = {
 
 export function AppShell({ instituteName, permissions, children }: AppShellProps) {
   const items = visibleNavItems(new Set(permissions))
+  const pathname = usePathname()
+  // The page title now lives in the top bar (replacing the institute name, which
+  // stays in the desktop sidebar). Derived from the active nav section.
+  const current = items.find(
+    (i) => pathname === i.href || pathname.startsWith(`${i.href}/`)
+  )
+  const pageTitle = current?.label ?? "Dashboard"
 
   return (
     <div className="flex min-h-screen">
@@ -46,7 +53,9 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
             </Link>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{instituteName}</p>
+              <p className="truncate text-base font-semibold tracking-tight">
+                {pageTitle}
+              </p>
             </div>
 
             <UserButton size="icon" />
@@ -55,7 +64,7 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
 
         {/* Subtle tinted page bg so white cards separate (they blend on pure white).
             Bottom padding clears the fixed bottom nav + home indicator. */}
-        <main className="flex-1 bg-[#f1f0f8] px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8 dark:bg-transparent">
+        <main className="flex-1 bg-[#f5f5f5] px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8 dark:bg-transparent">
           {children}
         </main>
       </div>

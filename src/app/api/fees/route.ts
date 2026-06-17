@@ -1,0 +1,23 @@
+import { created, ok, parseJson, parseQuery, route } from "@/lib/api"
+import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { PERMISSIONS } from "@/lib/rbac"
+import { feeQuerySchema, recordPaymentSchema } from "@/features/fees/schema"
+import { listStudentFees, recordPayment } from "@/features/fees/service"
+
+export const GET = route(async (req) => {
+  const ctx = await getTenantContext()
+  requirePermission(ctx, PERMISSIONS.FEE_READ)
+
+  const query = parseQuery(new URL(req.url).searchParams, feeQuerySchema)
+  const result = await listStudentFees(ctx.institute.id, query)
+  return ok(result)
+})
+
+export const POST = route(async (req) => {
+  const ctx = await getTenantContext()
+  requirePermission(ctx, PERMISSIONS.FEE_RECORD)
+
+  const input = await parseJson(req, recordPaymentSchema)
+  const payment = await recordPayment(ctx.institute.id, ctx.user.id, input)
+  return created(payment)
+})

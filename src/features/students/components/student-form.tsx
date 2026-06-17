@@ -38,6 +38,7 @@ type StudentFormProps = {
   defaultValues?: Partial<StudentFormValues>
   submitLabel: string
   submitting?: boolean
+  syncClassFee?: boolean
   onSubmit: (input: StudentCreateInput) => void
   onCancel?: () => void
 }
@@ -95,6 +96,7 @@ export function StudentForm({
   defaultValues,
   submitLabel,
   submitting,
+  syncClassFee,
   onSubmit,
   onCancel,
 }: StudentFormProps) {
@@ -135,7 +137,16 @@ export function StudentForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Class</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select
+                    value={field.value}
+                    onValueChange={(value) => {
+                      field.onChange(value)
+                      if (syncClassFee && value !== NO_CLASS) {
+                        const cls = classes?.find((c) => c.id === value)
+                        if (cls) form.setValue("monthlyFee", String(cls.defaultMonthlyFee))
+                      }
+                    }}
+                  >
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select class">

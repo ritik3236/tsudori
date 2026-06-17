@@ -124,31 +124,28 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
           ))
         ) : filtered.length > 0 ? (
           filtered.map((cls) => (
-            <div key={cls.id} className="bg-card relative rounded-xl border p-3.5">
-              <div className={canManage ? "pr-9" : undefined}>
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/classes/${cls.id}`}
-                    className="text-sm font-medium hover:underline"
-                  >
-                    {cls.name}
-                  </Link>
-                  {cls.section && (
-                    <Badge variant="secondary" className="text-xs">
-                      {cls.section}
-                    </Badge>
-                  )}
+            <div key={cls.id} className="bg-card relative rounded-xl border transition-colors hover:bg-muted/40">
+              <Link href={`/classes/${cls.id}`} className="block p-3.5">
+                <div className={canManage ? "pr-9" : undefined}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{cls.name}</span>
+                    {cls.section && (
+                      <Badge variant="secondary" className="text-xs">
+                        {cls.section}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {formatCurrency(cls.defaultMonthlyFee)}/mo
+                    </span>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}
+                    </span>
+                    <StatusBadge active={cls.status === "ACTIVE"} />
+                  </div>
                 </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {formatCurrency(cls.defaultMonthlyFee)}/mo
-                  </span>
-                  <span className="text-muted-foreground text-xs tabular-nums">
-                    {cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}
-                  </span>
-                  <StatusBadge active={cls.status === "ACTIVE"} />
-                </div>
-              </div>
+              </Link>
               {canManage && (
                 <div className="absolute top-2 right-2">
                   <ClassRowActions cls={cls} />

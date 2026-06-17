@@ -25,7 +25,6 @@ export function AuthUIProvider({
       replace={router.replace}
       onSessionChange={() => router.refresh()}
       Link={Link}
-      social={{ providers: ["google"] }}
       redirectTo="/dashboard"
       defaultTheme="light"
       className={className}

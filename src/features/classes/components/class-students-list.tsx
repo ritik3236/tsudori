@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Users, Phone } from "lucide-react"
 
+import { MAX_PAGE_SIZE } from "@/lib/constants"
 import { formatCurrency } from "@/lib/format"
 import { useStudents } from "@/features/students/hooks"
 import { StudentRowActions } from "@/features/students/components/student-row-actions"
@@ -29,7 +30,7 @@ export function ClassStudentsList({
   canEdit = false,
   canArchive = false,
 }: ClassStudentsListProps) {
-  const { data, isLoading } = useStudents({ classId, pageSize: 200 })
+  const { data, isLoading } = useStudents({ classId, pageSize: MAX_PAGE_SIZE })
   const showActions = canEdit || canArchive
   const colSpan = showActions ? 5 : 4
 

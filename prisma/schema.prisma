@@ -44,6 +44,7 @@ model User {
   memberships      Membership[]
   markedAttendance Attendance[] @relation("AttendanceMarkedBy")
   recordedPayments FeePayment[] @relation("PaymentRecordedBy")
+  grantedWaivers   FeeWaiver[]  @relation("WaiverBy")
 
   @@map("user")
   @@schema("neon_auth")
@@ -81,6 +82,7 @@ model Institute {
   students    Student[]
   attendance  Attendance[]
   payments    FeePayment[]
+  waivers     FeeWaiver[]
   settings    Setting[]
 
   @@schema("public")
@@ -226,6 +228,7 @@ model Student {
   class      Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
   attendance Attendance[]
   payments   FeePayment[]
+  waivers    FeeWaiver[]
 
   @@unique([instituteId, serialNo])
   @@index([instituteId, status])
@@ -297,6 +300,28 @@ model FeePayment {
 
   @@unique([instituteId, receiptNo])
   @@index([instituteId, paidAt])
+  @@index([studentId])
+  @@schema("public")
+}
+
+/// A concession applied to one student for one fee month. Reduces the amount due
+/// without being cash collected — keeps reports honest (waived ≠ collected).
+model FeeWaiver {
+  id          String   @id @default(cuid())
+  instituteId String
+  studentId   String
+  amount      Decimal  @db.Decimal(10, 2)
+  periodMonth Int
+  periodYear  Int
+  reason      String?
+  waivedById  String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  waivedBy  User?     @relation("WaiverBy", fields: [waivedById], references: [id], onDelete: SetNull)
+
+  @@index([instituteId, periodYear, periodMonth])
   @@index([studentId])
   @@schema("public")
 }

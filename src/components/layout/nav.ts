@@ -55,7 +55,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wallet,
     activeColor: "text-amber-600 dark:text-amber-400",
     permission: PERMISSIONS.FEE_READ,
-    comingSoon: true,
   },
   {
     label: "Classes",

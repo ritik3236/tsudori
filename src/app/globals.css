@@ -16,6 +16,19 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
+/* Printing (fee receipts): drop the app chrome so only the receipt prints. */
+@media print {
+  header,
+  aside,
+  nav[aria-label="Primary"] {
+    display: none !important;
+  }
+  main {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
