@@ -63,6 +63,8 @@ enum InstituteStatus {
 model Institute {
   id          String          @id @default(cuid())
   name        String
+  /// Institute logo as a downscaled base64 data URL (no blob storage yet).
+  logoUrl     String?
   slug        String          @unique
   email       String?
   phone       String?

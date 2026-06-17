@@ -60,6 +60,7 @@ export const ROLE_KEYS = {
   SUPER_ADMIN: "SUPER_ADMIN",
   INSTITUTE_ADMIN: "INSTITUTE_ADMIN",
   TEACHER: "TEACHER",
+  AUDITOR: "AUDITOR",
 } as const
 
 export type RoleKey = (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS]
@@ -97,10 +98,40 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
       PERMISSIONS.REPORT_VIEW,
     ],
   },
+  {
+    key: ROLE_KEYS.AUDITOR,
+    name: "Auditor",
+    description:
+      "Read-only access across the institute — view students, attendance, fees, classes, members, and reports; change nothing.",
+    permissions: [
+      PERMISSIONS.STUDENT_READ,
+      PERMISSIONS.ATTENDANCE_READ,
+      PERMISSIONS.FEE_READ,
+      PERMISSIONS.CLASS_READ,
+      PERMISSIONS.MEMBER_READ,
+      PERMISSIONS.REPORT_VIEW,
+    ],
+  },
 ]
 
 export function resolveRolePermissions(template: RoleTemplate): Permission[] {
   return template.permissions === "*" ? ALL_PERMISSIONS : template.permissions
+}
+
+/**
+ * Sort weight (seniority) for roles — higher = more privileged, shown first.
+ * Custom roles aren't in this map; callers fall back to breadth-of-access
+ * (permission count) so they still order sensibly.
+ */
+export const ROLE_WEIGHTS: Record<string, number> = {
+  [ROLE_KEYS.SUPER_ADMIN]: 100,
+  [ROLE_KEYS.INSTITUTE_ADMIN]: 80,
+  [ROLE_KEYS.TEACHER]: 40,
+  [ROLE_KEYS.AUDITOR]: 20,
+}
+
+export function roleWeight(key: string): number {
+  return ROLE_WEIGHTS[key] ?? 0
 }
 
 /** Pure check used by both server guards and UI gating. */

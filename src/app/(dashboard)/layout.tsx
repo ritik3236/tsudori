@@ -21,7 +21,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <AppShell instituteName={ctx.institute.name} permissions={[...ctx.permissions]}>
+    <AppShell
+      instituteName={ctx.institute.name}
+      logoUrl={ctx.institute.logoUrl}
+      permissions={[...ctx.permissions]}
+    >
       {children}
     </AppShell>
   )

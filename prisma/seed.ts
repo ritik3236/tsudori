@@ -32,7 +32,11 @@ const prisma = new PrismaClient({
 
 // Roles that exist within an institute (SUPER_ADMIN is a platform flag, not an
 // institute role) — used by the seed and reusable when new institutes are created.
-const INSTITUTE_ROLE_KEYS: RoleKey[] = [ROLE_KEYS.INSTITUTE_ADMIN, ROLE_KEYS.TEACHER]
+const INSTITUTE_ROLE_KEYS: RoleKey[] = [
+  ROLE_KEYS.INSTITUTE_ADMIN,
+  ROLE_KEYS.TEACHER,
+  ROLE_KEYS.AUDITOR,
+]
 
 function humanize(permission: Permission): string {
   const [moduleName, action] = permission.split(":")

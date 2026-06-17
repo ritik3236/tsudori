@@ -1,6 +1,7 @@
 import {
   Bell,
   IndianRupee,
+  ShieldCheck,
   SlidersHorizontal,
   University,
   Users,
@@ -33,14 +34,20 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     permission: PERMISSIONS.MEMBER_READ,
   },
   {
+    label: "Roles & permissions",
+    description: "Control what each role can do across the institute.",
+    href: "/settings/roles",
+    icon: ShieldCheck,
+    permission: PERMISSIONS.MEMBER_MANAGE,
+  },
+  {
     label: "Institute profile",
-    description: "Name, contact details, currency, and locale.",
+    description: "Logo, name, and contact details.",
     href: "/settings/profile",
     icon: University,
     permission: PERMISSIONS.SETTING_READ,
-    comingSoon: true,
   },
-{
+  {
     label: "Fees configuration",
     description: "Default fees, payment methods, and receipt numbering.",
     href: "/settings/fees",

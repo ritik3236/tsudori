@@ -14,11 +14,31 @@ import { Badge } from "@/components/ui/badge"
 
 type AppShellProps = {
   instituteName: string
+  logoUrl: string | null
   permissions: string[]
   children: React.ReactNode
 }
 
-export function AppShell({ instituteName, permissions, children }: AppShellProps) {
+// The institute logo (base64 data URL) or the default graduation-cap badge.
+function InstituteMark({ logoUrl }: { logoUrl: string | null }) {
+  if (logoUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt=""
+        className="size-8 shrink-0 rounded-lg border object-cover"
+      />
+    )
+  }
+  return (
+    <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
+      <GraduationCap className="size-4.5" />
+    </span>
+  )
+}
+
+export function AppShell({ instituteName, logoUrl, permissions, children }: AppShellProps) {
   const items = visibleNavItems(new Set(permissions))
   const pathname = usePathname()
   // The page title now lives in the top bar (replacing the institute name, which
@@ -32,7 +52,7 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
     <div className="flex min-h-screen">
       {/* Desktop sidebar — unchanged; hidden on mobile in favour of the bottom bar */}
       <aside className="bg-sidebar text-sidebar-foreground hidden w-64 shrink-0 flex-col border-r lg:flex">
-        <BrandHeader instituteName={instituteName} />
+        <BrandHeader instituteName={instituteName} logoUrl={logoUrl} />
         <SidebarNav items={items} className="flex-1 px-3 py-4" />
         <SidebarFooter />
       </aside>
@@ -48,9 +68,7 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
               aria-label={APP_NAME}
               className="flex items-center gap-2 lg:hidden"
             >
-              <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
-                <GraduationCap className="size-4.5" />
-              </span>
+              <InstituteMark logoUrl={logoUrl} />
             </Link>
 
             <div className="min-w-0 flex-1">
@@ -77,12 +95,16 @@ export function AppShell({ instituteName, permissions, children }: AppShellProps
   )
 }
 
-function BrandHeader({ instituteName }: { instituteName: string }) {
+function BrandHeader({
+  instituteName,
+  logoUrl,
+}: {
+  instituteName: string
+  logoUrl: string | null
+}) {
   return (
     <div className="flex h-14 items-center gap-2.5 border-b px-5">
-      <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
-        <GraduationCap className="size-4.5" />
-      </span>
+      <InstituteMark logoUrl={logoUrl} />
       <div className="flex min-w-0 flex-col leading-none">
         <span className="text-sm font-semibold tracking-tight">{APP_NAME}</span>
         <span className="text-muted-foreground truncate text-xs">{instituteName}</span>
