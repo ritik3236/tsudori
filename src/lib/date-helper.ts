@@ -68,6 +68,21 @@ export function formatDateTime(value: DateInput): string {
   return toAppDT(value)?.toFormat("dd MMM yyyy, h:mm a") ?? "—"
 }
 
+// "just now" / "5m ago" / "3h ago" / "2d ago", falling back to a date past a week.
+// For feeds and activity lists. All arithmetic goes through Luxon, not native Date.
+export function formatRelative(value: DateInput): string {
+  const dt = toAppDT(value)
+  if (!dt) return "—"
+  const mins = Math.floor(DateTime.now().diff(dt, "minutes").minutes)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return dt.toFormat("dd MMM yyyy")
+}
+
 // yyyy-MM-dd in app timezone — for date picker inputs and API params
 export function toDateInputValue(value: DateInput): string {
   return toAppDT(value)?.toISODate() ?? ""

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   School,
   Settings,
+  StickyNote,
   Users,
   Wallet,
   type LucideIcon,
@@ -70,6 +71,13 @@ export const NAV_ITEMS: NavItem[] = [
     activeColor: "text-sky-600 dark:text-sky-400",
     permission: PERMISSIONS.REPORT_VIEW,
     comingSoon: true,
+  },
+  {
+    // Shared institute-wide note board. Open to every member (no permission gate).
+    label: "Notes",
+    href: "/notes",
+    icon: StickyNote,
+    activeColor: "text-teal-600 dark:text-teal-400",
   },
   {
     label: "Settings",
