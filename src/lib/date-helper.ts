@@ -36,6 +36,24 @@ export function appMonthBounds(monthStr: string): [Date, Date] {
   return [start.toJSDate(), start.plus({ months: 1 }).toJSDate()]
 }
 
+// The app-timezone calendar { year, month } (month 1-indexed) for an instant.
+// Use this instead of native getFullYear()/getMonth(): a date stored in UTC that
+// represents an IST calendar day must read in the right month — e.g. admission
+// "1 Jun" is persisted as 2026-05-31T18:30:00Z and must resolve to June, not May.
+export function appYearMonth(date: Date): { year: number; month: number } {
+  const dt = DateTime.fromJSDate(date, { zone: APP_TIMEZONE })
+  return { year: dt.year, month: dt.month }
+}
+
+// UTC instant at the start (00:00 app-tz) of a given month. `month` is 1-indexed
+// and may be out of range (0, 13, -4 …) — it's normalized. Handy for month windows
+// and "first of month" comparisons against UTC-stored dates.
+export function appMonthStartUtc(year: number, month: number): Date {
+  return DateTime.fromObject({ year, month: 1, day: 1 }, { zone: APP_TIMEZONE })
+    .plus({ months: month - 1 })
+    .toJSDate()
+}
+
 // ─── Display formatters ───────────────────────────────────────────────────────
 
 type DateInput = Date | string | number | null | undefined

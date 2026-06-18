@@ -3,6 +3,7 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
+import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import { NotFoundError } from "@/lib/errors"
 import type { Paginated } from "@/features/students/types"
 import type { FeeQuery, RecordPaymentInput, WaiveFeeInput } from "@/features/fees/schema"
@@ -22,8 +23,8 @@ import type {
 // Every function is scoped by instituteId — the tenant boundary.
 
 function currentPeriod() {
-  const d = new Date()
-  return { month: d.getMonth() + 1, year: d.getFullYear() }
+  const { year, month } = appYearMonth(new Date())
+  return { month, year }
 }
 
 // A waiver is a concession: it reduces the amount due for the month without being
@@ -94,8 +95,9 @@ export async function listStudentFees(
     archivedAt: null,
     status: "ACTIVE",
     // Only students enrolled by the selected month owe fees for it — someone
-    // admitted in August isn't billed (or listed) for June/July.
-    admissionDate: { lt: new Date(year, month, 1) },
+    // admitted in August isn't billed (or listed) for June/July. Cutoff is the
+    // start of the NEXT month in app-tz (admitted-this-month still counts).
+    admissionDate: { lt: appMonthStartUtc(year, month + 1) },
     ...(query.classId ? { classId: query.classId } : {}),
   }
   if (query.q) {
@@ -263,8 +265,9 @@ export async function getStudentFee(
     waivedByPeriod.set(k, (waivedByPeriod.get(k) ?? 0) + Number(w.amount))
   }
   let totalOutstanding = 0
-  let wy = student.admissionDate.getFullYear()
-  let wm = student.admissionDate.getMonth() + 1
+  const adm = appYearMonth(student.admissionDate)
+  let wy = adm.year
+  let wm = adm.month
   while (wy < year || (wy === year && wm <= month)) {
     const k = `${wy}-${wm}`
     const paidM = paidByPeriod.get(k) ?? 0
@@ -319,9 +322,7 @@ export async function recordPayment(
     if (!student) throw new NotFoundError("Student not found.")
 
     const fee = Number(student.monthlyFee)
-    const now = new Date()
-    const nowY = now.getFullYear()
-    const nowM = now.getMonth() + 1
+    const { year: nowY, month: nowM } = appYearMonth(new Date())
 
     // What's already settled per month, so we only ever fill the unmet due.
     const [paidGroups, waiverGroups] = await Promise.all([
@@ -362,8 +363,9 @@ export async function recordPayment(
       }
     }
     queue(input.periodYear, input.periodMonth)
-    let by = student.admissionDate.getFullYear()
-    let bm = student.admissionDate.getMonth() + 1
+    const adm = appYearMonth(student.admissionDate)
+    let by = adm.year
+    let bm = adm.month
     while (by < nowY || (by === nowY && bm <= nowM)) {
       queue(by, bm)
       bm += 1
@@ -567,13 +569,13 @@ export async function feeMonthlyOverview(
   // A window of months around now. Expected for each month only counts students
   // already enrolled by then (admissionDate before the next month begins), and is
   // net of waivers — a waived month lowers what's expected to be collected in cash.
-  const now = new Date()
+  const nowYM = appYearMonth(new Date())
   const byMonth: Record<string, { collected: number; expected: number }> = {}
   for (let off = -5; off <= 1; off++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + off, 1)
-    const y = d.getFullYear()
-    const m = d.getMonth() + 1
-    const firstOfNext = new Date(y, m, 1)
+    const { year: y, month: m } = appYearMonth(
+      appMonthStartUtc(nowYM.year, nowYM.month + off)
+    )
+    const firstOfNext = appMonthStartUtc(y, m + 1)
     const key = `${y}-${m}`
     const expected = students
       .filter((s) => s.admissionDate < firstOfNext)
