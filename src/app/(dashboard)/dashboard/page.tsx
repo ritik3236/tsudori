@@ -45,8 +45,12 @@ function compactInr(n: number): string {
 
 export default async function DashboardPage() {
   const ctx = await getTenantContext()
-  const stats = await getDashboardStats(ctx.institute.id)
+  const canViewFees = can(ctx, PERMISSIONS.FEE_READ)
+  const stats = await getDashboardStats(ctx.institute.id, {
+    includeFinancials: canViewFees,
+  })
   const att = stats.attendance
+  const finance = stats.finance
 
   const now = new Date()
   const hour = parseInt(
@@ -91,7 +95,11 @@ export default async function DashboardPage() {
         <div className="card-soft relative -mt-9 mx-2 grid grid-cols-3 divide-x divide-border/70 rounded-[16px] bg-card py-4">
           <Stat value={stats.totalStudents} label="Students" />
           <Stat value={att.present} label="Present" />
-          <Stat value={compactInr(stats.feeCollectedThisMonth)} label="Collected" />
+          {finance ? (
+            <Stat value={compactInr(finance.feeCollectedThisMonth)} label="Collected" />
+          ) : (
+            <Stat value={att.absent} label="Absent" />
+          )}
         </div>
       </div>
 
@@ -121,7 +129,12 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Attendance */}
-        <div className="card-soft bg-card rounded-[16px] p-5 lg:col-span-2">
+        <div
+          className={cn(
+            "card-soft bg-card rounded-[16px] p-5",
+            finance ? "lg:col-span-2" : "lg:col-span-5"
+          )}
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold">Today&apos;s attendance</h2>
             <Link
@@ -143,7 +156,9 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent payments */}
+        {/* Recent payments — only rendered for viewers with fee:read; the data
+            is null otherwise and never reaches the client. */}
+        {finance && (
         <div className="card-soft bg-card rounded-[16px] p-5 lg:col-span-3">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Recent payments</h2>
@@ -154,7 +169,7 @@ export default async function DashboardPage() {
               See all
             </Link>
           </div>
-          {stats.recentPayments.length === 0 ? (
+          {finance.recentPayments.length === 0 ? (
             <EmptyState
               icon={Receipt}
               title="No payments yet"
@@ -163,7 +178,7 @@ export default async function DashboardPage() {
             />
           ) : (
             <ul className="space-y-1">
-              {stats.recentPayments.map((p, i) => (
+              {finance.recentPayments.map((p, i) => (
                 <li
                   key={p.id}
                   className="flex items-center gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-muted/50"
@@ -190,6 +205,7 @@ export default async function DashboardPage() {
             </ul>
           )}
         </div>
+        )}
       </div>
     </div>
   )

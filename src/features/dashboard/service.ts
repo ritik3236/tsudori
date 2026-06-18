@@ -3,14 +3,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { todayInAppTz, appDayBounds, appMonthBounds } from "@/lib/date-helper"
 
-export type DashboardStats = {
-  totalStudents: number
-  attendance: {
-    present: number
-    absent: number
-    leave: number
-    notMarked: number
-  }
+export type DashboardFinance = {
   feeCollectedThisMonth: number
   outstandingThisMonth: number
   recentPayments: {
@@ -22,12 +15,33 @@ export type DashboardStats = {
   }[]
 }
 
+export type DashboardStats = {
+  totalStudents: number
+  attendance: {
+    present: number
+    absent: number
+    leave: number
+    notMarked: number
+  }
+  // null when the viewer lacks fee:read. The financial queries are never run for
+  // them (see below), so the numbers can't leak through the RSC payload — this
+  // is the real authorization boundary, not just UI hiding.
+  finance: DashboardFinance | null
+}
+
 /**
  * Computes the dashboard summary for one institute. All queries are scoped by
  * instituteId — the tenant boundary. "Outstanding" is the current month's
  * expected fees (active students × monthly fee) minus what's been collected.
+ *
+ * Financial figures (collected/outstanding/recent payments) are only computed
+ * when `includeFinancials` is true — the caller must pass the result of a
+ * fee:read permission check. Without it, those queries don't execute at all.
  */
-export async function getDashboardStats(instituteId: string): Promise<DashboardStats> {
+export async function getDashboardStats(
+  instituteId: string,
+  opts: { includeFinancials: boolean }
+): Promise<DashboardStats> {
   const todayIST = todayInAppTz()
   const [ty, tm] = todayIST.split("-").map(Number)
   const [dayStart, dayEnd] = appDayBounds(todayIST)
@@ -36,35 +50,51 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
 
   const activeWhere = { instituteId, status: "ACTIVE" as const, archivedAt: null }
 
-  // Wave 1: everything that doesn't depend on the active-student id list runs in
-  // parallel (the fee/payment queries don't need it). Only the attendance counts
-  // do, so they wait for activeStudents — but no longer block the fee queries.
-  const [
-    activeStudents,
-    collectedAgg,
-    expectedAgg,
-    collectedForOutstanding,
-    recentPayments,
-  ] = await Promise.all([
+  // Wave 1: the active-student list (always needed) runs alongside the financial
+  // bundle. The fee/payment queries execute ONLY when the viewer has fee:read —
+  // otherwise `finance` resolves to null and nothing financial is ever fetched.
+  const financeWork: Promise<DashboardFinance | null> = opts.includeFinancials
+    ? (async () => {
+        const [collectedAgg, expectedAgg, collectedForOutstanding, recentPayments] =
+          await Promise.all([
+            prisma.feePayment.aggregate({
+              where: { instituteId, paidAt: { gte: monthStart, lt: monthEnd } },
+              _sum: { amount: true },
+            }),
+            prisma.student.aggregate({
+              where: activeWhere,
+              _sum: { monthlyFee: true },
+            }),
+            prisma.feePayment.aggregate({
+              where: { instituteId, periodMonth: tm, periodYear: ty },
+              _sum: { amount: true },
+            }),
+            prisma.feePayment.findMany({
+              where: { instituteId },
+              orderBy: { paidAt: "desc" },
+              take: 5,
+              include: { student: { select: { fullName: true } } },
+            }),
+          ])
+        const expected = Number(expectedAgg._sum.monthlyFee ?? 0)
+        const collectedForMonth = Number(collectedForOutstanding._sum.amount ?? 0)
+        return {
+          feeCollectedThisMonth: Number(collectedAgg._sum.amount ?? 0),
+          outstandingThisMonth: Math.max(0, expected - collectedForMonth),
+          recentPayments: recentPayments.map((p) => ({
+            id: p.id,
+            studentName: p.student.fullName,
+            amount: Number(p.amount),
+            paidAt: p.paidAt,
+            receiptNo: p.receiptNo,
+          })),
+        }
+      })()
+    : Promise.resolve(null)
+
+  const [activeStudents, finance] = await Promise.all([
     prisma.student.findMany({ where: activeWhere, select: { id: true } }),
-    prisma.feePayment.aggregate({
-      where: { instituteId, paidAt: { gte: monthStart, lt: monthEnd } },
-      _sum: { amount: true },
-    }),
-    prisma.student.aggregate({
-      where: activeWhere,
-      _sum: { monthlyFee: true },
-    }),
-    prisma.feePayment.aggregate({
-      where: { instituteId, periodMonth: tm, periodYear: ty },
-      _sum: { amount: true },
-    }),
-    prisma.feePayment.findMany({
-      where: { instituteId },
-      orderBy: { paidAt: "desc" },
-      take: 5,
-      include: { student: { select: { fullName: true } } },
-    }),
+    financeWork,
   ])
 
   const activeStudentIds = activeStudents.map((s) => s.id)
@@ -81,9 +111,6 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
     prisma.attendance.count({ where: { ...attendanceWhere, status: "LEAVE" } }),
   ])
 
-  const expected = Number(expectedAgg._sum.monthlyFee ?? 0)
-  const collectedForMonth = Number(collectedForOutstanding._sum.amount ?? 0)
-
   return {
     totalStudents: activeStudents.length,
     attendance: {
@@ -92,14 +119,6 @@ export async function getDashboardStats(instituteId: string): Promise<DashboardS
       leave,
       notMarked: Math.max(0, activeStudents.length - present - absent - leave),
     },
-    feeCollectedThisMonth: Number(collectedAgg._sum.amount ?? 0),
-    outstandingThisMonth: Math.max(0, expected - collectedForMonth),
-    recentPayments: recentPayments.map((p) => ({
-      id: p.id,
-      studentName: p.student.fullName,
-      amount: Number(p.amount),
-      paidAt: p.paidAt,
-      receiptNo: p.receiptNo,
-    })),
+    finance,
   }
 }

@@ -74,7 +74,11 @@ export async function listStudents(
 
 export async function getStudent(
   instituteId: string,
-  id: string
+  id: string,
+  // Collected-fee figures (totalPaid / paymentsCount / recentPayments) are only
+  // queried when the caller has fee:read. Defaults to true for internal callers
+  // (post-create/update); the page and API route pass the permission result.
+  opts: { includeFinancials: boolean } = { includeFinancials: true }
 ): Promise<StudentDetail> {
   const student = await prisma.student.findFirst({
     where: { id, instituteId },
@@ -82,22 +86,39 @@ export async function getStudent(
   })
   if (!student) throw new NotFoundError("Student not found.")
 
-  const [paidAgg, attendanceGroups, recentPayments] = await Promise.all([
-    prisma.feePayment.aggregate({
-      where: { studentId: id, instituteId },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }),
+  const [attendanceGroups, financials] = await Promise.all([
     prisma.attendance.groupBy({
       by: ["status"],
       where: { studentId: id, instituteId },
       _count: { _all: true },
     }),
-    prisma.feePayment.findMany({
-      where: { studentId: id, instituteId },
-      orderBy: { paidAt: "desc" },
-      take: 5,
-    }),
+    opts.includeFinancials
+      ? (async () => {
+          const [paidAgg, recentPayments] = await Promise.all([
+            prisma.feePayment.aggregate({
+              where: { studentId: id, instituteId },
+              _sum: { amount: true },
+              _count: { _all: true },
+            }),
+            prisma.feePayment.findMany({
+              where: { studentId: id, instituteId },
+              orderBy: { paidAt: "desc" },
+              take: 5,
+            }),
+          ])
+          return {
+            totalPaid: Number(paidAgg._sum.amount ?? 0),
+            paymentsCount: paidAgg._count._all,
+            recentPayments: recentPayments.map((p) => ({
+              id: p.id,
+              amount: Number(p.amount),
+              paidAt: p.paidAt.toISOString(),
+              receiptNo: p.receiptNo,
+              method: p.method,
+            })),
+          }
+        })()
+      : Promise.resolve(null),
   ])
 
   const att = (s: "PRESENT" | "ABSENT" | "LEAVE") =>
@@ -111,21 +132,15 @@ export async function getStudent(
     createdAt: student.createdAt.toISOString(),
     fees: {
       monthlyFee: Number(student.monthlyFee),
-      totalPaid: Number(paidAgg._sum.amount ?? 0),
-      paymentsCount: paidAgg._count._all,
+      totalPaid: financials?.totalPaid ?? null,
+      paymentsCount: financials?.paymentsCount ?? null,
     },
     attendance: {
       present: att("PRESENT"),
       absent: att("ABSENT"),
       leave: att("LEAVE"),
     },
-    recentPayments: recentPayments.map((p) => ({
-      id: p.id,
-      amount: Number(p.amount),
-      paidAt: p.paidAt.toISOString(),
-      receiptNo: p.receiptNo,
-      method: p.method,
-    })),
+    recentPayments: financials?.recentPayments ?? null,
   }
 }
 

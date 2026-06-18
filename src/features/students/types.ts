@@ -23,22 +23,27 @@ export type StudentDetail = StudentListItem & {
   archivedAt: string | null
   createdAt: string
   fees: {
+    // The fee rate is a student attribute (also shown in lists). The collected
+    // figures below are null when the viewer lacks fee:read — never fetched.
     monthlyFee: number
-    totalPaid: number
-    paymentsCount: number
+    totalPaid: number | null
+    paymentsCount: number | null
   }
   attendance: {
     present: number
     absent: number
     leave: number
   }
-  recentPayments: {
-    id: string
-    amount: number
-    paidAt: string
-    receiptNo: number
-    method: string
-  }[]
+  // null (not just empty) when the viewer lacks fee:read.
+  recentPayments:
+    | {
+        id: string
+        amount: number
+        paidAt: string
+        receiptNo: number
+        method: string
+      }[]
+    | null
 }
 
 export type Paginated<T> = {

@@ -84,8 +84,12 @@ export function StudentProfile({ student, canEdit, canArchive }: StudentProfileP
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <Stat label="Monthly fee" value={formatCurrency(student.fees.monthlyFee)} />
-              <Stat label="Total paid" value={formatCurrency(student.fees.totalPaid)} />
-              <Stat label="Payments" value={String(student.fees.paymentsCount)} />
+              {student.fees.totalPaid !== null && (
+                <Stat label="Total paid" value={formatCurrency(student.fees.totalPaid)} />
+              )}
+              {student.fees.paymentsCount !== null && (
+                <Stat label="Payments" value={String(student.fees.paymentsCount)} />
+              )}
             </div>
             <div className="grid grid-cols-3 gap-2 border-t pt-4 text-center">
               <AttStat icon={CalendarCheck} label="Present" value={student.attendance.present} tone="text-emerald-600 dark:text-emerald-400" />
@@ -96,33 +100,36 @@ export function StudentProfile({ student, canEdit, canArchive }: StudentProfileP
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {student.recentPayments.length === 0 ? (
-            <EmptyState
-              icon={Receipt}
-              title="No payments recorded"
-              className="border-0 py-8"
-            />
-          ) : (
-            <ul className="divide-y">
-              {student.recentPayments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
-                  <div>
-                    <p className="text-sm font-medium">{formatCurrency(p.amount)}</p>
-                    <p className="text-muted-foreground text-xs">
-                      Receipt #{p.receiptNo} · {formatDateLong(p.paidAt)} · {p.method}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      {/* Only rendered for viewers with fee:read; null otherwise (never fetched). */}
+      {student.recentPayments && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent payments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {student.recentPayments.length === 0 ? (
+              <EmptyState
+                icon={Receipt}
+                title="No payments recorded"
+                className="border-0 py-8"
+              />
+            ) : (
+              <ul className="divide-y">
+                {student.recentPayments.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium">{formatCurrency(p.amount)}</p>
+                      <p className="text-muted-foreground text-xs">
+                        Receipt #{p.receiptNo} · {formatDateLong(p.paidAt)} · {p.method}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

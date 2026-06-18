@@ -1,5 +1,5 @@
 import { noContent, ok, parseJson, route } from "@/lib/api"
-import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { studentUpdateSchema } from "@/features/students/schema"
 import {
@@ -15,7 +15,9 @@ export const GET = route<RouteContext>(async (_req, { params }) => {
   const ctx = await getTenantContext()
   requirePermission(ctx, PERMISSIONS.STUDENT_READ)
 
-  const student = await getStudent(ctx.institute.id, id)
+  const student = await getStudent(ctx.institute.id, id, {
+    includeFinancials: can(ctx, PERMISSIONS.FEE_READ),
+  })
   return ok(student)
 })
 

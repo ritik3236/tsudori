@@ -21,7 +21,9 @@ export default async function StudentProfilePage({
 
   let student: Awaited<ReturnType<typeof getStudent>>
   try {
-    student = await getStudent(ctx.institute.id, id)
+    student = await getStudent(ctx.institute.id, id, {
+      includeFinancials: can(ctx, PERMISSIONS.FEE_READ),
+    })
   } catch (error) {
     if (error instanceof NotFoundError) notFound()
     throw error
