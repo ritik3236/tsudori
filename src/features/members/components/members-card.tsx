@@ -60,12 +60,12 @@ export function MembersCard({
   return (
     <div className="space-y-4">
       {(canManageMembers || canManageIdentities) && (
-        <div className="flex flex-col justify-end gap-2 sm:flex-row">
+        <div className="flex gap-2 sm:justify-end">
           {/* Invite (member:manage) — sends a link, no super-admin needed. */}
           {canManageMembers && <InviteMemberButton />}
           {/* Direct create (super admin only) — instant account, no invitee step. */}
           {canManageIdentities && (
-            <Button size="sm" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setAddOpen(true)}>
               <UserPlus className="size-4" /> Add member
             </Button>
           )}

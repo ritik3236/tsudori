@@ -76,6 +76,9 @@ export function AppShell({ instituteName, logoUrl, permissions, isAdmin, childre
               <p className="truncate text-base font-semibold tracking-tight">
                 {pageTitle}
               </p>
+              <p className="text-muted-foreground truncate text-xs leading-tight">
+                {instituteName}
+              </p>
             </div>
 
             <RefreshButton />

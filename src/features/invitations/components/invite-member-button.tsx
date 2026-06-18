@@ -85,7 +85,7 @@ export function InviteMemberButton() {
 
   return (
     <>
-      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setOpen(true)}>
         <Mail className="size-4" /> Invite member
       </Button>
       <Dialog open={open} onOpenChange={onOpenChange}>

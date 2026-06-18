@@ -46,8 +46,10 @@ export default async function DashboardPage() {
   const hour = parseInt(
     new Intl.DateTimeFormat("en-IN", { timeZone: APP_TIMEZONE, hour: "numeric", hour12: false }).format(now)
   )
+  const firstName = ctx.user.name.trim().split(/\s+/)[0]
   const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+    (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening") +
+    (firstName ? `, ${firstName}` : "")
   const today = new Intl.DateTimeFormat("en-IN", {
     timeZone: APP_TIMEZONE,
     weekday: "long",
