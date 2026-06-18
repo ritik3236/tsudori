@@ -3,7 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { forbidden } from "next/navigation"
-import type { Institute, Membership, Role, User } from "@prisma/client"
+import type { Institute, Membership, Prisma, Role, User } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
@@ -30,6 +30,15 @@ export type TenantContext = {
   isSuperAdmin: boolean
 }
 
+// Fold the active role's permissions into the membership fetch so resolving a
+// tenant context costs ONE round trip here instead of a second query. Shared by
+// both membership lookups so they can't drift. `satisfies` keeps the literal
+// shape, so Prisma still infers role.permissions[].permission on the result.
+const MEMBERSHIP_INCLUDE = {
+  role: { include: { permissions: { include: { permission: true } } } },
+  institute: true,
+} satisfies Prisma.MembershipInclude
+
 /**
  * Resolves the active institute for the signed-in user and loads their effective
  * permissions. Order of resolution:
@@ -46,7 +55,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
 
   let memberships = await prisma.membership.findMany({
     where: { userId: user.id, status: "ACTIVE" },
-    include: { role: true, institute: true },
+    include: MEMBERSHIP_INCLUDE,
     orderBy: { createdAt: "asc" },
   })
 
@@ -58,7 +67,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       user = await requireUser() // refresh the promoted role
       memberships = await prisma.membership.findMany({
         where: { userId: user.id, status: "ACTIVE" },
-        include: { role: true, institute: true },
+        include: MEMBERSHIP_INCLUDE,
         orderBy: { createdAt: "asc" },
       })
     }
@@ -77,7 +86,11 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     const { institute, ...membership } = active
     const permissions = isSuperAdmin
       ? new Set<Permission>(ALL_PERMISSIONS)
-      : await loadRolePermissions(membership.roleId)
+      : new Set<Permission>(
+          membership.role.permissions.map(
+            (rp) => rp.permission.key as Permission
+          )
+        )
 
     return {
       user,
@@ -140,14 +153,6 @@ async function maybeBootstrapAdmin(user: User): Promise<boolean> {
     }),
   ])
   return true
-}
-
-async function loadRolePermissions(roleId: string): Promise<Set<Permission>> {
-  const rows = await prisma.rolePermission.findMany({
-    where: { roleId },
-    include: { permission: true },
-  })
-  return new Set(rows.map((r) => r.permission.key as Permission))
 }
 
 /** Guards a server action / route. Throws ForbiddenError when the permission is missing. */
