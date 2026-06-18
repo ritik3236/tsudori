@@ -1,10 +1,12 @@
 "use client"
 
-import { useForm } from "react-hook-form"
+import { useEffect } from "react"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { formatCurrency, toDateInputValue } from "@/lib/format"
 import { appYearMonth } from "@/lib/date-helper"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   METHOD_LABELS,
   PAYMENT_METHODS,
@@ -60,11 +62,14 @@ function defaults(
     method: "CASH",
     paidAt: toDateInputValue(now),
     note: "",
+    waiveShortfall: false,
   }
 }
 
 type PaymentFormProps = {
   monthlyFee: number
+  // Outstanding due for the default period; enables the "settle short" option.
+  remainingDue?: number
   submitting: boolean
   onSubmit: (values: PaymentFormValues) => void
   onCancel: () => void
@@ -74,6 +79,7 @@ type PaymentFormProps = {
 
 export function PaymentForm({
   monthlyFee,
+  remainingDue,
   submitting,
   onSubmit,
   onCancel,
@@ -87,6 +93,28 @@ export function PaymentForm({
 
   const thisYear = appYearMonth(new Date()).year
   const years = [thisYear - 1, thisYear, thisYear + 1]
+
+  // Settle-short: only offer to waive the leftover when we actually know the due
+  // for the period being recorded — i.e. the default month/year that `remainingDue`
+  // was computed for. Changing the month hides it (that month's due is unknown).
+  const watched = useWatch({ control: form.control })
+  const amount = Number(watched.amount || 0)
+  const samePeriod =
+    defaultMonth != null &&
+    defaultYear != null &&
+    Number(watched.periodMonth) === defaultMonth &&
+    Number(watched.periodYear) === defaultYear
+  const shortfall =
+    remainingDue != null && samePeriod ? Math.max(0, remainingDue - amount) : 0
+  const canWaive = shortfall > 0 && amount > 0
+
+  // Don't leave a stale "waive" checked once the shortfall disappears (full/over-
+  // payment, or the month was changed).
+  useEffect(() => {
+    if (!canWaive && form.getValues("waiveShortfall")) {
+      form.setValue("waiveShortfall", false)
+    }
+  }, [canWaive, form])
 
   return (
     <Form {...form}>
@@ -230,6 +258,34 @@ export function PaymentForm({
             </FormItem>
           )}
         />
+
+        {canWaive && (
+          <FormField
+            control={form.control}
+            name="waiveShortfall"
+            render={({ field }) => (
+              <FormItem>
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="mt-0.5"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">
+                      Mark fully paid — waive remaining {formatCurrency(shortfall)}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      Records {formatCurrency(amount)} as collected and waives{" "}
+                      {formatCurrency(shortfall)} as a concession, so this month
+                      closes as settled.
+                    </span>
+                  </span>
+                </label>
+              </FormItem>
+            )}
+          />
+        )}
 
         <p className="text-muted-foreground text-xs">
           Anything beyond this month&apos;s due clears outstanding months first

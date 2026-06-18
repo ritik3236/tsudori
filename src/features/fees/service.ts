@@ -313,7 +313,7 @@ export async function recordPayment(
   instituteId: string,
   recordedById: string | null,
   input: RecordPaymentInput
-): Promise<PaymentItem[]> {
+): Promise<{ payments: PaymentItem[]; waivedAmount: number }> {
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
@@ -435,10 +435,36 @@ export async function recordPayment(
     // money against the selected month rather than silently dropping it.
     if (remaining > 0) await apply(input.periodYear, input.periodMonth, remaining)
 
-    return rows
+    // Settle-short: after the cash is applied, waive whatever still remains on the
+    // SELECTED month so a short payment closes it as paid instead of carrying a
+    // balance. The amount is whatever's left (fee − paid − already-waived), so it
+    // can't over-waive even if some cash already landed on this month.
+    let waivedAmount = 0
+    if (input.waiveShortfall) {
+      const shortfall = dueOf(input.periodYear, input.periodMonth)
+      if (shortfall > 0) {
+        await tx.feeWaiver.create({
+          data: {
+            instituteId,
+            studentId: student.id,
+            amount: shortfall,
+            periodMonth: input.periodMonth,
+            periodYear: input.periodYear,
+            reason: "Balance waived to settle the month",
+            waivedById: recordedById,
+          },
+        })
+        waivedAmount = shortfall
+      }
+    }
+
+    return { rows, waivedAmount }
   })
 
-  return created.map(toPaymentItem)
+  return {
+    payments: created.rows.map(toPaymentItem),
+    waivedAmount: created.waivedAmount,
+  }
 }
 
 /**

@@ -17,6 +17,7 @@ type RecordPaymentDialogProps = {
   studentId: string
   studentName: string
   monthlyFee: number
+  remainingDue?: number
   defaultMonth?: number
   defaultYear?: number
 }
@@ -27,6 +28,7 @@ export function RecordPaymentDialog({
   studentId,
   studentName,
   monthlyFee,
+  remainingDue,
   defaultMonth,
   defaultYear,
 }: RecordPaymentDialogProps) {
@@ -41,6 +43,7 @@ export function RecordPaymentDialog({
         </DialogHeader>
         <PaymentForm
           monthlyFee={monthlyFee}
+          remainingDue={remainingDue}
           defaultMonth={defaultMonth}
           defaultYear={defaultYear}
           submitting={record.isPending}

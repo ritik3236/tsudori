@@ -78,6 +78,9 @@ export default async function StudentFeesPage({
               studentId={fee.studentId}
               studentName={fee.fullName}
               monthlyFee={fee.monthlyFee}
+              remainingDue={fee.pendingThisMonth}
+              defaultMonth={periodMonth}
+              defaultYear={periodYear}
               className="w-full sm:w-auto"
             />
           </div>

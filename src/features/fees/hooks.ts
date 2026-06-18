@@ -46,15 +46,17 @@ export function useRecordPayment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: RecordPaymentInput) => feesApi.record(data),
-    onSuccess: (payments) => {
+    onSuccess: ({ payments, waivedAmount }) => {
       qc.invalidateQueries({ queryKey: feeKeys.all })
+      const waived =
+        waivedAmount > 0 ? ` · ₹${waivedAmount.toLocaleString("en-IN")} waived` : ""
       if (payments.length <= 1) {
-        toast.success(`Payment recorded — receipt #${payments[0]?.receiptNo}.`)
+        toast.success(`Payment recorded — receipt #${payments[0]?.receiptNo}${waived}.`)
       } else {
         const first = payments[0].receiptNo
         const lastNo = payments[payments.length - 1].receiptNo
         toast.success(
-          `Payment recorded across ${payments.length} months — receipts #${first}–#${lastNo}.`
+          `Payment recorded across ${payments.length} months — receipts #${first}–#${lastNo}${waived}.`
         )
       }
     },

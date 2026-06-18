@@ -38,6 +38,7 @@ export const feesApi = {
     http.get<StudentFeeDetail>(`/api/fees/${studentId}`),
   overview: (classId?: string) =>
     http.get<FeeMonthlyOverview>(`/api/fees/overview${buildQuery({ classId })}`),
-  record: (data: RecordPaymentInput) => http.post<PaymentItem[]>("/api/fees", data),
+  record: (data: RecordPaymentInput) =>
+    http.post<{ payments: PaymentItem[]; waivedAmount: number }>("/api/fees", data),
   waive: (data: WaiveFeeInput) => http.post<WaiverItem>("/api/fees/waiver", data),
 }

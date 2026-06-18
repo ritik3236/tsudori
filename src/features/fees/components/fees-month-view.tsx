@@ -343,6 +343,7 @@ function Row({
               studentId={s.studentId}
               studentName={s.fullName}
               monthlyFee={s.monthlyFee}
+              remainingDue={s.pendingThisMonth}
               label="Record"
               variant="outline"
               size="sm"

@@ -18,6 +18,6 @@ export const POST = route(async (req) => {
   requirePermission(ctx, PERMISSIONS.FEE_RECORD)
 
   const input = await parseJson(req, recordPaymentSchema)
-  const payment = await recordPayment(ctx.institute.id, ctx.user.id, input)
-  return created(payment)
+  const result = await recordPayment(ctx.institute.id, ctx.user.id, input)
+  return created(result)
 })

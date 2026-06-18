@@ -41,6 +41,10 @@ export const recordPaymentSchema = z.object({
     .max(500)
     .nullish()
     .transform((v) => v || null),
+  // When the cash is short of the selected month's due, waive the remainder so
+  // the month closes as paid instead of carrying a balance. The server computes
+  // the exact shortfall after applying this payment.
+  waiveShortfall: z.boolean().optional().default(false),
 })
 
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>
@@ -87,6 +91,7 @@ export const paymentFormSchema = z.object({
   method: z.enum(PAYMENT_METHODS),
   paidAt: z.string().min(1, "Date is required."),
   note: z.string().trim().max(500),
+  waiveShortfall: z.boolean(),
 })
 
 export type PaymentFormValues = z.infer<typeof paymentFormSchema>
@@ -103,6 +108,7 @@ export function formValuesToInput(
     method: v.method,
     paidAt: appDateToUtc(v.paidAt),
     note: v.note || null,
+    waiveShortfall: v.waiveShortfall,
   }
 }
 
