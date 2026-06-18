@@ -88,6 +88,7 @@ model Institute {
   waivers     FeeWaiver[]
   notes       Note[]
   settings    Setting[]
+  invitations Invitation[]
 
   @@schema("public")
 }
@@ -137,9 +138,41 @@ model Role {
   institute   Institute?       @relation(fields: [instituteId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   memberships Membership[]
+  invitations Invitation[]
 
   @@unique([instituteId, key])
   @@index([instituteId])
+  @@schema("public")
+}
+
+/// A pending invite for someone to join an institute with a role. The invitee
+/// opens /invite/<token>, sets a password, and a membership is created. Lets
+/// non-super-admins (member:manage) add members without the admin identity API.
+model Invitation {
+  id          String           @id @default(cuid())
+  instituteId String
+  email       String
+  roleId      String
+  token       String           @unique
+  invitedById String           @db.Uuid
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id])
+
+  @@index([instituteId])
+  @@index([email])
+  @@schema("public")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+
   @@schema("public")
 }
 

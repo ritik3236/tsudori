@@ -10,7 +10,11 @@ export const metadata: Metadata = { title: "Account" }
 export const dynamicParams = false
 
 export function generateStaticParams() {
-  return Object.values(authViewPaths).map((path) => ({ path }))
+  // Public self-signup is disabled — drop the sign-up view so /auth/sign-up 404s
+  // (dynamicParams is false). People join only via an invite link.
+  return Object.entries(authViewPaths)
+    .filter(([key]) => key !== "signUp")
+    .map(([, path]) => ({ path }))
 }
 
 export default async function AuthPage({

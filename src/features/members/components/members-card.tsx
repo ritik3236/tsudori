@@ -6,6 +6,7 @@ import { UserPlus, Users } from "lucide-react"
 import { formatDateShort, getInitials } from "@/lib/format"
 import { useMembers } from "@/features/members/hooks"
 import { AddMemberDialog } from "@/features/members/components/add-member-dialog"
+import { InviteMemberButton } from "@/features/invitations/components/invite-member-button"
 import { MemberRowActions } from "@/features/members/components/member-row-actions"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -58,11 +59,16 @@ export function MembersCard({
 
   return (
     <div className="space-y-4">
-      {canManageIdentities && (
-        <div className="flex justify-end">
-          <Button size="sm" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
-            <UserPlus className="size-4" /> Add member
-          </Button>
+      {(canManageMembers || canManageIdentities) && (
+        <div className="flex flex-col justify-end gap-2 sm:flex-row">
+          {/* Invite (member:manage) — sends a link, no super-admin needed. */}
+          {canManageMembers && <InviteMemberButton />}
+          {/* Direct create (super admin only) — instant account, no invitee step. */}
+          {canManageIdentities && (
+            <Button size="sm" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+              <UserPlus className="size-4" /> Add member
+            </Button>
+          )}
         </div>
       )}
 

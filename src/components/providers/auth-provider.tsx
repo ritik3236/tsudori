@@ -27,6 +27,9 @@ export function AuthUIProvider({
       Link={Link}
       redirectTo="/dashboard"
       defaultTheme="light"
+      // Public self-signup is disabled — people join only via an invite link
+      // (/invite/<token>). The auth UI shows sign-in only.
+      signUp={false}
       className={className}
     >
       {children}
