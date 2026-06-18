@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Roles & permissions" }
 
 export default async function RolesSettingsPage() {
   const ctx = await getTenantContext()
-  requirePagePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
+  requirePagePermission(ctx, PERMISSIONS.ROLE_MANAGE)
 
   const qc = makeServerQueryClient()
   await qc.prefetchQuery({

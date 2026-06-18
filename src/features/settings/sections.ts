@@ -50,21 +50,21 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Control what each role can do across the institute.",
     href: "/admin/settings/roles",
     icon: ShieldCheck,
-    permission: PERMISSIONS.MEMBER_MANAGE,
+    permission: PERMISSIONS.ROLE_MANAGE,
   },
   {
     label: "Institute profile",
     description: "Logo, name, and contact details.",
     href: "/admin/settings/institute",
     icon: University,
-    permission: PERMISSIONS.SETTING_READ,
+    permission: PERMISSIONS.INSTITUTE_READ,
   },
   {
     label: "Fees configuration",
     description: "Default fees, payment methods, and receipt numbering.",
     href: "/admin/settings/fees",
     icon: IndianRupee,
-    permission: PERMISSIONS.FEE_READ,
+    permission: PERMISSIONS.FEE_CONFIGURE,
     comingSoon: true,
   },
   {
@@ -72,7 +72,7 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Reminders and alerts sent to staff and guardians.",
     href: "/admin/settings/notifications",
     icon: Bell,
-    permission: PERMISSIONS.SETTING_MANAGE,
+    permission: PERMISSIONS.INSTITUTE_MANAGE,
     comingSoon: true,
   },
   {
@@ -80,7 +80,7 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Custom key/value settings and data tools.",
     href: "/admin/settings/advanced",
     icon: SlidersHorizontal,
-    permission: PERMISSIONS.SETTING_MANAGE,
+    permission: PERMISSIONS.INSTITUTE_MANAGE,
     comingSoon: true,
   },
 ]

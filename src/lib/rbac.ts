@@ -9,9 +9,9 @@ export const PERMISSION_MODULES = [
   "fee",
   "class",
   "report",
-  "setting",
   "institute",
   "member",
+  "role",
 ] as const
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number]
@@ -29,24 +29,37 @@ export const PERMISSIONS = {
   FEE_READ: "fee:read",
   FEE_RECORD: "fee:record",
   FEE_WAIVE: "fee:waive",
+  FEE_CONFIGURE: "fee:configure",
 
   CLASS_READ: "class:read",
   CLASS_MANAGE: "class:manage",
 
   REPORT_VIEW: "report:view",
 
-  SETTING_READ: "setting:read",
-  SETTING_MANAGE: "setting:manage",
-
+  INSTITUTE_READ: "institute:read",
   INSTITUTE_MANAGE: "institute:manage",
 
   MEMBER_READ: "member:read",
   MEMBER_MANAGE: "member:manage",
+
+  ROLE_MANAGE: "role:manage",
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 
 export const ALL_PERMISSIONS: Permission[] = Object.values(PERMISSIONS)
+
+// Holding ANY of these grants entry to the /admin area; each admin page then
+// enforces its own specific permission. Lets you build partial-admin roles
+// (e.g. an "Accountant" with only fee:configure sees just Fees configuration).
+export const ADMIN_PERMISSIONS: Permission[] = [
+  PERMISSIONS.INSTITUTE_READ,
+  PERMISSIONS.INSTITUTE_MANAGE,
+  PERMISSIONS.MEMBER_READ,
+  PERMISSIONS.MEMBER_MANAGE,
+  PERMISSIONS.ROLE_MANAGE,
+  PERMISSIONS.FEE_CONFIGURE,
+]
 
 /** Maps a permission key back to its module, for building permission matrices. */
 export function permissionModule(permission: Permission): PermissionModule {

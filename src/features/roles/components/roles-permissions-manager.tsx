@@ -20,9 +20,9 @@ const MODULE_LABELS: Record<string, string> = {
   fee: "Fees",
   class: "Classes",
   report: "Reports",
-  setting: "Settings",
   institute: "Institute",
   member: "Members",
+  role: "Roles",
 }
 
 function groupByModule(catalog: PermissionCatalogItem[]) {

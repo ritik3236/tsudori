@@ -5,7 +5,7 @@ import { getRolesAndPermissions } from "@/features/roles/service"
 
 export const GET = route(async () => {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
+  requirePermission(ctx, PERMISSIONS.ROLE_MANAGE)
 
   const data = await getRolesAndPermissions(ctx.institute.id, {
     roleId: ctx.membership?.roleId ?? null,

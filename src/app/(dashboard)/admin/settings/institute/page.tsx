@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Institute profile" }
 
 export default async function InstituteProfilePage() {
   const ctx = await getTenantContext()
-  requirePagePermission(ctx, PERMISSIONS.SETTING_READ)
+  requirePagePermission(ctx, PERMISSIONS.INSTITUTE_READ)
 
   // The institute is already loaded on the tenant context — no extra query.
   const profile = toInstituteProfile(ctx.institute)

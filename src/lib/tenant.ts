@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
 import { ForbiddenError } from "@/lib/errors"
 import {
+  ADMIN_PERMISSIONS,
   ALL_PERMISSIONS,
   hasPermission,
   ROLE_KEYS,
@@ -189,15 +190,16 @@ export function can(ctx: TenantContext, permission: Permission): boolean {
 }
 
 /**
- * The admin area (/admin/*) is ROLE-gated, not permission-gated: only the platform
- * super admin and the institute's own Institute Admin role see it — regardless of
- * what permissions a custom role happens to hold.
+ * Can the viewer enter the /admin area? Permission-gated (not a single role): the
+ * platform super admin, or anyone holding ANY admin permission. Each admin page
+ * then enforces its own specific permission, so partial-admin roles see only the
+ * areas they're granted.
  */
-export function isInstituteAdmin(ctx: TenantContext): boolean {
-  return ctx.isSuperAdmin || ctx.membership?.role.key === ROLE_KEYS.INSTITUTE_ADMIN
+export function canAccessAdmin(ctx: TenantContext): boolean {
+  return ctx.isSuperAdmin || ADMIN_PERMISSIONS.some((p) => ctx.permissions.has(p))
 }
 
-/** Page-only admin guard — forbidden() unless the viewer is an institute/super admin. */
+/** Page-only admin guard — forbidden() unless the viewer can access /admin. */
 export function requireAdminPage(ctx: TenantContext): void {
-  if (!isInstituteAdmin(ctx)) forbidden()
+  if (!canAccessAdmin(ctx)) forbidden()
 }

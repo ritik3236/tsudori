@@ -7,7 +7,7 @@ import { updateRolePermissions } from "@/features/roles/service"
 export const PATCH = route(async (req, ctx: { params: Promise<{ id: string }> }) => {
   const { id } = await ctx.params
   const tenant = await getTenantContext()
-  requirePermission(tenant, PERMISSIONS.MEMBER_MANAGE)
+  requirePermission(tenant, PERMISSIONS.ROLE_MANAGE)
 
   const input = await parseJson(req, updateRolePermissionsSchema)
   const role = await updateRolePermissions(tenant.institute.id, id, input, {

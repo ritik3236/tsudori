@@ -10,7 +10,8 @@ import {
 
 export const metadata: Metadata = { title: "Admin" }
 
-// Admin hub. Access is role-gated by src/app/(dashboard)/admin/layout.tsx.
+// Admin hub. Access is permission-gated by src/app/(dashboard)/admin/layout.tsx
+// (any admin permission); each row below filters to the viewer's permissions.
 export default async function AdminSettingsPage() {
   const ctx = await getTenantContext()
   const sections = visibleSettingsSections(ADMIN_SETTINGS_SECTIONS, ctx.permissions)
