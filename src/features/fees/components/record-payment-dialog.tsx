@@ -42,6 +42,10 @@ export function RecordPaymentDialog({
           <DialogDescription>{studentName}</DialogDescription>
         </DialogHeader>
         <PaymentForm
+          // Remount on open (and when the target period changes) so useForm
+          // re-reads fresh defaults — otherwise switching the month-view strip
+          // then opening shows the stale month and hides the waive option.
+          key={`${open}:${defaultMonth ?? ""}:${defaultYear ?? ""}`}
           monthlyFee={monthlyFee}
           remainingDue={remainingDue}
           defaultMonth={defaultMonth}
