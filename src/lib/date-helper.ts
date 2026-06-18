@@ -54,6 +54,14 @@ export function appMonthStartUtc(year: number, month: number): Date {
     .toJSDate()
 }
 
+// Shift a "YYYY-MM" month string by N months (pure calendar math). Use this
+// instead of native Date month arithmetic so the no-native-Date lint rule holds.
+export function shiftMonthStr(monthStr: string, delta: number): string {
+  return DateTime.fromISO(`${monthStr}-01`, { zone: APP_TIMEZONE })
+    .plus({ months: delta })
+    .toFormat("yyyy-MM")
+}
+
 // ─── Display formatters ───────────────────────────────────────────────────────
 
 type DateInput = Date | string | number | null | undefined

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { ALL_CLASSES } from "@/lib/constants"
 import { toDateInputValue } from "@/lib/format"
+import { shiftMonthStr } from "@/lib/date-helper"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -36,9 +37,7 @@ function formatMonth(yyyyMm: string) {
 }
 
 function shiftMonth(yyyyMm: string, delta: number) {
-  const [y, m] = yyyyMm.split("-").map(Number)
-  const d = new Date(y, m - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+  return shiftMonthStr(yyyyMm, delta)
 }
 
 type Props = { canMark: boolean }
