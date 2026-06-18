@@ -41,6 +41,32 @@ export default async function StudentFeesPage({
   const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
   const { year: periodYear, month: periodMonth } = appYearMonth(new Date())
 
+  // Unified audit trail: every payment and concession, newest first, each tagged
+  // with who recorded/waived it and why.
+  const activity = [
+    ...fee.payments.map((p) => ({
+      kind: "payment" as const,
+      id: p.id,
+      at: p.paidAt,
+      amount: p.amount,
+      periodMonth: p.periodMonth,
+      periodYear: p.periodYear,
+      method: p.method,
+      detail: p.note,
+      by: p.recordedBy,
+    })),
+    ...fee.waivers.map((w) => ({
+      kind: "waiver" as const,
+      id: w.id,
+      at: w.createdAt,
+      amount: w.amount,
+      periodMonth: w.periodMonth,
+      periodYear: w.periodYear,
+      detail: w.reason,
+      by: w.waivedBy,
+    })),
+  ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <BackLink href="/fees" label="Fees" />
@@ -128,82 +154,67 @@ export default async function StudentFeesPage({
 
       <div>
         <h2 className="text-muted-foreground mb-3 text-sm font-medium">
-          Payment history
+          Fee activity
         </h2>
-        {fee.payments.length === 0 ? (
+        {activity.length === 0 ? (
           <EmptyState
             icon={Receipt}
-            title="No payments yet"
-            description="Recorded payments will show up here with their receipts."
+            title="No fee activity yet"
+            description="Payments and concessions appear here with who recorded them and when."
           />
         ) : (
           <div className="bg-card overflow-hidden rounded-xl border">
             <ul className="divide-y">
-              {fee.payments.map((p) => (
-                <li key={p.id} className="flex items-center gap-3 p-3.5">
+              {activity.map((e) => (
+                <li key={`${e.kind}-${e.id}`} className="flex items-center gap-3 p-3.5">
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full",
+                      e.kind === "payment"
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                    )}
+                  >
+                    {e.kind === "payment" ? (
+                      <Receipt className="size-4" />
+                    ) : (
+                      <HandCoins className="size-4" />
+                    )}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold tabular-nums">
-                      {formatCurrency(p.amount)}
+                      {e.kind === "payment"
+                        ? formatCurrency(e.amount)
+                        : `${formatCurrency(e.amount)} waived`}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {formatDateLong(p.paidAt)} · {METHOD_LABELS[p.method]} · #
-                      {p.receiptNo}
-                      {p.periodMonth
-                        ? ` · ${MONTHS[p.periodMonth - 1]} ${p.periodYear}`
+                      {e.periodMonth
+                        ? `${MONTHS[e.periodMonth - 1]} ${e.periodYear} · `
                         : ""}
+                      {formatDateLong(e.at)}
+                      {e.kind === "payment" ? ` · ${METHOD_LABELS[e.method]}` : ""}
+                      {e.by ? ` · by ${e.by}` : ""}
                     </p>
-                    {p.note && (
+                    {e.detail && (
                       <p className="text-muted-foreground mt-0.5 truncate text-xs italic">
-                        {p.note}
+                        {e.detail}
                       </p>
                     )}
                   </div>
-                  <Link
-                    href={`/fees/receipt/${p.id}`}
-                    className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-violet-600 hover:underline dark:text-violet-300"
-                  >
-                    <Printer className="size-3.5" /> Receipt
-                  </Link>
+                  {e.kind === "payment" && (
+                    <Link
+                      href={`/fees/receipt/${e.id}`}
+                      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-violet-600 hover:underline dark:text-violet-300"
+                    >
+                      <Printer className="size-3.5" /> Receipt
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
         )}
       </div>
-
-      {fee.waivers.length > 0 && (
-        <div>
-          <h2 className="text-muted-foreground mb-3 text-sm font-medium">
-            Concessions
-          </h2>
-          <div className="bg-card overflow-hidden rounded-xl border">
-            <ul className="divide-y">
-              {fee.waivers.map((w) => (
-                <li key={w.id} className="flex items-center gap-3 p-3.5">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
-                    <HandCoins className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold tabular-nums">
-                      {formatCurrency(w.amount)} waived
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {MONTHS[w.periodMonth - 1]} {w.periodYear} ·{" "}
-                      {formatDateLong(w.createdAt)}
-                      {w.waivedBy ? ` · ${w.waivedBy}` : ""}
-                    </p>
-                    {w.reason && (
-                      <p className="text-muted-foreground mt-0.5 truncate text-xs italic">
-                        {w.reason}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
