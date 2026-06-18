@@ -38,6 +38,7 @@ export default async function StudentFeesPage({
   }
 
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
+  const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
   const { year: periodYear, month: periodMonth } = appYearMonth(new Date())
 
   return (
@@ -60,9 +61,9 @@ export default async function StudentFeesPage({
             </span>
           </p>
         </div>
-        {canRecord && (
+        {(canRecord || canWaive) && (
           <div className="flex flex-col gap-2 sm:flex-row">
-            {fee.pendingThisMonth > 0 && (
+            {canWaive && fee.pendingThisMonth > 0 && (
               <WaiveFeeButton
                 studentId={fee.studentId}
                 studentName={fee.fullName}
@@ -74,15 +75,18 @@ export default async function StudentFeesPage({
                 className="w-full sm:w-auto"
               />
             )}
-            <RecordPaymentButton
-              studentId={fee.studentId}
-              studentName={fee.fullName}
-              monthlyFee={fee.monthlyFee}
-              remainingDue={fee.pendingThisMonth}
-              defaultMonth={periodMonth}
-              defaultYear={periodYear}
-              className="w-full sm:w-auto"
-            />
+            {canRecord && (
+              <RecordPaymentButton
+                studentId={fee.studentId}
+                studentName={fee.fullName}
+                monthlyFee={fee.monthlyFee}
+                remainingDue={fee.pendingThisMonth}
+                canWaive={canWaive}
+                defaultMonth={periodMonth}
+                defaultYear={periodYear}
+                className="w-full sm:w-auto"
+              />
+            )}
           </div>
         )}
       </div>

@@ -18,6 +18,7 @@ type RecordPaymentDialogProps = {
   studentName: string
   monthlyFee: number
   remainingDue?: number
+  canWaive?: boolean
   defaultMonth?: number
   defaultYear?: number
 }
@@ -29,6 +30,7 @@ export function RecordPaymentDialog({
   studentName,
   monthlyFee,
   remainingDue,
+  canWaive,
   defaultMonth,
   defaultYear,
 }: RecordPaymentDialogProps) {
@@ -48,6 +50,7 @@ export function RecordPaymentDialog({
           key={`${open}:${defaultMonth ?? ""}:${defaultYear ?? ""}`}
           monthlyFee={monthlyFee}
           remainingDue={remainingDue}
+          canWaive={canWaive}
           defaultMonth={defaultMonth}
           defaultYear={defaultYear}
           submitting={record.isPending}

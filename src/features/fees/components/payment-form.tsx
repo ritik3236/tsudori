@@ -70,6 +70,8 @@ type PaymentFormProps = {
   monthlyFee: number
   // Outstanding due for the default period; enables the "settle short" option.
   remainingDue?: number
+  // Whether the viewer holds fee:waive — required to show the settle-short option.
+  canWaive?: boolean
   submitting: boolean
   onSubmit: (values: PaymentFormValues) => void
   onCancel: () => void
@@ -80,6 +82,7 @@ type PaymentFormProps = {
 export function PaymentForm({
   monthlyFee,
   remainingDue,
+  canWaive = false,
   submitting,
   onSubmit,
   onCancel,
@@ -106,15 +109,17 @@ export function PaymentForm({
     Number(watched.periodYear) === defaultYear
   const shortfall =
     remainingDue != null && samePeriod ? Math.max(0, remainingDue - amount) : 0
-  const canWaive = shortfall > 0 && amount > 0
+  // Show the settle-short option only if the viewer can waive AND there's a real
+  // shortfall on the known period.
+  const showWaiveOption = canWaive && shortfall > 0 && amount > 0
 
   // Don't leave a stale "waive" checked once the shortfall disappears (full/over-
-  // payment, or the month was changed).
+  // payment, the month was changed, or the viewer lacks fee:waive).
   useEffect(() => {
-    if (!canWaive && form.getValues("waiveShortfall")) {
+    if (!showWaiveOption && form.getValues("waiveShortfall")) {
       form.setValue("waiveShortfall", false)
     }
-  }, [canWaive, form])
+  }, [showWaiveOption, form])
 
   return (
     <Form {...form}>
@@ -259,7 +264,7 @@ export function PaymentForm({
           )}
         />
 
-        {canWaive && (
+        {showWaiveOption && (
           <FormField
             control={form.control}
             name="waiveShortfall"

@@ -55,7 +55,13 @@ function compact(n: number): string {
   return "₹" + n
 }
 
-export function FeesMonthView({ canRecord }: { canRecord: boolean }) {
+export function FeesMonthView({
+  canRecord,
+  canWaive,
+}: {
+  canRecord: boolean
+  canWaive: boolean
+}) {
   const nowYM = appYearMonth(new Date())
   const [sel, setSel] = useState({ month: nowYM.month, year: nowYM.year })
   const [q, setQ] = useState("")
@@ -223,7 +229,7 @@ export function FeesMonthView({ canRecord }: { canRecord: boolean }) {
           <Group title="Pending" count={pending.length} dot="bg-rose-500">
             {pending.length > 0 ? (
               pending.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} sel={sel} />
+                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} sel={sel} />
               ))
             ) : (
               <p className="bg-card text-muted-foreground rounded-2xl border p-4 text-center text-sm">
@@ -234,7 +240,7 @@ export function FeesMonthView({ canRecord }: { canRecord: boolean }) {
           {paid.length > 0 && (
             <Group title="Paid" count={paid.length} dot="bg-emerald-500">
               {paid.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} sel={sel} />
+                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} sel={sel} />
               ))}
             </Group>
           )}
@@ -271,11 +277,13 @@ function Row({
   s,
   i,
   canRecord,
+  canWaive,
   sel,
 }: {
   s: StudentFeeListItem
   i: number
   canRecord: boolean
+  canWaive: boolean
   sel: { month: number; year: number }
 }) {
   const router = useRouter()
@@ -330,26 +338,31 @@ function Row({
             {formatCurrency(s.paidThisMonth)}
           </span>
         )}
-        {canRecord && s.pendingThisMonth > 0 && (
+        {(canRecord || canWaive) && s.pendingThisMonth > 0 && (
           <div className="flex items-center gap-1">
-            <WaiveFeeButton
-              studentId={s.studentId}
-              studentName={s.fullName}
-              remainingDue={s.pendingThisMonth}
-              periodMonth={sel.month}
-              periodYear={sel.year}
-            />
-            <RecordPaymentButton
-              studentId={s.studentId}
-              studentName={s.fullName}
-              monthlyFee={s.monthlyFee}
-              remainingDue={s.pendingThisMonth}
-              label="Record"
-              variant="outline"
-              size="sm"
-              defaultMonth={sel.month}
-              defaultYear={sel.year}
-            />
+            {canWaive && (
+              <WaiveFeeButton
+                studentId={s.studentId}
+                studentName={s.fullName}
+                remainingDue={s.pendingThisMonth}
+                periodMonth={sel.month}
+                periodYear={sel.year}
+              />
+            )}
+            {canRecord && (
+              <RecordPaymentButton
+                studentId={s.studentId}
+                studentName={s.fullName}
+                monthlyFee={s.monthlyFee}
+                remainingDue={s.pendingThisMonth}
+                canWaive={canWaive}
+                label="Record"
+                variant="outline"
+                size="sm"
+                defaultMonth={sel.month}
+                defaultYear={sel.year}
+              />
+            )}
           </div>
         )}
       </div>

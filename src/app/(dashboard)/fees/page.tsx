@@ -16,6 +16,7 @@ export default async function FeesPage() {
   requirePagePermission(ctx, PERMISSIONS.FEE_READ)
 
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
+  const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
 
   // Prefetch the current IST month's list + overview so the view paints with
   // data. periodMonth/Year are derived in IST to match the browser's default
@@ -41,7 +42,7 @@ export default async function FeesPage() {
 
   return (
     <HydrationBoundary state={dehydrate(qc)}>
-      <FeesMonthView canRecord={canRecord} />
+      <FeesMonthView canRecord={canRecord} canWaive={canWaive} />
     </HydrationBoundary>
   )
 }
