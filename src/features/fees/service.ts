@@ -22,6 +22,11 @@ import type {
 // derived from their monthlyFee vs. what's been paid for this fee period.
 // Every function is scoped by instituteId — the tenant boundary.
 
+// Default waiver reasons, autofilled when staff don't type one. Centralized so the
+// settle-short flow and the manual waiver stay consistent.
+const WAIVER_REASON_DEFAULT = "Fee concession"
+const WAIVER_REASON_SETTLE = "Balance waived to settle the month"
+
 function currentPeriod() {
   const { year, month } = appYearMonth(new Date())
   return { month, year }
@@ -450,7 +455,7 @@ export async function recordPayment(
             amount: shortfall,
             periodMonth: input.periodMonth,
             periodYear: input.periodYear,
-            reason: "Balance waived to settle the month",
+            reason: WAIVER_REASON_SETTLE,
             waivedById: recordedById,
           },
         })
@@ -489,7 +494,7 @@ export async function recordWaiver(
       amount: input.amount,
       periodMonth: input.periodMonth,
       periodYear: input.periodYear,
-      reason: input.reason ?? null,
+      reason: input.reason ?? WAIVER_REASON_DEFAULT,
       waivedById,
     },
     include: { waivedBy: { select: { name: true } } },
