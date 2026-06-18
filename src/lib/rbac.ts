@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   FEE_READ: "fee:read",
   FEE_RECORD: "fee:record",
   FEE_WAIVE: "fee:waive",
+  FEE_REVERSE: "fee:reverse",
   FEE_CONFIGURE: "fee:configure",
 
   CLASS_READ: "class:read",

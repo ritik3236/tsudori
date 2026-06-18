@@ -67,6 +67,24 @@ export const waiveFeeSchema = z.object({
 
 export type WaiveFeeInput = z.infer<typeof waiveFeeSchema>
 
+export const reverseFeeSchema = z.object({
+  paymentId: z.string().min(1, "Payment is required."),
+  // Omitted → reverse the full remaining amount; otherwise a partial reversal.
+  amount: z.coerce
+    .number({ message: "Enter a valid amount." })
+    .positive("Enter an amount greater than zero.")
+    .max(10_000_000)
+    .optional(),
+  reason: z
+    .string()
+    .trim()
+    .max(500)
+    .nullish()
+    .transform((v) => v || null),
+})
+
+export type ReverseFeeInput = z.infer<typeof reverseFeeSchema>
+
 export const feeQuerySchema = z.object({
   q: z.string().trim().optional(),
   status: z.enum(FEE_STATUSES).optional(),
@@ -135,6 +153,29 @@ export function waiverValuesToInput(
     amount: Number(v.amount),
     periodMonth,
     periodYear,
+    reason: v.reason || null,
+  }
+}
+
+// ─── Reversal form model ──────────────────────────────────────────────────────
+
+export const reversalFormSchema = z.object({
+  amount: z
+    .string()
+    .min(1, "Amount is required.")
+    .refine((v) => Number(v) > 0, "Enter an amount greater than zero."),
+  reason: z.string().trim().max(500),
+})
+
+export type ReversalFormValues = z.infer<typeof reversalFormSchema>
+
+export function reversalValuesToInput(
+  paymentId: string,
+  v: ReversalFormValues
+): ReverseFeeInput {
+  return {
+    paymentId,
+    amount: Number(v.amount),
     reason: v.reason || null,
   }
 }

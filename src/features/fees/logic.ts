@@ -18,6 +18,34 @@ export function deriveMonth(monthlyFee: number, paid: number, waived: number) {
   return { netDue, pending, advance, status }
 }
 
+// Two-decimal rounding so money comparisons don't trip on float noise.
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+export type ReversalPlan =
+  | { ok: true; amount: number }
+  | { ok: false; reason: "ALREADY_REVERSED" | "INVALID_AMOUNT" | "EXCEEDS_REMAINING" }
+
+/**
+ * Resolves how much of a payment can be reversed. `reversedSoFar` is the total
+ * already reversed against it (a positive number). With no `requested` amount it
+ * reverses the full remaining balance; otherwise it validates the requested amount
+ * fits within what's left. Pure — the service maps a failure to a ValidationError.
+ */
+export function resolveReversal(
+  originalAmount: number,
+  reversedSoFar: number,
+  requested?: number
+): ReversalPlan {
+  const remaining = round2(originalAmount - reversedSoFar)
+  if (remaining <= 0) return { ok: false, reason: "ALREADY_REVERSED" }
+  if (requested == null) return { ok: true, amount: remaining }
+  const amount = round2(requested)
+  if (!(amount > 0)) return { ok: false, reason: "INVALID_AMOUNT" }
+  // Tolerate sub-cent rounding, but never reverse more than is owed back.
+  if (amount - remaining > 0.001) return { ok: false, reason: "EXCEEDS_REMAINING" }
+  return { ok: true, amount: Math.min(amount, remaining) }
+}
+
 export type Period = { year: number; month: number }
 
 export type PaymentPlan = {

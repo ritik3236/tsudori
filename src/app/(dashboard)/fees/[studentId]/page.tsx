@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { HandCoins, Printer, Receipt } from "lucide-react"
+import { HandCoins, Printer, Receipt, Undo2 } from "lucide-react"
 
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
@@ -16,6 +16,7 @@ import { BackLink } from "@/components/shared/back-link"
 import { EmptyState } from "@/components/shared/empty-state"
 import { FeeStatusBadge } from "@/features/fees/components/fee-status-badge"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
+import { ReversePaymentButton } from "@/features/fees/components/reverse-payment-button"
 import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
 
 export const metadata: Metadata = { title: "Student fees" }
@@ -39,13 +40,63 @@ export default async function StudentFeesPage({
 
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
   const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
+  const canReverse = can(ctx, PERMISSIONS.FEE_REVERSE)
   const { year: periodYear, month: periodMonth } = appYearMonth(new Date())
 
-  // Unified audit trail: every payment and concession, newest first, each tagged
-  // with who recorded/waived it and why.
+  // Three core KPIs — the actionable current-period figure first (advance when
+  // in credit, else pending), then lifetime owed and lifetime collected. The
+  // per-month status lives in the badge by the name, so no "paid this month"
+  // card. A waiver total is appended only when concessions exist.
+  type Kpi = { label: string; value: string; tone?: "amber" | "emerald" | "indigo" }
+  const kpis: Kpi[] = [
+    fee.advance > 0
+      ? { label: "Advance / credit", value: formatCurrency(fee.advance), tone: "emerald" }
+      : {
+          label: "Pending this month",
+          value: formatCurrency(fee.pendingThisMonth),
+          tone: fee.pendingThisMonth > 0 ? "amber" : undefined,
+        },
+    {
+      label: "Total outstanding",
+      value: formatCurrency(fee.totalOutstanding),
+      tone: fee.totalOutstanding > 0 ? "amber" : undefined,
+    },
+    { label: "Total paid", value: formatCurrency(fee.totalPaid) },
+  ]
+  if (fee.totalWaived > 0) {
+    kpis.push({
+      label: "Total waived",
+      value: formatCurrency(fee.totalWaived),
+      tone: "indigo",
+    })
+  }
+
+  // The oldest month still owing (admission → now), so "Waive" can clear
+  // back-dues — not just the current month. Mirrors oldest-first payment
+  // backfill. Null when nothing is outstanding.
+  let waiveTarget: { year: number; month: number; due: number } | null = null
+  for (
+    let wy = fee.admission.year, wm = fee.admission.month;
+    wy < periodYear || (wy === periodYear && wm <= periodMonth);
+    wm === 12 ? ((wy += 1), (wm = 1)) : (wm += 1)
+  ) {
+    const k = `${wy}-${wm}`
+    const due = Math.max(
+      0,
+      fee.monthlyFee - (fee.paidByMonth[k] ?? 0) - (fee.waivedByMonth[k] ?? 0)
+    )
+    if (due > 0) {
+      waiveTarget = { year: wy, month: wm, due }
+      break
+    }
+  }
+
+  // Unified audit trail: every payment, reversal, and concession, newest first,
+  // each tagged with who recorded/waived/reversed it and why. A reversal row
+  // (negative amount) is split out as its own "reversal" entry.
   const activity = [
     ...fee.payments.map((p) => ({
-      kind: "payment" as const,
+      kind: p.reversalOfId != null ? ("reversal" as const) : ("payment" as const),
       id: p.id,
       at: p.paidAt,
       amount: p.amount,
@@ -54,6 +105,9 @@ export default async function StudentFeesPage({
       method: p.method,
       detail: p.note,
       by: p.recordedBy,
+      // Original payments only: how much has been reversed, and what remains.
+      reversedAmount: p.reversedAmount,
+      remaining: p.amount - p.reversedAmount,
     })),
     ...fee.waivers.map((w) => ({
       kind: "waiver" as const,
@@ -62,8 +116,11 @@ export default async function StudentFeesPage({
       amount: w.amount,
       periodMonth: w.periodMonth,
       periodYear: w.periodYear,
+      method: null,
       detail: w.reason,
       by: w.waivedBy,
+      reversedAmount: 0,
+      remaining: 0,
     })),
   ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
 
@@ -87,18 +144,20 @@ export default async function StudentFeesPage({
             </span>
           </p>
         </div>
+        {/* Waive + Record side by side here; Record also floats bottom-right
+            (the FAB below) for quick thumb access while scrolling. */}
         {(canRecord || canWaive) && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {canWaive && fee.pendingThisMonth > 0 && (
+          <div className="flex gap-2">
+            {canWaive && waiveTarget && (
               <WaiveFeeButton
                 studentId={fee.studentId}
                 studentName={fee.fullName}
-                remainingDue={fee.pendingThisMonth}
-                periodMonth={periodMonth}
-                periodYear={periodYear}
+                remainingDue={waiveTarget.due}
+                periodMonth={waiveTarget.month}
+                periodYear={waiveTarget.year}
                 variant="outline"
                 size="default"
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-none"
               />
             )}
             {canRecord && (
@@ -115,41 +174,24 @@ export default async function StudentFeesPage({
                 }}
                 defaultMonth={periodMonth}
                 defaultYear={periodYear}
-                className="w-full sm:w-auto"
+                className="flex-1 sm:flex-none"
               />
             )}
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat
-          label="Total outstanding"
-          value={formatCurrency(fee.totalOutstanding)}
-          tone={fee.totalOutstanding > 0 ? "amber" : undefined}
-        />
-        <Stat label="Paid this month" value={formatCurrency(fee.paidThisMonth)} />
-        {fee.advance > 0 ? (
-          <Stat
-            label="Advance / credit"
-            value={formatCurrency(fee.advance)}
-            tone="emerald"
-          />
-        ) : (
-          <Stat
-            label="Pending this month"
-            value={formatCurrency(fee.pendingThisMonth)}
-            tone={fee.pendingThisMonth > 0 ? "amber" : undefined}
-          />
+      <div
+        className={cn(
+          "grid gap-3",
+          // Three core KPIs sit in a clean 3-up; a waiver total (when present)
+          // makes it four, so fall back to a 2/4 grid then.
+          kpis.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
         )}
-        <Stat label="Total paid" value={formatCurrency(fee.totalPaid)} />
-        {fee.totalWaived > 0 && (
-          <Stat
-            label="Total waived"
-            value={formatCurrency(fee.totalWaived)}
-            tone="indigo"
-          />
-        )}
+      >
+        {kpis.map((k) => (
+          <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} />
+        ))}
       </div>
 
       <div>
@@ -170,29 +212,45 @@ export default async function StudentFeesPage({
                   <span
                     className={cn(
                       "flex size-9 shrink-0 items-center justify-center rounded-full",
-                      e.kind === "payment"
-                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
+                      e.kind === "payment" &&
+                        "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+                      e.kind === "reversal" &&
+                        "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+                      e.kind === "waiver" &&
+                        "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
                     )}
                   >
                     {e.kind === "payment" ? (
                       <Receipt className="size-4" />
+                    ) : e.kind === "reversal" ? (
+                      <Undo2 className="size-4" />
                     ) : (
                       <HandCoins className="size-4" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold tabular-nums">
-                      {e.kind === "payment"
-                        ? formatCurrency(e.amount)
-                        : `${formatCurrency(e.amount)} waived`}
+                      {e.kind === "payment" && formatCurrency(e.amount)}
+                      {e.kind === "reversal" && (
+                        <span className="text-rose-600 dark:text-rose-400">
+                          −{formatCurrency(Math.abs(e.amount))} reversed
+                        </span>
+                      )}
+                      {e.kind === "waiver" && `${formatCurrency(e.amount)} waived`}
+                      {e.kind === "payment" && e.reversedAmount > 0 && (
+                        <span className="ml-2 rounded bg-rose-100 px-1.5 py-0.5 align-middle text-[10px] font-medium text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
+                          {e.remaining > 0
+                            ? `${formatCurrency(e.reversedAmount)} reversed`
+                            : "Reversed"}
+                        </span>
+                      )}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {e.periodMonth
                         ? `${MONTHS[e.periodMonth - 1]} ${e.periodYear} · `
                         : ""}
                       {formatDateLong(e.at)}
-                      {e.kind === "payment" ? ` · ${METHOD_LABELS[e.method]}` : ""}
+                      {e.method ? ` · ${METHOD_LABELS[e.method]}` : ""}
                       {e.by ? ` · by ${e.by}` : ""}
                     </p>
                     {e.detail && (
@@ -202,12 +260,21 @@ export default async function StudentFeesPage({
                     )}
                   </div>
                   {e.kind === "payment" && (
-                    <Link
-                      href={`/fees/receipt/${e.id}`}
-                      className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-violet-600 hover:underline dark:text-violet-300"
-                    >
-                      <Printer className="size-3.5" /> Receipt
-                    </Link>
+                    <div className="flex shrink-0 items-center gap-3">
+                      {canReverse && e.remaining > 0 && (
+                        <ReversePaymentButton
+                          paymentId={e.id}
+                          studentName={fee.fullName}
+                          remaining={e.remaining}
+                        />
+                      )}
+                      <Link
+                        href={`/fees/receipt/${e.id}`}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-violet-600 hover:underline dark:text-violet-300"
+                      >
+                        <Printer className="size-3.5" /> Receipt
+                      </Link>
+                    </div>
                   )}
                 </li>
               ))}
@@ -215,6 +282,26 @@ export default async function StudentFeesPage({
           </div>
         )}
       </div>
+
+      {/* Primary action: floats bottom-right (mobile + desktop), like "Add class". */}
+      {canRecord && (
+        <RecordPaymentButton
+          studentId={fee.studentId}
+          studentName={fee.fullName}
+          monthlyFee={fee.monthlyFee}
+          remainingDue={fee.pendingThisMonth}
+          canWaive={canWaive}
+          allocationContext={{
+            admission: fee.admission,
+            paidByMonth: fee.paidByMonth,
+            waivedByMonth: fee.waivedByMonth,
+          }}
+          defaultMonth={periodMonth}
+          defaultYear={periodYear}
+          size="sm"
+          className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
+        />
+      )}
     </div>
   )
 }

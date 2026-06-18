@@ -4,10 +4,15 @@ import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
-import { NotFoundError } from "@/lib/errors"
-import { deriveMonth, planPayment } from "@/features/fees/logic"
+import { NotFoundError, ValidationError } from "@/lib/errors"
+import { deriveMonth, planPayment, resolveReversal } from "@/features/fees/logic"
 import type { Paginated } from "@/features/students/types"
-import type { FeeQuery, RecordPaymentInput, WaiveFeeInput } from "@/features/fees/schema"
+import type {
+  FeeQuery,
+  RecordPaymentInput,
+  ReverseFeeInput,
+  WaiveFeeInput,
+} from "@/features/fees/schema"
 import type {
   FeeMonthlyOverview,
   FeeStatus,
@@ -37,7 +42,7 @@ type PaymentWithRecorder = Prisma.FeePaymentGetPayload<{
   include: { recordedBy: { select: { name: true } } }
 }>
 
-function toPaymentItem(p: PaymentWithRecorder): PaymentItem {
+function toPaymentItem(p: PaymentWithRecorder, reversedAmount = 0): PaymentItem {
   return {
     id: p.id,
     amount: Number(p.amount),
@@ -48,6 +53,8 @@ function toPaymentItem(p: PaymentWithRecorder): PaymentItem {
     receiptNo: p.receiptNo,
     note: p.note,
     recordedBy: p.recordedBy?.name ?? null,
+    reversalOfId: p.reversalOfId,
+    reversedAmount,
   }
 }
 
@@ -229,6 +236,17 @@ export async function getStudentFee(
   const paidThisMonth = Number(monthAgg._sum.amount ?? 0)
   const waivedThisMonth = Number(monthWaivedAgg._sum.amount ?? 0)
 
+  // How much of each original payment has been reversed. Reversal rows hold a
+  // negative amount, so the reversed total is the negation of their sum.
+  const reversedByPayment = new Map<string, number>()
+  for (const p of payments) {
+    if (p.reversalOfId == null) continue
+    reversedByPayment.set(
+      p.reversalOfId,
+      (reversedByPayment.get(p.reversalOfId) ?? 0) - Number(p.amount)
+    )
+  }
+
   const futurePaid = payments.reduce((sum, p) => {
     const isFuture =
       p.periodYear != null &&
@@ -286,7 +304,9 @@ export async function getStudentFee(
     totalOutstanding,
     advance,
     status,
-    payments: payments.map(toPaymentItem),
+    payments: payments.map((p) =>
+      toPaymentItem(p, reversedByPayment.get(p.id) ?? 0)
+    ),
     waivers: waivers.map(toWaiverItem),
     admission: { year: adm.year, month: adm.month },
     paidByMonth: Object.fromEntries(paidByPeriod),
@@ -354,8 +374,9 @@ export async function recordPayment(
     })
 
     // Persist: one FeePayment row (+ sequential receipt) per allocated month.
+    // Ignore reversal rows (receiptNo NULL) so the sequence stays gap-free.
     const last = await tx.feePayment.findFirst({
-      where: { instituteId },
+      where: { instituteId, receiptNo: { not: null } },
       orderBy: { receiptNo: "desc" },
       select: { receiptNo: true },
     })
@@ -405,6 +426,81 @@ export async function recordPayment(
   }
 }
 
+const REVERSAL_ERRORS: Record<
+  Exclude<ReturnType<typeof resolveReversal>, { ok: true }>["reason"],
+  string
+> = {
+  ALREADY_REVERSED: "This payment has already been fully reversed.",
+  INVALID_AMOUNT: "Enter a reversal amount greater than zero.",
+  EXCEEDS_REMAINING: "That's more than the amount left to reverse on this payment.",
+}
+
+/**
+ * Reverses a payment, fully or partially, WITHOUT deleting it. Writes a linked
+ * FeePayment row with a negative amount (a credit note) for the same period, so
+ * balances net out automatically while the original receipt and audit trail stay
+ * intact. Reversals can stack up to the original amount; a reversal row itself
+ * can't be reversed. Returns the new reversal entry and the refreshed original.
+ */
+export async function reversePayment(
+  instituteId: string,
+  recordedById: string | null,
+  input: ReverseFeeInput
+): Promise<{ reversal: PaymentItem; original: PaymentItem }> {
+  return prisma.$transaction(async (tx) => {
+    // Lock the original row up front so concurrent reversals of the same
+    // payment serialize. Without it both could read the same reversed-so-far,
+    // both pass validation, and over-reverse past the original amount — there's
+    // no unique constraint to backstop this path.
+    await tx.$queryRaw`SELECT id FROM public."FeePayment" WHERE id = ${input.paymentId} FOR UPDATE`
+
+    const original = await tx.feePayment.findFirst({
+      where: { id: input.paymentId, instituteId },
+      include: { recordedBy: { select: { name: true } } },
+    })
+    if (!original) throw new NotFoundError("Payment not found.")
+    if (original.reversalOfId != null) {
+      throw new ValidationError("That entry is a reversal and can't be reversed.")
+    }
+    const originalAmount = Number(original.amount)
+    if (originalAmount <= 0) {
+      throw new ValidationError("Only a payment can be reversed.")
+    }
+
+    // Reversal rows are negative, so reversed-so-far is the negation of their sum.
+    const reversedAgg = await tx.feePayment.aggregate({
+      where: { reversalOfId: original.id },
+      _sum: { amount: true },
+    })
+    const reversedSoFar = -Number(reversedAgg._sum.amount ?? 0)
+
+    const plan = resolveReversal(originalAmount, reversedSoFar, input.amount)
+    if (!plan.ok) throw new ValidationError(REVERSAL_ERRORS[plan.reason])
+
+    const row = await tx.feePayment.create({
+      data: {
+        instituteId,
+        studentId: original.studentId,
+        amount: -plan.amount,
+        periodMonth: original.periodMonth,
+        periodYear: original.periodYear,
+        method: original.method,
+        paidAt: new Date(),
+        receiptNo: null,
+        note: input.reason,
+        recordedById,
+        reversalOfId: original.id,
+      },
+      include: { recordedBy: { select: { name: true } } },
+    })
+
+    return {
+      reversal: toPaymentItem(row),
+      original: toPaymentItem(original, reversedSoFar + plan.amount),
+    }
+  })
+}
+
 /**
  * Records a fee concession for one student for one month. A waiver reduces the
  * amount due — it is NOT cash, so it never counts towards collected totals.
@@ -450,7 +546,10 @@ export async function getReceipt(
       recordedBy: { select: { name: true } },
     },
   })
-  if (!p) throw new NotFoundError("Receipt not found.")
+  // Reversal rows carry no receipt number — they have no receipt to print.
+  if (!p || p.receiptNo == null || p.reversalOfId != null) {
+    throw new NotFoundError("Receipt not found.")
+  }
 
   return {
     receiptNo: p.receiptNo,

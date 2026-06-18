@@ -27,9 +27,14 @@ export type PaymentItem = {
   periodYear: number | null
   method: PaymentMethod
   paidAt: string
-  receiptNo: number
+  /** NULL for reversal rows — they aren't receipts. */
+  receiptNo: number | null
   note: string | null
   recordedBy: string | null
+  /** Set when this row reverses another payment (negative amount). */
+  reversalOfId: string | null
+  /** For an original payment: how much of it has been reversed (0 if none). */
+  reversedAmount: number
 }
 
 export type WaiverItem = {

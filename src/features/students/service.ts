@@ -94,26 +94,30 @@ export async function getStudent(
     }),
     opts.includeFinancials
       ? (async () => {
-          const [paidAgg, recentPayments] = await Promise.all([
+          // totalPaid is net of reversals (sum over all rows, incl. negative
+          // credit notes); the count and recent list cover real payments only.
+          const [paidAgg, paymentsCount, recentPayments] = await Promise.all([
             prisma.feePayment.aggregate({
               where: { studentId: id, instituteId },
               _sum: { amount: true },
-              _count: { _all: true },
+            }),
+            prisma.feePayment.count({
+              where: { studentId: id, instituteId, reversalOfId: null },
             }),
             prisma.feePayment.findMany({
-              where: { studentId: id, instituteId },
+              where: { studentId: id, instituteId, reversalOfId: null },
               orderBy: { paidAt: "desc" },
               take: 5,
             }),
           ])
           return {
             totalPaid: Number(paidAgg._sum.amount ?? 0),
-            paymentsCount: paidAgg._count._all,
+            paymentsCount,
             recentPayments: recentPayments.map((p) => ({
               id: p.id,
               amount: Number(p.amount),
               paidAt: p.paidAt.toISOString(),
-              receiptNo: p.receiptNo,
+              receiptNo: p.receiptNo ?? 0,
               method: p.method,
             })),
           }

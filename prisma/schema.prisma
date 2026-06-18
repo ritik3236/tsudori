@@ -318,6 +318,8 @@ model FeePayment {
   id           String        @id @default(cuid())
   instituteId  String
   studentId    String
+  /// Negative for a reversal row (a credit note against `reversalOf`). Balances are
+  /// SUM(amount), so a reversal nets the original out without deleting history.
   amount       Decimal       @db.Decimal(10, 2)
   /// The fee period this payment is applied to (nullable for ad-hoc payments).
   periodMonth  Int?
@@ -325,19 +327,25 @@ model FeePayment {
   method       PaymentMethod @default(CASH)
   paidAt       DateTime      @default(now())
   /// Sequential receipt number per institute (assigned in the service layer).
-  receiptNo    Int
+  /// NULL for reversal rows — they aren't receipts and carry no number.
+  receiptNo    Int?
   note         String?
   recordedById String?       @db.Uuid
+  /// When set, this row reverses (fully or partly) the referenced payment.
+  reversalOfId String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  institute  Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
-  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  recordedBy User?     @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  institute  Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordedBy User?        @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+  reversalOf FeePayment?  @relation("FeeReversals", fields: [reversalOfId], references: [id], onDelete: Cascade)
+  reversals  FeePayment[] @relation("FeeReversals")
 
   @@unique([instituteId, receiptNo])
   @@index([instituteId, paidAt])
   @@index([studentId])
+  @@index([reversalOfId])
   @@schema("public")
 }
 

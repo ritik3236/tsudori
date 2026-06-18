@@ -69,8 +69,10 @@ export async function getDashboardStats(
               where: { instituteId, periodMonth: tm, periodYear: ty },
               _sum: { amount: true },
             }),
+            // Exclude reversal rows (negative credit notes) — they aren't
+            // payments received. The aggregates above still net them out.
             prisma.feePayment.findMany({
-              where: { instituteId },
+              where: { instituteId, reversalOfId: null },
               orderBy: { paidAt: "desc" },
               take: 5,
               include: { student: { select: { fullName: true } } },
@@ -86,7 +88,8 @@ export async function getDashboardStats(
             studentName: p.student.fullName,
             amount: Number(p.amount),
             paidAt: p.paidAt,
-            receiptNo: p.receiptNo,
+            // Non-reversal rows always carry a receipt number (filtered above).
+            receiptNo: p.receiptNo ?? 0,
           })),
         }
       })()

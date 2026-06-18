@@ -10,7 +10,11 @@ import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
 import { feeKeys, feesApi, type FeeListParams } from "@/features/fees/api"
-import type { RecordPaymentInput, WaiveFeeInput } from "@/features/fees/schema"
+import type {
+  RecordPaymentInput,
+  ReverseFeeInput,
+  WaiveFeeInput,
+} from "@/features/fees/schema"
 
 export { feeKeys }
 
@@ -73,5 +77,19 @@ export function useWaiveFee() {
       toast.success("Fee waived for this month.")
     },
     onError: (e) => reportError(e, "Couldn't waive the fee."),
+  })
+}
+
+export function useReversePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ReverseFeeInput) => feesApi.reverse(data),
+    onSuccess: ({ reversal }) => {
+      qc.invalidateQueries({ queryKey: feeKeys.all })
+      toast.success(
+        `Payment reversed — ₹${Math.abs(reversal.amount).toLocaleString("en-IN")}.`
+      )
+    },
+    onError: (e) => reportError(e, "Couldn't reverse the payment."),
   })
 }

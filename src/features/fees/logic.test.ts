@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest"
 
-import { deriveMonth, planPayment, type Period } from "@/features/fees/logic"
+import {
+  deriveMonth,
+  planPayment,
+  resolveReversal,
+  type Period,
+} from "@/features/fees/logic"
 
 describe("deriveMonth", () => {
   it("UNPAID when nothing paid or waived", () => {
@@ -23,6 +28,39 @@ describe("deriveMonth", () => {
   })
   it("PAID when cash + waiver exactly settle the net due", () => {
     expect(deriveMonth(700, 400, 300)).toMatchObject({ netDue: 400, pending: 0, status: "PAID" })
+  })
+})
+
+describe("resolveReversal", () => {
+  it("reverses the full amount when none requested", () => {
+    expect(resolveReversal(700, 0)).toEqual({ ok: true, amount: 700 })
+  })
+  it("reverses the remaining amount after a prior partial reversal", () => {
+    expect(resolveReversal(700, 200)).toEqual({ ok: true, amount: 500 })
+  })
+  it("accepts a valid partial amount", () => {
+    expect(resolveReversal(700, 0, 300)).toEqual({ ok: true, amount: 300 })
+  })
+  it("rejects when already fully reversed", () => {
+    expect(resolveReversal(700, 700)).toEqual({
+      ok: false,
+      reason: "ALREADY_REVERSED",
+    })
+  })
+  it("rejects a non-positive requested amount", () => {
+    expect(resolveReversal(700, 0, 0)).toEqual({
+      ok: false,
+      reason: "INVALID_AMOUNT",
+    })
+  })
+  it("rejects more than the remaining amount", () => {
+    expect(resolveReversal(700, 200, 600)).toEqual({
+      ok: false,
+      reason: "EXCEEDS_REMAINING",
+    })
+  })
+  it("clamps a request equal to remaining within sub-cent tolerance", () => {
+    expect(resolveReversal(700, 0, 700.001)).toEqual({ ok: true, amount: 700 })
   })
 })
 
