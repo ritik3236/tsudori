@@ -4,20 +4,23 @@ import { getTenantContext } from "@/lib/tenant"
 import { PageHeader } from "@/components/shared/page-header"
 import { SettingsHub } from "@/features/settings/components/settings-hub"
 import {
-  PERSONAL_SETTINGS_SECTIONS,
+  ADMIN_SETTINGS_SECTIONS,
   visibleSettingsSections,
 } from "@/features/settings/sections"
 
-export const metadata: Metadata = { title: "Settings" }
+export const metadata: Metadata = { title: "Admin" }
 
-// Personal settings — open to every signed-in member (no permission gate).
-export default async function SettingsPage() {
+// Admin hub. Access is role-gated by src/app/(dashboard)/admin/layout.tsx.
+export default async function AdminSettingsPage() {
   const ctx = await getTenantContext()
-  const sections = visibleSettingsSections(PERSONAL_SETTINGS_SECTIONS, ctx.permissions)
+  const sections = visibleSettingsSections(ADMIN_SETTINGS_SECTIONS, ctx.permissions)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Your account and preferences." />
+      <PageHeader
+        title="Admin"
+        description="Manage your institute, team, roles, and configuration."
+      />
       <SettingsHub sections={sections} />
     </div>
   )

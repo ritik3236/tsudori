@@ -31,7 +31,7 @@ export default async function RolesSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <BackLink href="/settings" label="Settings" />
+        <BackLink href="/admin/settings" label="Admin" />
         <PageHeader
           title="Roles & permissions"
           description="Control what each role can do across the institute."

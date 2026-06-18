@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   School,
   Settings,
+  ShieldCheck,
   StickyNote,
   Users,
   Wallet,
@@ -22,6 +23,8 @@ export type NavItem = {
   activeColor: string
   /** When set, the item only shows for users holding this permission. */
   permission?: Permission
+  /** When true, the item is role-gated to institute/super admins (not permission). */
+  adminOnly?: boolean
   /** Marks modules planned but not yet built in V1. */
   comingSoon?: boolean
 }
@@ -80,16 +83,28 @@ export const NAV_ITEMS: NavItem[] = [
     activeColor: "text-teal-600 dark:text-teal-400",
   },
   {
+    // Personal settings (your profile + password) — open to every member.
     label: "Settings",
     href: "/settings",
     icon: Settings,
     activeColor: "text-rose-600 dark:text-rose-400",
-    permission: PERMISSIONS.SETTING_READ,
+  },
+  {
+    // Institute admin area — role-gated (Institute Admin + super admin).
+    label: "Admin",
+    href: "/admin/settings",
+    icon: ShieldCheck,
+    activeColor: "text-rose-600 dark:text-rose-400",
+    adminOnly: true,
   },
 ]
 
-export function visibleNavItems(permissions: ReadonlySet<string>): NavItem[] {
-  return NAV_ITEMS.filter(
-    (item) => !item.permission || permissions.has(item.permission)
-  )
+export function visibleNavItems(
+  permissions: ReadonlySet<string>,
+  isAdmin: boolean
+): NavItem[] {
+  return NAV_ITEMS.filter((item) => {
+    if (item.adminOnly) return isAdmin
+    return !item.permission || permissions.has(item.permission)
+  })
 }

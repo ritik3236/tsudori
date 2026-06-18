@@ -16,6 +16,7 @@ type AppShellProps = {
   instituteName: string
   logoUrl: string | null
   permissions: string[]
+  isAdmin: boolean
   children: React.ReactNode
 }
 
@@ -38,8 +39,8 @@ function InstituteMark({ logoUrl }: { logoUrl: string | null }) {
   )
 }
 
-export function AppShell({ instituteName, logoUrl, permissions, children }: AppShellProps) {
-  const items = visibleNavItems(new Set(permissions))
+export function AppShell({ instituteName, logoUrl, permissions, isAdmin, children }: AppShellProps) {
+  const items = visibleNavItems(new Set(permissions), isAdmin)
   const pathname = usePathname()
   // The page title now lives in the top bar (replacing the institute name, which
   // stays in the desktop sidebar). Derived from the active nav section.

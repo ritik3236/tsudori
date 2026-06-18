@@ -15,7 +15,7 @@ export default async function TeamSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <BackLink href="/settings" label="Settings" />
+        <BackLink href="/admin/settings" label="Admin" />
         <PageHeader
           title="Team members"
           description={

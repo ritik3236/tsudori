@@ -1,6 +1,6 @@
 import { ShieldAlert } from "lucide-react"
 
-import { getTenantContext } from "@/lib/tenant"
+import { getTenantContext, isInstituteAdmin } from "@/lib/tenant"
 import { ForbiddenError } from "@/lib/errors"
 import { AppShell } from "@/components/layout/app-shell"
 import { SignOutButton } from "@/components/auth/sign-out-button"
@@ -25,6 +25,7 @@ export default async function DashboardLayout({
       instituteName={ctx.institute.name}
       logoUrl={ctx.institute.logoUrl}
       permissions={[...ctx.permissions]}
+      isAdmin={isInstituteAdmin(ctx)}
     >
       {children}
     </AppShell>

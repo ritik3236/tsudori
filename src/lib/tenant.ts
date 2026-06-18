@@ -187,3 +187,17 @@ export function requirePagePermission(
 export function can(ctx: TenantContext, permission: Permission): boolean {
   return hasPermission(ctx.permissions, permission)
 }
+
+/**
+ * The admin area (/admin/*) is ROLE-gated, not permission-gated: only the platform
+ * super admin and the institute's own Institute Admin role see it — regardless of
+ * what permissions a custom role happens to hold.
+ */
+export function isInstituteAdmin(ctx: TenantContext): boolean {
+  return ctx.isSuperAdmin || ctx.membership?.role.key === ROLE_KEYS.INSTITUTE_ADMIN
+}
+
+/** Page-only admin guard — forbidden() unless the viewer is an institute/super admin. */
+export function requireAdminPage(ctx: TenantContext): void {
+  if (!isInstituteAdmin(ctx)) forbidden()
+}

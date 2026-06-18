@@ -1,5 +1,6 @@
 import {
   Bell,
+  CircleUser,
   IndianRupee,
   ShieldCheck,
   SlidersHorizontal,
@@ -15,42 +16,53 @@ export type SettingsSection = {
   description: string
   href: string
   icon: LucideIcon
-  /** Only listed for users holding this permission. */
-  permission: Permission
+  /** When set, only listed for users holding this permission. Omit = everyone. */
+  permission?: Permission
   /** Planned but not built yet — listed disabled with a "Soon" badge. */
   comingSoon?: boolean
 }
 
-// The Settings hub is a list of category rows, each linking to its own sub-route.
-// Adding a settings area = add an entry here + build its page; the hub and its
-// permission gating come for free. Keep `live` areas first so the most useful
-// rows sit at the top.
-export const SETTINGS_SECTIONS: SettingsSection[] = [
+// ─── Personal settings (/settings) ────────────────────────────────────────────
+// Visible to EVERY signed-in user — no permission gate.
+export const PERSONAL_SETTINGS_SECTIONS: SettingsSection[] = [
+  {
+    label: "Your profile",
+    description: "Your name and password.",
+    href: "/settings/profile",
+    icon: CircleUser,
+  },
+]
+
+// ─── Admin settings (/admin/settings) ─────────────────────────────────────────
+// The /admin area is role-gated (Institute Admin + super admin), so these mostly
+// don't need per-row filtering — but `permission` is kept for clarity and the
+// super-admin reach. Live areas first.
+export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     label: "Team members",
     description: "People with access, their roles, and password resets.",
-    href: "/settings/team",
+    href: "/admin/settings/team",
     icon: Users,
     permission: PERMISSIONS.MEMBER_READ,
   },
   {
     label: "Roles & permissions",
     description: "Control what each role can do across the institute.",
-    href: "/settings/roles",
+    href: "/admin/settings/roles",
     icon: ShieldCheck,
     permission: PERMISSIONS.MEMBER_MANAGE,
   },
   {
     label: "Institute profile",
     description: "Logo, name, and contact details.",
-    href: "/settings/profile",
+    href: "/admin/settings/institute",
     icon: University,
     permission: PERMISSIONS.SETTING_READ,
   },
   {
     label: "Fees configuration",
     description: "Default fees, payment methods, and receipt numbering.",
-    href: "/settings/fees",
+    href: "/admin/settings/fees",
     icon: IndianRupee,
     permission: PERMISSIONS.FEE_READ,
     comingSoon: true,
@@ -58,7 +70,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     label: "Notifications",
     description: "Reminders and alerts sent to staff and guardians.",
-    href: "/settings/notifications",
+    href: "/admin/settings/notifications",
     icon: Bell,
     permission: PERMISSIONS.SETTING_MANAGE,
     comingSoon: true,
@@ -66,7 +78,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     label: "Advanced",
     description: "Custom key/value settings and data tools.",
-    href: "/settings/advanced",
+    href: "/admin/settings/advanced",
     icon: SlidersHorizontal,
     permission: PERMISSIONS.SETTING_MANAGE,
     comingSoon: true,
@@ -74,7 +86,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 ]
 
 export function visibleSettingsSections(
+  sections: SettingsSection[],
   permissions: ReadonlySet<string>
 ): SettingsSection[] {
-  return SETTINGS_SECTIONS.filter((s) => permissions.has(s.permission))
+  return sections.filter((s) => !s.permission || permissions.has(s.permission))
 }
