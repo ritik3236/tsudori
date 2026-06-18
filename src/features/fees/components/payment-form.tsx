@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { formatCurrency, toDateInputValue } from "@/lib/format"
+import { appYearMonth } from "@/lib/date-helper"
 import {
   METHOD_LABELS,
   PAYMENT_METHODS,
@@ -51,10 +52,11 @@ function defaults(
   defaultYear?: number
 ): PaymentFormValues {
   const now = new Date()
+  const { year, month } = appYearMonth(now)
   return {
     amount: monthlyFee > 0 ? String(monthlyFee) : "",
-    periodMonth: String(defaultMonth ?? now.getMonth() + 1),
-    periodYear: String(defaultYear ?? now.getFullYear()),
+    periodMonth: String(defaultMonth ?? month),
+    periodYear: String(defaultYear ?? year),
     method: "CASH",
     paidAt: toDateInputValue(now),
     note: "",
@@ -83,7 +85,7 @@ export function PaymentForm({
     defaultValues: defaults(monthlyFee, defaultMonth, defaultYear),
   })
 
-  const thisYear = new Date().getFullYear()
+  const thisYear = appYearMonth(new Date()).year
   const years = [thisYear - 1, thisYear, thisYear + 1]
 
   return (

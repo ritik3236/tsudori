@@ -12,6 +12,7 @@ import {
   MONTHS_SHORT as MONTHS,
 } from "@/lib/constants"
 import { formatCurrency, getInitials } from "@/lib/format"
+import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import { useFeeOverview, useStudentFees } from "@/features/fees/hooks"
 import { useClassOptions } from "@/features/students/hooks"
 import type { FeeStatus, StudentFeeListItem } from "@/features/fees/types"
@@ -37,11 +38,10 @@ const STATUS_LABEL: Record<FeeStatus, string> = {
 }
 
 function monthStrip() {
-  const now = new Date()
+  const { year, month } = appYearMonth(new Date())
   const arr: { month: number; year: number }[] = []
   for (let off = -5; off <= 1; off++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + off, 1)
-    arr.push({ month: d.getMonth() + 1, year: d.getFullYear() })
+    arr.push(appYearMonth(appMonthStartUtc(year, month + off)))
   }
   return arr
 }
@@ -56,8 +56,8 @@ function compact(n: number): string {
 }
 
 export function FeesMonthView({ canRecord }: { canRecord: boolean }) {
-  const now = new Date()
-  const [sel, setSel] = useState({ month: now.getMonth() + 1, year: now.getFullYear() })
+  const nowYM = appYearMonth(new Date())
+  const [sel, setSel] = useState({ month: nowYM.month, year: nowYM.year })
   const [q, setQ] = useState("")
   const [classId, setClassId] = useState(ALL)
   const months = monthStrip()
@@ -97,7 +97,7 @@ export function FeesMonthView({ canRecord }: { canRecord: boolean }) {
   const pending = shown.filter((i) => i.pendingThisMonth > 0)
   const paid = shown.filter((i) => i.pendingThisMonth <= 0)
 
-  const nowOrd = now.getFullYear() * 12 + (now.getMonth() + 1)
+  const nowOrd = nowYM.year * 12 + nowYM.month
 
   return (
     <div className="space-y-5">
