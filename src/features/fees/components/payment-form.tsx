@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { formatCurrency, toDateInputValue } from "@/lib/format"
 import { appYearMonth } from "@/lib/date-helper"
+import { planPayment } from "@/features/fees/logic"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   METHOD_LABELS,
@@ -72,6 +73,12 @@ type PaymentFormProps = {
   remainingDue?: number
   // Whether the viewer holds fee:waive — required to show the settle-short option.
   canWaive?: boolean
+  // Lets the form preview where the payment will land (runs the real allocator).
+  allocationContext?: {
+    admission: { year: number; month: number }
+    paidByMonth: Record<string, number>
+    waivedByMonth: Record<string, number>
+  }
   submitting: boolean
   onSubmit: (values: PaymentFormValues) => void
   onCancel: () => void
@@ -83,6 +90,7 @@ export function PaymentForm({
   monthlyFee,
   remainingDue,
   canWaive = false,
+  allocationContext,
   submitting,
   onSubmit,
   onCancel,
@@ -121,6 +129,30 @@ export function PaymentForm({
     }
   }, [showWaiveOption, form])
 
+  // Live preview of where the cash lands, using the SAME allocator the server
+  // runs. A normal payment backfills the oldest unpaid month first, so money
+  // recorded "for June" may land on earlier months — surface that up front.
+  const periodMonth = Number(watched.periodMonth)
+  const periodYear = Number(watched.periodYear)
+  const allocationPreview = useMemo(() => {
+    if (!allocationContext || amount <= 0) return null
+    return planPayment({
+      fee: monthlyFee,
+      paid: new Map(Object.entries(allocationContext.paidByMonth)),
+      waived: new Map(Object.entries(allocationContext.waivedByMonth)),
+      selected: { year: periodYear, month: periodMonth },
+      admission: allocationContext.admission,
+      now: appYearMonth(new Date()),
+      amount,
+      waiveShortfall: Boolean(watched.waiveShortfall),
+    }).allocations
+  }, [allocationContext, monthlyFee, amount, periodMonth, periodYear, watched.waiveShortfall])
+
+  const backfillsEarlier =
+    allocationPreview?.some(
+      (a) => a.year < periodYear || (a.year === periodYear && a.month < periodMonth)
+    ) ?? false
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -133,17 +165,6 @@ export function PaymentForm({
               <FormControl>
                 <Input type="number" min="0" step="1" inputMode="numeric" {...field} />
               </FormControl>
-              {monthlyFee > 0 && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    form.setValue("amount", String(monthlyFee), { shouldValidate: true })
-                  }
-                  className="text-xs font-medium text-violet-600 hover:underline dark:text-violet-300"
-                >
-                  Full month — {formatCurrency(monthlyFee)}
-                </button>
-              )}
               <FormMessage />
             </FormItem>
           )}
@@ -292,9 +313,40 @@ export function PaymentForm({
           />
         )}
 
+        {backfillsEarlier && allocationPreview && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <p className="text-sm font-medium">
+              Heads up — this clears earlier dues first
+            </p>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              You&apos;re recording for {MONTHS[periodMonth - 1]} {periodYear}, but
+              this student owes earlier months. The payment is applied oldest-first:
+            </p>
+            <ul className="mt-2 space-y-0.5">
+              {allocationPreview.map((a, idx) => (
+                <li
+                  key={`${a.year}-${a.month}-${idx}`}
+                  className="flex items-center justify-between text-xs tabular-nums"
+                >
+                  <span
+                    className={
+                      a.year < periodYear ||
+                      (a.year === periodYear && a.month < periodMonth)
+                        ? "font-medium text-amber-700 dark:text-amber-300"
+                        : ""
+                    }
+                  >
+                    {MONTHS[a.month - 1]} {a.year}
+                  </span>
+                  <span className="font-medium">{formatCurrency(a.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <p className="text-muted-foreground text-xs">
-          Anything beyond this month&apos;s due clears outstanding months first
-          (oldest first), then prepays upcoming months.
+          Payments clear the oldest unpaid month first, then prepay upcoming months.
         </p>
 
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">

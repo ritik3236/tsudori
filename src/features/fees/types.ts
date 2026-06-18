@@ -65,6 +65,11 @@ export type StudentFeeDetail = {
   status: FeeStatus
   payments: PaymentItem[]
   waivers: WaiverItem[]
+  /** Enough to run the allocator client-side for a "where will this land" preview:
+   *  admission month (IST) + what's already paid/waived per `${year}-${month}`. */
+  admission: { year: number; month: number }
+  paidByMonth: Record<string, number>
+  waivedByMonth: Record<string, number>
 }
 
 export type FeeMonthlyOverview = {

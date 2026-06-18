@@ -19,6 +19,11 @@ type RecordPaymentDialogProps = {
   monthlyFee: number
   remainingDue?: number
   canWaive?: boolean
+  allocationContext?: {
+    admission: { year: number; month: number }
+    paidByMonth: Record<string, number>
+    waivedByMonth: Record<string, number>
+  }
   defaultMonth?: number
   defaultYear?: number
 }
@@ -31,6 +36,7 @@ export function RecordPaymentDialog({
   monthlyFee,
   remainingDue,
   canWaive,
+  allocationContext,
   defaultMonth,
   defaultYear,
 }: RecordPaymentDialogProps) {
@@ -51,6 +57,7 @@ export function RecordPaymentDialog({
           monthlyFee={monthlyFee}
           remainingDue={remainingDue}
           canWaive={canWaive}
+          allocationContext={allocationContext}
           defaultMonth={defaultMonth}
           defaultYear={defaultYear}
           submitting={record.isPending}

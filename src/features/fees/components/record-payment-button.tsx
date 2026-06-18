@@ -12,6 +12,11 @@ type RecordPaymentButtonProps = {
   monthlyFee: number
   remainingDue?: number
   canWaive?: boolean
+  allocationContext?: {
+    admission: { year: number; month: number }
+    paidByMonth: Record<string, number>
+    waivedByMonth: Record<string, number>
+  }
   label?: string
   variant?: ComponentProps<typeof Button>["variant"]
   size?: ComponentProps<typeof Button>["size"]
@@ -26,6 +31,7 @@ export function RecordPaymentButton({
   monthlyFee,
   remainingDue,
   canWaive,
+  allocationContext,
   label = "Record payment",
   variant = "default",
   size = "default",
@@ -53,6 +59,7 @@ export function RecordPaymentButton({
         monthlyFee={monthlyFee}
         remainingDue={remainingDue}
         canWaive={canWaive}
+        allocationContext={allocationContext}
         defaultMonth={defaultMonth}
         defaultYear={defaultYear}
       />

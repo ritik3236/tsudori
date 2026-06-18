@@ -288,6 +288,9 @@ export async function getStudentFee(
     status,
     payments: payments.map(toPaymentItem),
     waivers: waivers.map(toWaiverItem),
+    admission: { year: adm.year, month: adm.month },
+    paidByMonth: Object.fromEntries(paidByPeriod),
+    waivedByMonth: Object.fromEntries(waivedByPeriod),
   }
 }
 

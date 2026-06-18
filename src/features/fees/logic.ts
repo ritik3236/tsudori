@@ -28,11 +28,13 @@ export type PaymentPlan = {
 }
 
 // Distributes a payment across fee months without touching the DB. Rules:
-//  1. fill the selected month first,
-//  2. then every billable month from admission..now (oldest first),
-//  3. then prepay upcoming months with any leftover,
-//  4. safety net: if nothing could be allocated (e.g. fee=0), keep it on selected,
-//  5. settle-short: optionally waive whatever still remains owed on the selected month.
+//  1. a NORMAL payment backfills the oldest unpaid month first (admission..now),
+//     then prepays forward — so earlier dues clear before later ones;
+//  2. a SETTLE-SHORT payment (waiveShortfall) funds the SELECTED month first
+//     instead, so its leftover can be waived to close exactly that month;
+//  3. prepay upcoming months with any leftover;
+//  4. safety net: if nothing could be allocated (e.g. fee=0), keep it on selected;
+//  5. settle-short: waive whatever still remains owed on the selected month.
 // `paid`/`waived` are keyed `${year}-${month}` with the amounts already on record.
 export function planPayment(input: {
   fee: number
@@ -60,7 +62,9 @@ export function planPayment(input: {
       order.push({ year: y, month: m })
     }
   }
-  queue(selected.year, selected.month)
+  // Settle-short funds the selected month first so its leftover can be waived;
+  // a normal payment just backfills from admission (oldest first).
+  if (waiveShortfall) queue(selected.year, selected.month)
   let by = admission.year
   let bm = admission.month
   while (by < now.year || (by === now.year && bm <= now.month)) {

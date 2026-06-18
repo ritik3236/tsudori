@@ -82,6 +82,11 @@ export default async function StudentFeesPage({
                 monthlyFee={fee.monthlyFee}
                 remainingDue={fee.pendingThisMonth}
                 canWaive={canWaive}
+                allocationContext={{
+                  admission: fee.admission,
+                  paidByMonth: fee.paidByMonth,
+                  waivedByMonth: fee.waivedByMonth,
+                }}
                 defaultMonth={periodMonth}
                 defaultYear={periodYear}
                 className="w-full sm:w-auto"

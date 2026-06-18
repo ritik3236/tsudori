@@ -72,19 +72,32 @@ describe("planPayment", () => {
     expect(p.waiveAmount).toBe(100)
   })
 
-  it("clears the selected month first, then older months oldest-first", () => {
+  it("a normal payment backfills the oldest unpaid month first", () => {
     const p = plan({
       fee: 5000,
       admission: { year: 2026, month: 1 },
       amount: 20000,
     })
     expect(p.allocations).toEqual([
-      { year: 2026, month: 6, amount: 5000 }, // selected first
-      { year: 2026, month: 1, amount: 5000 },
+      { year: 2026, month: 1, amount: 5000 }, // oldest first
       { year: 2026, month: 2, amount: 5000 },
       { year: 2026, month: 3, amount: 5000 },
+      { year: 2026, month: 4, amount: 5000 },
     ])
     expect(p.waiveAmount).toBe(0)
+  })
+
+  it("settle-short funds the SELECTED month first even when older months are owed", () => {
+    const p = plan({
+      fee: 5000,
+      admission: { year: 2026, month: 1 },
+      amount: 4000,
+      waiveShortfall: true,
+    })
+    // June (selected) is funded first, then its 1000 remainder is waived —
+    // the older months are deliberately left for a normal payment.
+    expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 4000 }])
+    expect(p.waiveAmount).toBe(1000)
   })
 
   it("prepays upcoming months once everything owed is cleared", () => {
