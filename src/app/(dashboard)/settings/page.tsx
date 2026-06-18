@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { PageHeader } from "@/components/shared/page-header"
 import { SettingsHub } from "@/features/settings/components/settings-hub"
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Settings" }
 
 export default async function SettingsPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.SETTING_READ)
+  requirePagePermission(ctx, PERMISSIONS.SETTING_READ)
 
   const sections = visibleSettingsSections(ctx.permissions)
 

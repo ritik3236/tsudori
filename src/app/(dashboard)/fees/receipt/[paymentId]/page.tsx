@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
 import { formatCurrency, formatDateLong } from "@/lib/format"
@@ -34,7 +34,7 @@ export default async function ReceiptPage({
 }) {
   const { paymentId } = await params
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.FEE_READ)
+  requirePagePermission(ctx, PERMISSIONS.FEE_READ)
 
   let receipt: Awaited<ReturnType<typeof getReceipt>>
   try {

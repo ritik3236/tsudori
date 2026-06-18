@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { ALL_CLASSES } from "@/lib/constants"
@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Attendance" }
 
 export default async function AttendanceRoute() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.ATTENDANCE_READ)
+  requirePagePermission(ctx, PERMISSIONS.ATTENDANCE_READ)
 
   // Default view is "All classes" for today (IST). Prefetch the class dropdown
   // and that day so the page paints marked rows without a client round-trip.

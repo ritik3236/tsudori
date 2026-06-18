@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
-import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS, roleWeight } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { PageHeader } from "@/components/shared/page-header"
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Roles & permissions" }
 
 export default async function RolesSettingsPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
+  requirePagePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
 
   const qc = makeServerQueryClient()
   await qc.prefetchQuery({

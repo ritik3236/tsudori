@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Plus } from "lucide-react"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import { makeServerQueryClient } from "@/lib/query"
@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Students" }
 
 export default async function StudentsPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.STUDENT_READ)
+  requirePagePermission(ctx, PERMISSIONS.STUDENT_READ)
 
   const canCreate = can(ctx, PERMISSIONS.STUDENT_CREATE)
 

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { HandCoins, Printer, Receipt } from "lucide-react"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
@@ -26,7 +26,7 @@ export default async function StudentFeesPage({
 }) {
   const { studentId } = await params
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.FEE_READ)
+  requirePagePermission(ctx, PERMISSIONS.FEE_READ)
 
   let fee: Awaited<ReturnType<typeof getStudentFee>>
   try {

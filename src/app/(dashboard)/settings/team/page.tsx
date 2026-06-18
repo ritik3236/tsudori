@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { PageHeader } from "@/components/shared/page-header"
 import { BackLink } from "@/components/shared/back-link"
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Team members" }
 
 export default async function TeamSettingsPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.MEMBER_READ)
+  requirePagePermission(ctx, PERMISSIONS.MEMBER_READ)
 
   return (
     <div className="space-y-6">

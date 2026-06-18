@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { classKeys } from "@/features/classes/api"
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Classes" }
 
 export default async function ClassesPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.CLASS_READ)
+  requirePagePermission(ctx, PERMISSIONS.CLASS_READ)
 
   const canManage = can(ctx, PERMISSIONS.CLASS_MANAGE)
 

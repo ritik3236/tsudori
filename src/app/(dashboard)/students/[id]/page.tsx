@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
 import { getStudent } from "@/features/students/service"
@@ -17,7 +17,7 @@ export default async function StudentProfilePage({
 }) {
   const { id } = await params
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.STUDENT_READ)
+  requirePagePermission(ctx, PERMISSIONS.STUDENT_READ)
 
   let student: Awaited<ReturnType<typeof getStudent>>
   try {

@@ -21,11 +21,18 @@ export function RefreshButton() {
   function handleClick() {
     setSpinning(true)
     startTransition(async () => {
-      await revalidateAllPaths()
-      await queryClient.invalidateQueries()
-      router.refresh()
-      // Keep the spin going briefly so fast/cached refreshes don't just flash.
-      setTimeout(() => setSpinning(false), 600)
+      try {
+        await revalidateAllPaths()
+        await queryClient.invalidateQueries()
+        router.refresh()
+      } catch (error) {
+        // A failed refresh should never blow up the page — just log it and let
+        // the user try again. The visible data simply stays as-is.
+        console.error("[refresh] failed to refresh data", error)
+      } finally {
+        // Keep the spin going briefly so fast/cached refreshes don't just flash.
+        setTimeout(() => setSpinning(false), 600)
+      }
     })
   }
 

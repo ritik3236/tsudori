@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { getTenantContext, requirePermission } from "@/lib/tenant"
+import { getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { PageHeader } from "@/components/shared/page-header"
 import { BackLink } from "@/components/shared/back-link"
@@ -16,7 +16,7 @@ export default async function EditStudentPage({
 }) {
   const { id } = await params
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.STUDENT_UPDATE)
+  requirePagePermission(ctx, PERMISSIONS.STUDENT_UPDATE)
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

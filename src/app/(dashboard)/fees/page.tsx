@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { todayInAppTz } from "@/lib/date-helper"
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Fees" }
 
 export default async function FeesPage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.FEE_READ)
+  requirePagePermission(ctx, PERMISSIONS.FEE_READ)
 
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
 

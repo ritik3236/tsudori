@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { can, getTenantContext, requirePermission } from "@/lib/tenant"
+import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { PageHeader } from "@/components/shared/page-header"
 import { BackLink } from "@/components/shared/back-link"
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Institute profile" }
 
 export default async function InstituteProfilePage() {
   const ctx = await getTenantContext()
-  requirePermission(ctx, PERMISSIONS.SETTING_READ)
+  requirePagePermission(ctx, PERMISSIONS.SETTING_READ)
 
   // The institute is already loaded on the tenant context — no extra query.
   const profile = toInstituteProfile(ctx.institute)

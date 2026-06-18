@@ -2,6 +2,7 @@ import "server-only"
 
 import { cache } from "react"
 import { cookies } from "next/headers"
+import { forbidden } from "next/navigation"
 import type { Institute, Membership, Role, User } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
@@ -156,6 +157,24 @@ export function requirePermission(
 ): void {
   if (!hasPermission(ctx.permissions, permission)) {
     throw new ForbiddenError()
+  }
+}
+
+/**
+ * Page-only permission guard. Unlike requirePermission — which throws a
+ * ForbiddenError for the API layer (src/lib/api.ts) to turn into a 403 JSON
+ * envelope — this triggers Next's forbidden() interrupt so the visitor lands on
+ * the friendly forbidden.tsx (403) page instead of a raw "server error" screen.
+ *
+ * Use this in `page.tsx` / `layout.tsx` server components ONLY. In route
+ * handlers and server actions that return data, keep using requirePermission.
+ */
+export function requirePagePermission(
+  ctx: TenantContext,
+  permission: Permission
+): void {
+  if (!hasPermission(ctx.permissions, permission)) {
+    forbidden()
   }
 }
 
