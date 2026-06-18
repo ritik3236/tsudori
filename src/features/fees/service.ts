@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import { NotFoundError } from "@/lib/errors"
+import { deriveMonth, planPayment } from "@/features/fees/logic"
 import type { Paginated } from "@/features/students/types"
 import type { FeeQuery, RecordPaymentInput, WaiveFeeInput } from "@/features/fees/schema"
 import type {
@@ -30,22 +31,6 @@ const WAIVER_REASON_SETTLE = "Balance waived to settle the month"
 function currentPeriod() {
   const { year, month } = appYearMonth(new Date())
   return { month, year }
-}
-
-// A waiver is a concession: it reduces the amount due for the month without being
-// cash. So the student's net due is `monthlyFee - waived`, paid cash settles that,
-// and any cash beyond it is `advance` (credit in hand). When a month is fully
-// settled by a waiver alone (no cash), it reads as WAIVED rather than PAID.
-function deriveMonth(monthlyFee: number, paid: number, waived: number) {
-  const netDue = Math.max(0, monthlyFee - waived)
-  const pending = Math.max(0, netDue - paid)
-  const advance = Math.max(0, paid - netDue)
-  let status: FeeStatus
-  if (pending > 0) status = paid > 0 ? "PARTIAL" : "UNPAID"
-  else if (advance > 0) status = "ADVANCE"
-  else if (paid <= 0 && waived > 0) status = "WAIVED"
-  else status = "PAID"
-  return { netDue, pending, advance, status }
 }
 
 type PaymentWithRecorder = Prisma.FeePaymentGetPayload<{
@@ -327,7 +312,7 @@ export async function recordPayment(
     if (!student) throw new NotFoundError("Student not found.")
 
     const fee = Number(student.monthlyFee)
-    const { year: nowY, month: nowM } = appYearMonth(new Date())
+    const now = appYearMonth(new Date())
 
     // What's already settled per month, so we only ever fill the unmet due.
     const [paidGroups, waiverGroups] = await Promise.all([
@@ -352,51 +337,35 @@ export async function recordPayment(
     for (const g of waiverGroups) {
       waived.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
     }
-    const dueOf = (y: number, m: number) =>
-      Math.max(0, fee - (paid.get(key(y, m)) ?? 0) - (waived.get(key(y, m)) ?? 0))
 
-    // Priority order: the selected month, then every billable month from admission
-    // through now (oldest first). Picking the earliest outstanding month therefore
-    // distributes forward; picking the current month clears it then walks back.
-    const order: { y: number; m: number }[] = []
-    const seen = new Set<string>()
-    const queue = (y: number, m: number) => {
-      const k = key(y, m)
-      if (!seen.has(k)) {
-        seen.add(k)
-        order.push({ y, m })
-      }
-    }
-    queue(input.periodYear, input.periodMonth)
-    const adm = appYearMonth(student.admissionDate)
-    let by = adm.year
-    let bm = adm.month
-    while (by < nowY || (by === nowY && bm <= nowM)) {
-      queue(by, bm)
-      bm += 1
-      if (bm > 12) {
-        bm = 1
-        by += 1
-      }
-    }
+    // Pure allocation: which months get how much, plus any settle-short waiver.
+    const plan = planPayment({
+      fee,
+      paid,
+      waived,
+      selected: { year: input.periodYear, month: input.periodMonth },
+      admission: appYearMonth(student.admissionDate),
+      now,
+      amount: input.amount,
+      waiveShortfall: input.waiveShortfall,
+    })
 
+    // Persist: one FeePayment row (+ sequential receipt) per allocated month.
     const last = await tx.feePayment.findFirst({
       where: { instituteId },
       orderBy: { receiptNo: "desc" },
       select: { receiptNo: true },
     })
     let receiptNo = (last?.receiptNo ?? 0) + 1
-    let remaining = input.amount
     const rows: PaymentWithRecorder[] = []
-
-    const apply = async (y: number, m: number, amount: number) => {
+    for (const a of plan.allocations) {
       const row = await tx.feePayment.create({
         data: {
           instituteId,
           studentId: student.id,
-          amount,
-          periodMonth: m,
-          periodYear: y,
+          amount: a.amount,
+          periodMonth: a.month,
+          periodYear: a.year,
           method: input.method,
           paidAt: input.paidAt,
           receiptNo: receiptNo++,
@@ -406,61 +375,22 @@ export async function recordPayment(
         include: { recordedBy: { select: { name: true } } },
       })
       rows.push(row)
-      paid.set(key(y, m), (paid.get(key(y, m)) ?? 0) + amount)
-      remaining -= amount
     }
 
-    // Selected month + outstanding months.
-    for (const { y, m } of order) {
-      if (remaining <= 0) break
-      const d = dueOf(y, m)
-      if (d > 0) await apply(y, m, Math.min(remaining, d))
-    }
-
-    // Everything settled — prepay upcoming months with the leftover.
-    let fy = nowY
-    let fm = nowM + 1
-    if (fm > 12) {
-      fm = 1
-      fy += 1
-    }
-    let guard = 0
-    while (remaining > 0 && fee > 0 && guard < 600) {
-      guard += 1
-      const d = dueOf(fy, fm)
-      if (d > 0) await apply(fy, fm, Math.min(remaining, d))
-      fm += 1
-      if (fm > 12) {
-        fm = 1
-        fy += 1
-      }
-    }
-
-    // Safety net: nothing could be allocated (e.g. a zero monthly fee) — keep the
-    // money against the selected month rather than silently dropping it.
-    if (remaining > 0) await apply(input.periodYear, input.periodMonth, remaining)
-
-    // Settle-short: after the cash is applied, waive whatever still remains on the
-    // SELECTED month so a short payment closes it as paid instead of carrying a
-    // balance. The amount is whatever's left (fee − paid − already-waived), so it
-    // can't over-waive even if some cash already landed on this month.
     let waivedAmount = 0
-    if (input.waiveShortfall) {
-      const shortfall = dueOf(input.periodYear, input.periodMonth)
-      if (shortfall > 0) {
-        await tx.feeWaiver.create({
-          data: {
-            instituteId,
-            studentId: student.id,
-            amount: shortfall,
-            periodMonth: input.periodMonth,
-            periodYear: input.periodYear,
-            reason: WAIVER_REASON_SETTLE,
-            waivedById: recordedById,
-          },
-        })
-        waivedAmount = shortfall
-      }
+    if (plan.waiveAmount > 0) {
+      await tx.feeWaiver.create({
+        data: {
+          instituteId,
+          studentId: student.id,
+          amount: plan.waiveAmount,
+          periodMonth: input.periodMonth,
+          periodYear: input.periodYear,
+          reason: WAIVER_REASON_SETTLE,
+          waivedById: recordedById,
+        },
+      })
+      waivedAmount = plan.waiveAmount
     }
 
     return { rows, waivedAmount }
