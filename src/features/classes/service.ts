@@ -1,5 +1,6 @@
 import "server-only"
 
+import { cache } from "react"
 import type { Class } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
@@ -18,14 +19,19 @@ export async function listClassOptions(
   })
 }
 
-export async function getClass(instituteId: string, id: string): Promise<ClassListItem> {
-  const cls = await prisma.class.findFirst({
-    where: { id, instituteId },
-    include: { _count: { select: { students: { where: { archivedAt: null } } } } },
-  })
-  if (!cls) throw new NotFoundError("Class not found.")
-  return toListItem(cls)
-}
+// cache()-wrapped: the class detail route calls this in both generateMetadata
+// AND the page body. Without memoization that's two identical queries per
+// request; cache() collapses them to one.
+export const getClass = cache(
+  async (instituteId: string, id: string): Promise<ClassListItem> => {
+    const cls = await prisma.class.findFirst({
+      where: { id, instituteId },
+      include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+    })
+    if (!cls) throw new NotFoundError("Class not found.")
+    return toListItem(cls)
+  }
+)
 
 export async function listClasses(instituteId: string): Promise<ClassListItem[]> {
   const rows = await prisma.class.findMany({
