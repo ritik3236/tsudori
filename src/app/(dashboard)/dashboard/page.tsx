@@ -33,16 +33,6 @@ const CHIP: Record<Scheme, string> = {
   rose: "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 }
 
-
-/** ₹10.8k / ₹1.2L / ₹3Cr — short money for the compact stat strip. */
-function compactInr(n: number): string {
-  const trim = (v: number) => v.toFixed(1).replace(/\.0$/, "")
-  if (n >= 1_00_00_000) return `₹${trim(n / 1_00_00_000)}Cr`
-  if (n >= 1_00_000) return `₹${trim(n / 1_00_000)}L`
-  if (n >= 1_000) return `₹${trim(n / 1_000)}k`
-  return `₹${n}`
-}
-
 export default async function DashboardPage() {
   const ctx = await getTenantContext()
   const canViewFees = can(ctx, PERMISSIONS.FEE_READ)
@@ -95,11 +85,7 @@ export default async function DashboardPage() {
         <div className="card-soft relative -mt-9 mx-2 grid grid-cols-3 divide-x divide-border/70 rounded-[16px] bg-card py-4">
           <Stat value={stats.totalStudents} label="Students" />
           <Stat value={att.present} label="Present" />
-          {finance ? (
-            <Stat value={compactInr(finance.feeCollectedThisMonth)} label="Collected" />
-          ) : (
-            <Stat value={att.absent} label="Absent" />
-          )}
+          <Stat value={att.absent} label="Absent" />
         </div>
       </div>
 
