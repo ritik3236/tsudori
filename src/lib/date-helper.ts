@@ -3,36 +3,68 @@ import { DateTime } from "luxon"
 // Product timezone — change this one constant to ship for a different region.
 export const APP_TIMEZONE = "Asia/Kolkata"
 
+type DateInput = Date | string | number | null | undefined
+
+// ─── Internal factories ─────────────────────────────────────────────────────
+// The ONLY place APP_TIMEZONE is applied. Every DateTime in this module is built
+// through these, so the zone lives in one spot. (Deliberately NOT a global Luxon
+// default — that's process-wide mutable state and would fight a future per-
+// institute timezone; explicit factories keep it scoped and legible.)
+
+function appDT(value: Date | string | number): DateTime {
+  if (value instanceof Date) return DateTime.fromJSDate(value, { zone: APP_TIMEZONE })
+  if (typeof value === "number") return DateTime.fromMillis(value, { zone: APP_TIMEZONE })
+  return DateTime.fromISO(value, { zone: APP_TIMEZONE })
+}
+
+function appNow(): DateTime {
+  return DateTime.now().setZone(APP_TIMEZONE)
+}
+
+function appMonth(year: number, month: number): DateTime {
+  // `month` is 1-indexed and may be out of range (0, 13, -4 …); Luxon normalizes
+  // it via plus().
+  return DateTime.fromObject({ year, month: 1, day: 1 }, { zone: APP_TIMEZONE }).plus({
+    months: month - 1,
+  })
+}
+
+function toAppDT(value: DateInput): DateTime | null {
+  if (value == null) return null
+  const dt = appDT(value)
+  return dt.isValid ? dt : null
+}
+
 // ─── Core converters ─────────────────────────────────────────────────────────
 
 // Parse YYYY-MM-DD as app-timezone midnight and return a UTC JS Date.
 // "2026-06-17" IST → 2026-06-16T18:30:00.000Z
 export function appDateToUtc(dateStr: string): Date {
-  return DateTime.fromISO(dateStr, { zone: APP_TIMEZONE }).toJSDate()
+  return appDT(dateStr).toJSDate()
 }
 
 // Convert a UTC JS Date to a YYYY-MM-DD string in the app timezone.
 // 2026-06-16T18:30:00Z → "2026-06-17"
 export function utcToAppDateStr(d: Date): string {
-  return DateTime.fromJSDate(d, { zone: APP_TIMEZONE }).toISODate()!
+  return appDT(d).toISODate()!
 }
 
 // Current date string in the app timezone.
 export function todayInAppTz(): string {
-  return DateTime.now().setZone(APP_TIMEZONE).toISODate()!
+  return appNow().toISODate()!
 }
 
 // ─── Boundary helpers ─────────────────────────────────────────────────────────
 
 // [dayStart, dayEnd) as UTC timestamps for a YYYY-MM-DD date in the app timezone.
 export function appDayBounds(dateStr: string): [Date, Date] {
-  const start = DateTime.fromISO(dateStr, { zone: APP_TIMEZONE }).startOf("day")
+  const start = appDT(dateStr).startOf("day")
   return [start.toJSDate(), start.plus({ days: 1 }).toJSDate()]
 }
 
 // [monthStart, monthEnd) as UTC timestamps for a YYYY-MM month in the app timezone.
 export function appMonthBounds(monthStr: string): [Date, Date] {
-  const start = DateTime.fromISO(`${monthStr}-01`, { zone: APP_TIMEZONE }).startOf("month")
+  const start = appDT(`${monthStr}-01`).startOf("month")
   return [start.toJSDate(), start.plus({ months: 1 }).toJSDate()]
 }
 
@@ -41,7 +73,7 @@ export function appMonthBounds(monthStr: string): [Date, Date] {
 // represents an IST calendar day must read in the right month — e.g. admission
 // "1 Jun" is persisted as 2026-05-31T18:30:00Z and must resolve to June, not May.
 export function appYearMonth(date: Date): { year: number; month: number } {
-  const dt = DateTime.fromJSDate(date, { zone: APP_TIMEZONE })
+  const dt = appDT(date)
   return { year: dt.year, month: dt.month }
 }
 
@@ -49,35 +81,16 @@ export function appYearMonth(date: Date): { year: number; month: number } {
 // and may be out of range (0, 13, -4 …) — it's normalized. Handy for month windows
 // and "first of month" comparisons against UTC-stored dates.
 export function appMonthStartUtc(year: number, month: number): Date {
-  return DateTime.fromObject({ year, month: 1, day: 1 }, { zone: APP_TIMEZONE })
-    .plus({ months: month - 1 })
-    .toJSDate()
+  return appMonth(year, month).toJSDate()
 }
 
 // Shift a "YYYY-MM" month string by N months (pure calendar math). Use this
 // instead of native Date month arithmetic so the no-native-Date lint rule holds.
 export function shiftMonthStr(monthStr: string, delta: number): string {
-  return DateTime.fromISO(`${monthStr}-01`, { zone: APP_TIMEZONE })
-    .plus({ months: delta })
-    .toFormat("yyyy-MM")
+  return appDT(`${monthStr}-01`).plus({ months: delta }).toFormat("yyyy-MM")
 }
 
 // ─── Display formatters ───────────────────────────────────────────────────────
-
-type DateInput = Date | string | number | null | undefined
-
-function toAppDT(value: DateInput): DateTime | null {
-  if (value == null) return null
-  let dt: DateTime
-  if (value instanceof Date) {
-    dt = DateTime.fromJSDate(value, { zone: APP_TIMEZONE })
-  } else if (typeof value === "number") {
-    dt = DateTime.fromMillis(value, { zone: APP_TIMEZONE })
-  } else {
-    dt = DateTime.fromISO(value, { zone: APP_TIMEZONE })
-  }
-  return dt.isValid ? dt : null
-}
 
 // 17/06/2026
 export function formatDateShort(value: DateInput): string {
@@ -99,7 +112,7 @@ export function formatDateTime(value: DateInput): string {
 export function formatRelative(value: DateInput): string {
   const dt = toAppDT(value)
   if (!dt) return "—"
-  const mins = Math.floor(DateTime.now().diff(dt, "minutes").minutes)
+  const mins = Math.floor(appNow().diff(dt, "minutes").minutes)
   if (mins < 1) return "just now"
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
