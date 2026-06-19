@@ -374,13 +374,23 @@ model FeeWaiver {
 /// A shared, institute-wide note board. Any member can post; teachers and admins
 /// reply on the same page — a lightweight place to raise questions, flag bugs, or
 /// leave announcements. Flat (no threading) by design in V1.
+enum NotePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+
+  @@schema("public")
+}
+
 model Note {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   instituteId String
-  authorId    String?  @db.Uuid
+  authorId    String?      @db.Uuid
   body        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  priority    NotePriority @default(NORMAL)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
   author    User?     @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)

@@ -19,6 +19,7 @@ function toItem(n: NoteWithAuthor, viewerId: string, isAdmin: boolean): NoteItem
   return {
     id: n.id,
     body: n.body,
+    priority: n.priority,
     authorId: n.authorId,
     authorName: n.author?.name ?? null,
     createdAt: n.createdAt.toISOString(),
@@ -34,7 +35,9 @@ export async function listNotes(
 ): Promise<NoteItem[]> {
   const rows = await prisma.note.findMany({
     where: { instituteId },
-    orderBy: { createdAt: "desc" },
+    // Highest priority floats to the top (enum order: LOW < NORMAL < HIGH), then
+    // newest first within a priority.
+    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
     include: { author: { select: { name: true } } },
   })
   return rows.map((n) => toItem(n, viewerId, isAdmin))
@@ -46,7 +49,7 @@ export async function createNote(
   input: NoteCreateInput
 ): Promise<NoteItem> {
   const note = await prisma.note.create({
-    data: { instituteId, authorId, body: input.body },
+    data: { instituteId, authorId, body: input.body, priority: input.priority },
     include: { author: { select: { name: true } } },
   })
   return toItem(note, authorId, true)
@@ -65,7 +68,7 @@ export async function updateNote(
 
   const note = await prisma.note.update({
     where: { id },
-    data: { body: input.body },
+    data: { body: input.body, priority: input.priority },
     include: { author: { select: { name: true } } },
   })
   return toItem(note, viewerId, isAdmin)
