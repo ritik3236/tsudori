@@ -95,6 +95,12 @@ export const feeQuerySchema = z.object({
   periodMonth: z.coerce.number().int().min(1).max(12).optional(),
   periodYear: z.coerce.number().int().min(2000).max(2100).optional(),
   offset: z.coerce.number().int().min(0).default(0),
+  // "Pending only" filter — students who still owe this month (UNPAID/PARTIAL).
+  // Arrives as the string "true" on the wire; absent means show everyone.
+  pendingOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
 })
 
 // Summary aggregates are class-scoped but not affected by text search, so they

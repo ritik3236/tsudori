@@ -31,7 +31,12 @@ export default async function FeesPage() {
     qc.prefetchInfiniteQuery({
       queryKey: feeKeys.list({ periodMonth: m, periodYear: y }),
       queryFn: () =>
-        listStudentFees(ctx.institute.id, { periodMonth: m, periodYear: y, offset: 0 }),
+        listStudentFees(ctx.institute.id, {
+          periodMonth: m,
+          periodYear: y,
+          offset: 0,
+          pendingOnly: false,
+        }),
       initialPageParam: 0,
     }),
     qc.prefetchQuery({

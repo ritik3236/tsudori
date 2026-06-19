@@ -20,6 +20,8 @@ export type FeeListParams = {
   classId?: string
   periodMonth?: number
   periodYear?: number
+  /** Show only students who still owe this month (UNPAID/PARTIAL). */
+  pendingOnly?: boolean
 }
 
 // Summary is class-scoped but search-independent, so it keys off month + class only.

@@ -63,6 +63,7 @@ export function FeesMonthView({
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
   const [classId, setClassId] = useState(ALL)
+  const [pendingOnly, setPendingOnly] = useState(false)
   const months = monthStrip()
   const activeRef = useRef<HTMLButtonElement>(null)
 
@@ -94,6 +95,7 @@ export function FeesMonthView({
       periodYear: sel.year,
       classId: classFilter,
       q: q || undefined,
+      pendingOnly: pendingOnly || undefined,
     })
 
   const nowOrd = nowYM.year * 12 + nowYM.month
@@ -154,9 +156,9 @@ export function FeesMonthView({
         })}
       </div>
 
-      {/* Student search + class filter */}
-      <div className="flex gap-2.5">
-        <div className="relative flex-1">
+      {/* Student search + pending filter + class filter (wraps on narrow screens) */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <div className="relative min-w-[160px] flex-1">
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             value={search}
@@ -165,6 +167,7 @@ export function FeesMonthView({
             className="pl-9"
           />
         </div>
+        <PendingFilter value={pendingOnly} onChange={setPendingOnly} />
         <Select value={classId} onValueChange={(v) => setClassId(v ?? ALL)}>
           <SelectTrigger className="w-36 shrink-0">
             <SelectValue placeholder="Class">
@@ -221,11 +224,13 @@ export function FeesMonthView({
       ) : items.length === 0 ? (
         <EmptyState
           icon={searching ? Search : Receipt}
-          title={searching ? "No matches" : "No students"}
+          title={searching ? "No matches" : pendingOnly ? "All caught up" : "No students"}
           description={
             searching
               ? "No students match your search."
-              : "Add students to start tracking fees."
+              : pendingOnly
+                ? "No pending fees this month."
+                : "Add students to start tracking fees."
           }
         />
       ) : (
@@ -257,6 +262,40 @@ export function FeesMonthView({
           />
         </div>
       )}
+    </div>
+  )
+}
+
+/** "All / Pending" segmented control — flip the list to just who still owes. */
+function PendingFilter({
+  value,
+  onChange,
+}: {
+  value: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className="bg-muted inline-flex shrink-0 rounded-lg p-0.5 text-sm">
+      {(
+        [
+          ["All", false],
+          ["Pending", true],
+        ] as const
+      ).map(([label, v]) => (
+        <button
+          key={label}
+          type="button"
+          onClick={() => onChange(v)}
+          className={cn(
+            "rounded-md px-3 py-1.5 font-medium transition-colors",
+            value === v
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   )
 }

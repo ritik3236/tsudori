@@ -184,6 +184,8 @@ export async function listStudentFees(
   })
 
   if (query.status) rows = rows.filter((r) => r.status === query.status)
+  // "Pending only": just those who still owe this month (UNPAID/PARTIAL).
+  if (query.pendingOnly) rows = rows.filter((r) => r.pendingThisMonth > 0)
   rows.sort(
     (a, b) =>
       STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
