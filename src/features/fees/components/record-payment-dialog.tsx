@@ -24,8 +24,6 @@ type RecordPaymentDialogProps = {
     paidByMonth: Record<string, number>
     waivedByMonth: Record<string, number>
   }
-  defaultMonth?: number
-  defaultYear?: number
 }
 
 export function RecordPaymentDialog({
@@ -37,8 +35,6 @@ export function RecordPaymentDialog({
   remainingDue,
   canWaive,
   allocationContext,
-  defaultMonth,
-  defaultYear,
 }: RecordPaymentDialogProps) {
   const record = useRecordPayment()
 
@@ -50,16 +46,12 @@ export function RecordPaymentDialog({
           <DialogDescription>{studentName}</DialogDescription>
         </DialogHeader>
         <PaymentForm
-          // Remount on open (and when the target period changes) so useForm
-          // re-reads fresh defaults — otherwise switching the month-view strip
-          // then opening shows the stale month and hides the waive option.
-          key={`${open}:${defaultMonth ?? ""}:${defaultYear ?? ""}`}
+          // Remount on open so useForm re-reads fresh defaults each time.
+          key={String(open)}
           monthlyFee={monthlyFee}
           remainingDue={remainingDue}
           canWaive={canWaive}
           allocationContext={allocationContext}
-          defaultMonth={defaultMonth}
-          defaultYear={defaultYear}
           submitting={record.isPending}
           onCancel={() => onOpenChange(false)}
           onSubmit={(values) =>

@@ -9,6 +9,6 @@ export const POST = route(async (req) => {
   requirePermission(ctx, PERMISSIONS.FEE_WAIVE)
 
   const input = await parseJson(req, waiveFeeSchema)
-  const waiver = await recordWaiver(ctx.institute.id, ctx.user.id, input)
-  return created(waiver)
+  const result = await recordWaiver(ctx.institute.id, ctx.user.id, input)
+  return created(result)
 })

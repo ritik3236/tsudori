@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
@@ -39,8 +40,9 @@ type WaiveFeeDialogProps = {
   onOpenChange: (open: boolean) => void
   studentId: string
   studentName: string
-  /** Outstanding amount for the month — the default (and max sensible) waiver. */
+  /** Total outstanding across all months — the default (and max) waiver. */
   remainingDue: number
+  /** Oldest month still owing, shown as where the waiver starts. */
   periodMonth: number
   periodYear: number
 }
@@ -54,6 +56,7 @@ export function WaiveFeeDialog({
   periodMonth,
   periodYear,
 }: WaiveFeeDialogProps) {
+  const router = useRouter()
   const waive = useWaiveFee()
   const form = useForm<WaiverFormValues>({
     resolver: zodResolver(waiverFormSchema),
@@ -75,10 +78,14 @@ export function WaiveFeeDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit((values) =>
-              waive.mutate(
-                waiverValuesToInput(studentId, periodMonth, periodYear, values),
-                { onSuccess: () => onOpenChange(false) }
-              )
+              waive.mutate(waiverValuesToInput(studentId, values), {
+                onSuccess: () => {
+                  onOpenChange(false)
+                  // Server-component detail page: refresh to re-derive balances
+                  // and show the new waiver entries in place.
+                  router.refresh()
+                },
+              })
             )}
             className="space-y-4"
           >
@@ -89,7 +96,14 @@ export function WaiveFeeDialog({
                 <FormItem>
                   <FormLabel>Amount to waive</FormLabel>
                   <FormControl>
-                    <Input type="number" min="0" step="1" inputMode="numeric" {...field} />
+                    <Input
+                      type="number"
+                      min="0"
+                      max={remainingDue}
+                      step="1"
+                      inputMode="numeric"
+                      {...field}
+                    />
                   </FormControl>
                   {remainingDue > 0 && (
                     <button
@@ -128,8 +142,8 @@ export function WaiveFeeDialog({
             />
 
             <p className="text-muted-foreground text-xs">
-              A waiver reduces what this student owes for the month. It is recorded
-              as a concession, not as money collected.
+              A waiver reduces what this student owes. It is recorded as a
+              concession, not as money collected.
             </p>
 
             <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">

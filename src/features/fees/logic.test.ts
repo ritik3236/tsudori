@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest"
 import {
   deriveMonth,
   planPayment,
+  planWaiver,
   resolveReversal,
   type Period,
 } from "@/features/fees/logic"
@@ -71,43 +72,43 @@ describe("planPayment", () => {
     admission: { year: 2026, month: 6 } as Period,
     now: { year: 2026, month: 6 } as Period,
     amount: 0,
-    waiveShortfall: false,
+    waiveRemaining: false,
   }
   const plan = (over: Partial<Parameters<typeof planPayment>[0]>) =>
     planPayment({ paid: new Map(), waived: new Map(), ...base, ...over })
 
-  it("settle-short: fills the month with cash and waives the remainder", () => {
-    const p = plan({ amount: 600, waiveShortfall: true })
+  it("pay-and-clear: fills the month with cash and waives the remainder", () => {
+    const p = plan({ amount: 600, waiveRemaining: true })
     expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 600 }])
-    expect(p.waiveAmount).toBe(100)
+    expect(p.waiveAllocations).toEqual([{ year: 2026, month: 6, amount: 100 }])
   })
 
   it("does NOT waive when the cash fully covers the month", () => {
-    const p = plan({ amount: 700, waiveShortfall: true })
+    const p = plan({ amount: 700, waiveRemaining: true })
     expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 700 }])
-    expect(p.waiveAmount).toBe(0)
+    expect(p.waiveAllocations).toEqual([])
   })
 
   it("never over-waives an already-settled month", () => {
     const p = plan({
       paid: new Map([["2026-6", 700]]),
       amount: 100,
-      waiveShortfall: true,
+      waiveRemaining: true,
     })
     // Cash prepays July; June is already settled so nothing is waived.
     expect(p.allocations).toEqual([{ year: 2026, month: 7, amount: 100 }])
-    expect(p.waiveAmount).toBe(0)
+    expect(p.waiveAllocations).toEqual([])
   })
 
-  it("respects an existing partial waiver when settling short", () => {
+  it("respects an existing partial waiver when clearing remaining", () => {
     const p = plan({
       waived: new Map([["2026-6", 200]]),
       amount: 400,
-      waiveShortfall: true,
+      waiveRemaining: true,
     })
     // net due 500; pay 400; waive the remaining 100.
     expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 400 }])
-    expect(p.waiveAmount).toBe(100)
+    expect(p.waiveAllocations).toEqual([{ year: 2026, month: 6, amount: 100 }])
   })
 
   it("a normal payment backfills the oldest unpaid month first", () => {
@@ -122,20 +123,29 @@ describe("planPayment", () => {
       { year: 2026, month: 3, amount: 5000 },
       { year: 2026, month: 4, amount: 5000 },
     ])
-    expect(p.waiveAmount).toBe(0)
+    expect(p.waiveAllocations).toEqual([])
   })
 
-  it("settle-short funds the SELECTED month first even when older months are owed", () => {
+  it("pay-and-clear: cash lands oldest-first, then every owed month is waived", () => {
     const p = plan({
       fee: 5000,
-      admission: { year: 2026, month: 1 },
-      amount: 4000,
-      waiveShortfall: true,
+      admission: { year: 2026, month: 4 }, // Apr, May, Jun owed = 15000
+      amount: 6000,
+      waiveRemaining: true,
     })
-    // June (selected) is funded first, then its 1000 remainder is waived —
-    // the older months are deliberately left for a normal payment.
-    expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 4000 }])
-    expect(p.waiveAmount).toBe(1000)
+    // 6000 backfills Apr (5000) then May (1000); the rest is waived.
+    expect(p.allocations).toEqual([
+      { year: 2026, month: 4, amount: 5000 },
+      { year: 2026, month: 5, amount: 1000 },
+    ])
+    expect(p.waiveAllocations).toEqual([
+      { year: 2026, month: 5, amount: 4000 },
+      { year: 2026, month: 6, amount: 5000 },
+    ])
+    const settled =
+      p.allocations.reduce((s, a) => s + a.amount, 0) +
+      p.waiveAllocations.reduce((s, a) => s + a.amount, 0)
+    expect(settled).toBe(15000) // total outstanding fully settled
   })
 
   it("prepays upcoming months once everything owed is cleared", () => {
@@ -154,12 +164,77 @@ describe("planPayment", () => {
   it("safety net: a zero fee keeps the money on the selected month", () => {
     const p = plan({ fee: 0, amount: 500 })
     expect(p.allocations).toEqual([{ year: 2026, month: 6, amount: 500 }])
-    expect(p.waiveAmount).toBe(0)
+    expect(p.waiveAllocations).toEqual([])
   })
 
   it("the sum of allocations equals the amount paid", () => {
     const p = plan({ fee: 5000, admission: { year: 2026, month: 1 }, amount: 17_500 })
     const total = p.allocations.reduce((s, a) => s + a.amount, 0)
     expect(total).toBe(17_500)
+  })
+})
+
+describe("planWaiver", () => {
+  // now is June 2026 throughout; admission Feb 2026 → Feb..Jun are billable.
+  const base = {
+    fee: 1000,
+    admission: { year: 2026, month: 2 } as Period,
+    now: { year: 2026, month: 6 } as Period,
+    amount: 0,
+  }
+  const plan = (over: Partial<Parameters<typeof planWaiver>[0]>) =>
+    planWaiver({ paid: new Map(), waived: new Map(), ...base, ...over })
+
+  it("clears outstanding months oldest-first", () => {
+    const p = plan({ amount: 2500 })
+    expect(p.allocations).toEqual([
+      { year: 2026, month: 2, amount: 1000 },
+      { year: 2026, month: 3, amount: 1000 },
+      { year: 2026, month: 4, amount: 500 },
+    ])
+    expect(p.unallocated).toBe(0)
+  })
+
+  it("full outstanding clears every owed month", () => {
+    const p = plan({ amount: 5000 }) // Feb..Jun = 5 × 1000
+    expect(p.allocations).toHaveLength(5)
+    expect(p.allocations.reduce((s, a) => s + a.amount, 0)).toBe(5000)
+    expect(p.unallocated).toBe(0)
+  })
+
+  it("skips already-paid months and caps at each month's remaining due", () => {
+    const p = plan({
+      amount: 1500,
+      paid: new Map([["2026-2", 1000], ["2026-3", 400]]),
+    })
+    // Feb fully paid → skipped; Mar owes 600; Apr takes the rest.
+    expect(p.allocations).toEqual([
+      { year: 2026, month: 3, amount: 600 },
+      { year: 2026, month: 4, amount: 900 },
+    ])
+    expect(p.unallocated).toBe(0)
+  })
+
+  it("nets prior waivers so the same month isn't waived twice", () => {
+    const p = plan({ amount: 1000, waived: new Map([["2026-2", 1000]]) })
+    expect(p.allocations).toEqual([{ year: 2026, month: 3, amount: 1000 }])
+  })
+
+  it("reports the overflow when amount exceeds total outstanding", () => {
+    const p = plan({ amount: 6000 }) // only 5000 is owed
+    expect(p.allocations.reduce((s, a) => s + a.amount, 0)).toBe(5000)
+    expect(p.unallocated).toBe(1000)
+  })
+
+  it("never prepays the future — nothing owed means nothing allocated", () => {
+    const p = plan({
+      amount: 1000,
+      paid: new Map([
+        ["2026-2", 1000], ["2026-3", 1000], ["2026-4", 1000],
+        ["2026-5", 1000], ["2026-6", 1000],
+      ]),
+    })
+    expect(p.allocations).toEqual([])
+    expect(p.unallocated).toBe(1000)
   })
 })

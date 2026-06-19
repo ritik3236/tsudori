@@ -18,8 +18,8 @@ export const POST = route(async (req) => {
   requirePermission(ctx, PERMISSIONS.FEE_RECORD)
 
   const input = await parseJson(req, recordPaymentSchema)
-  // Settle-short waives money, which is a higher bar than just taking cash.
-  if (input.waiveShortfall) requirePermission(ctx, PERMISSIONS.FEE_WAIVE)
+  // Waiving dues is a higher bar than just taking cash.
+  if (input.waiveRemaining) requirePermission(ctx, PERMISSIONS.FEE_WAIVE)
   const result = await recordPayment(ctx.institute.id, ctx.user.id, input)
   return created(result)
 })

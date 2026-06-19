@@ -17,7 +17,6 @@ import { useFeeOverview, useStudentFees } from "@/features/fees/hooks"
 import { useClassOptions } from "@/features/students/hooks"
 import type { FeeStatus, StudentFeeListItem } from "@/features/fees/types"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
-import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -229,7 +228,7 @@ export function FeesMonthView({
           <Group title="Pending" count={pending.length} dot="bg-rose-500">
             {pending.length > 0 ? (
               pending.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} sel={sel} />
+                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
               ))
             ) : (
               <p className="bg-card text-muted-foreground rounded-2xl border p-4 text-center text-sm">
@@ -240,7 +239,7 @@ export function FeesMonthView({
           {paid.length > 0 && (
             <Group title="Paid" count={paid.length} dot="bg-emerald-500">
               {paid.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} sel={sel} />
+                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
               ))}
             </Group>
           )}
@@ -278,13 +277,11 @@ function Row({
   i,
   canRecord,
   canWaive,
-  sel,
 }: {
   s: StudentFeeListItem
   i: number
   canRecord: boolean
   canWaive: boolean
-  sel: { month: number; year: number }
 }) {
   const router = useRouter()
   return (
@@ -338,31 +335,21 @@ function Row({
             {formatCurrency(s.paidThisMonth)}
           </span>
         )}
-        {(canRecord || canWaive) && s.pendingThisMonth > 0 && (
+        {/* Waiving is done from the student's fee detail page, where it clears
+            dues across all months oldest-first. The month view only records
+            payments (the record dialog can still waive remaining dues). */}
+        {canRecord && s.pendingThisMonth > 0 && (
           <div className="flex items-center gap-1">
-            {canWaive && (
-              <WaiveFeeButton
-                studentId={s.studentId}
-                studentName={s.fullName}
-                remainingDue={s.pendingThisMonth}
-                periodMonth={sel.month}
-                periodYear={sel.year}
-              />
-            )}
-            {canRecord && (
-              <RecordPaymentButton
-                studentId={s.studentId}
-                studentName={s.fullName}
-                monthlyFee={s.monthlyFee}
-                remainingDue={s.pendingThisMonth}
-                canWaive={canWaive}
-                label="Record"
-                variant="outline"
-                size="sm"
-                defaultMonth={sel.month}
-                defaultYear={sel.year}
-              />
-            )}
+            <RecordPaymentButton
+              studentId={s.studentId}
+              studentName={s.fullName}
+              monthlyFee={s.monthlyFee}
+              remainingDue={s.pendingThisMonth}
+              canWaive={canWaive}
+              label="Record"
+              variant="outline"
+              size="sm"
+            />
           </div>
         )}
       </div>

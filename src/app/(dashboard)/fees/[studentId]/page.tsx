@@ -152,7 +152,7 @@ export default async function StudentFeesPage({
               <WaiveFeeButton
                 studentId={fee.studentId}
                 studentName={fee.fullName}
-                remainingDue={waiveTarget.due}
+                remainingDue={fee.totalOutstanding}
                 periodMonth={waiveTarget.month}
                 periodYear={waiveTarget.year}
                 variant="outline"
@@ -172,8 +172,6 @@ export default async function StudentFeesPage({
                   paidByMonth: fee.paidByMonth,
                   waivedByMonth: fee.waivedByMonth,
                 }}
-                defaultMonth={periodMonth}
-                defaultYear={periodYear}
                 className="flex-1 sm:flex-none"
               />
             )}
@@ -296,8 +294,6 @@ export default async function StudentFeesPage({
             paidByMonth: fee.paidByMonth,
             waivedByMonth: fee.waivedByMonth,
           }}
-          defaultMonth={periodMonth}
-          defaultYear={periodYear}
           size="sm"
           className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
         />

@@ -31,8 +31,10 @@ export const recordPaymentSchema = z.object({
     .number({ message: "Enter a valid amount." })
     .positive("Enter an amount greater than zero.")
     .max(10_000_000),
-  periodMonth: z.coerce.number().int().min(1).max(12),
-  periodYear: z.coerce.number().int().min(2000).max(2100),
+  // Optional anchor for the fee=0 safety net only; allocation is always
+  // oldest-first, so the UI no longer asks for a month. Defaults to now.
+  periodMonth: z.coerce.number().int().min(1).max(12).optional(),
+  periodYear: z.coerce.number().int().min(2000).max(2100).optional(),
   method: z.enum(PAYMENT_METHODS).default("CASH"),
   paidAt: z.coerce.date({ message: "Enter a valid date." }),
   note: z
@@ -41,22 +43,21 @@ export const recordPaymentSchema = z.object({
     .max(500)
     .nullish()
     .transform((v) => v || null),
-  // When the cash is short of the selected month's due, waive the remainder so
-  // the month closes as paid instead of carrying a balance. The server computes
-  // the exact shortfall after applying this payment.
-  waiveShortfall: z.boolean().optional().default(false),
+  // When set, after the cash is applied the server waives every month still owing
+  // so the student is fully settled — a combined pay-and-clear. The exact waiver
+  // amount is computed server-side from the live ledger.
+  waiveRemaining: z.boolean().optional().default(false),
 })
 
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>
 
 export const waiveFeeSchema = z.object({
   studentId: z.string().min(1, "Student is required."),
+  // The total concession; the server clears outstanding months oldest-first.
   amount: z.coerce
     .number({ message: "Enter a valid amount." })
     .positive("Enter an amount greater than zero.")
     .max(10_000_000),
-  periodMonth: z.coerce.number().int().min(1).max(12),
-  periodYear: z.coerce.number().int().min(2000).max(2100),
   reason: z
     .string()
     .trim()
@@ -104,12 +105,10 @@ export const paymentFormSchema = z.object({
     .string()
     .min(1, "Amount is required.")
     .refine((v) => Number(v) > 0, "Enter an amount greater than zero."),
-  periodMonth: z.string().min(1),
-  periodYear: z.string().min(1),
   method: z.enum(PAYMENT_METHODS),
   paidAt: z.string().min(1, "Date is required."),
   note: z.string().trim().max(500),
-  waiveShortfall: z.boolean(),
+  waiveRemaining: z.boolean(),
 })
 
 export type PaymentFormValues = z.infer<typeof paymentFormSchema>
@@ -121,12 +120,10 @@ export function formValuesToInput(
   return {
     studentId,
     amount: Number(v.amount),
-    periodMonth: Number(v.periodMonth),
-    periodYear: Number(v.periodYear),
     method: v.method,
     paidAt: appDateToUtc(v.paidAt),
     note: v.note || null,
-    waiveShortfall: v.waiveShortfall,
+    waiveRemaining: v.waiveRemaining,
   }
 }
 
@@ -144,15 +141,11 @@ export type WaiverFormValues = z.infer<typeof waiverFormSchema>
 
 export function waiverValuesToInput(
   studentId: string,
-  periodMonth: number,
-  periodYear: number,
   v: WaiverFormValues
 ): WaiveFeeInput {
   return {
     studentId,
     amount: Number(v.amount),
-    periodMonth,
-    periodYear,
     reason: v.reason || null,
   }
 }

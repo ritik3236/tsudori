@@ -48,21 +48,66 @@ export function resolveReversal(
 
 export type Period = { year: number; month: number }
 
+export type WaiverPlan = {
+  // One entry per outstanding month the waiver clears, oldest first.
+  allocations: { year: number; month: number; amount: number }[]
+  // Requested amount that couldn't be placed (i.e. exceeds total outstanding).
+  unallocated: number
+}
+
+// Distributes a concession across outstanding fee months WITHOUT touching the DB.
+// Unlike a payment, a waiver can't prepay the future — it only clears real dues,
+// so it fills outstanding months oldest-first (admission..now) and stops. Any
+// requested amount beyond total outstanding is reported as `unallocated` for the
+// caller to reject. `paid`/`waived` are keyed `${year}-${month}`.
+export function planWaiver(input: {
+  fee: number
+  paid: Map<string, number>
+  waived: Map<string, number>
+  admission: Period
+  now: Period
+  amount: number
+}): WaiverPlan {
+  const { fee, paid, waived, admission, now, amount } = input
+  const key = (y: number, m: number) => `${y}-${m}`
+  const dueOf = (y: number, m: number) =>
+    Math.max(0, fee - (paid.get(key(y, m)) ?? 0) - (waived.get(key(y, m)) ?? 0))
+
+  const allocations: WaiverPlan["allocations"] = []
+  let remaining = round2(amount)
+  let y = admission.year
+  let m = admission.month
+  while (remaining > 0 && (y < now.year || (y === now.year && m <= now.month))) {
+    const d = dueOf(y, m)
+    if (d > 0) {
+      const take = Math.min(remaining, d)
+      allocations.push({ year: y, month: m, amount: round2(take) })
+      remaining = round2(remaining - take)
+    }
+    if (m === 12) {
+      y += 1
+      m = 1
+    } else {
+      m += 1
+    }
+  }
+  return { allocations, unallocated: round2(Math.max(0, remaining)) }
+}
+
 export type PaymentPlan = {
   // One entry per month the cash touches, in allocation order.
   allocations: { year: number; month: number; amount: number }[]
-  // Shortfall waived on the selected month (0 unless waiveShortfall and a balance remains).
-  waiveAmount: number
+  // Months waived to clear whatever dues remain after the cash is applied, oldest
+  // first. Empty unless waiveRemaining is set (then it settles the student fully).
+  waiveAllocations: { year: number; month: number; amount: number }[]
 }
 
 // Distributes a payment across fee months without touching the DB. Rules:
-//  1. a NORMAL payment backfills the oldest unpaid month first (admission..now),
-//     then prepays forward — so earlier dues clear before later ones;
-//  2. a SETTLE-SHORT payment (waiveShortfall) funds the SELECTED month first
-//     instead, so its leftover can be waived to close exactly that month;
-//  3. prepay upcoming months with any leftover;
-//  4. safety net: if nothing could be allocated (e.g. fee=0), keep it on selected;
-//  5. settle-short: waive whatever still remains owed on the selected month.
+//  1. backfill the oldest unpaid month first (admission..now), then prepay forward
+//     — so earlier dues clear before later ones;
+//  2. safety net: if nothing could be allocated (e.g. fee=0), keep it on selected;
+//  3. waiveRemaining: after the cash lands, waive every month still owing so the
+//     student is fully settled (a combined pay-and-clear).
 // `paid`/`waived` are keyed `${year}-${month}` with the amounts already on record.
 export function planPayment(input: {
   fee: number
@@ -72,31 +117,21 @@ export function planPayment(input: {
   admission: Period
   now: Period
   amount: number
-  waiveShortfall: boolean
+  waiveRemaining: boolean
 }): PaymentPlan {
-  const { fee, paid, waived, selected, admission, now, amount, waiveShortfall } = input
+  const { fee, paid, waived, selected, admission, now, amount, waiveRemaining } = input
   const key = (y: number, m: number) => `${y}-${m}`
   // Working copy so allocations accumulate without mutating the caller's map.
   const paidWork = new Map(paid)
   const dueOf = (y: number, m: number) =>
     Math.max(0, fee - (paidWork.get(key(y, m)) ?? 0) - (waived.get(key(y, m)) ?? 0))
 
+  // Billable months, oldest first.
   const order: Period[] = []
-  const seen = new Set<string>()
-  const queue = (y: number, m: number) => {
-    const k = key(y, m)
-    if (!seen.has(k)) {
-      seen.add(k)
-      order.push({ year: y, month: m })
-    }
-  }
-  // Settle-short funds the selected month first so its leftover can be waived;
-  // a normal payment just backfills from admission (oldest first).
-  if (waiveShortfall) queue(selected.year, selected.month)
   let by = admission.year
   let bm = admission.month
   while (by < now.year || (by === now.year && bm <= now.month)) {
-    queue(by, bm)
+    order.push({ year: by, month: bm })
     bm += 1
     if (bm > 12) {
       bm = 1
@@ -112,14 +147,14 @@ export function planPayment(input: {
     remaining -= amt
   }
 
-  // 1 + 2: selected month, then outstanding months oldest-first.
+  // 1: backfill outstanding months oldest-first.
   for (const { year, month } of order) {
     if (remaining <= 0) break
     const d = dueOf(year, month)
     if (d > 0) apply(year, month, Math.min(remaining, d))
   }
 
-  // 3: prepay upcoming months with the leftover.
+  // prepay upcoming months with the leftover.
   let fy = now.year
   let fm = now.month + 1
   if (fm > 12) {
@@ -138,15 +173,17 @@ export function planPayment(input: {
     }
   }
 
-  // 4: safety net.
+  // 2: safety net.
   if (remaining > 0) apply(selected.year, selected.month, remaining)
 
-  // 5: settle-short — whatever's still owed on selected can't over-waive.
-  let waiveAmount = 0
-  if (waiveShortfall) {
-    const shortfall = dueOf(selected.year, selected.month)
-    if (shortfall > 0) waiveAmount = shortfall
+  // 3: waive whatever dues remain so the student is fully settled.
+  const waiveAllocations: PaymentPlan["waiveAllocations"] = []
+  if (waiveRemaining) {
+    for (const { year, month } of order) {
+      const d = dueOf(year, month)
+      if (d > 0) waiveAllocations.push({ year, month, amount: d })
+    }
   }
 
-  return { allocations, waiveAmount }
+  return { allocations, waiveAllocations }
 }

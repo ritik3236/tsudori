@@ -49,29 +49,64 @@ const MONTHS = [
   "December",
 ]
 
-function defaults(
-  monthlyFee: number,
-  defaultMonth?: number,
-  defaultYear?: number
-): PaymentFormValues {
+function defaults(monthlyFee: number, remainingDue?: number): PaymentFormValues {
   const now = new Date()
-  const { year, month } = appYearMonth(now)
+  // Prefill the current month's remaining due (falling back to the full fee), the
+  // usual "collect this month" case. The cash still lands oldest-first on save.
+  const due = remainingDue ?? monthlyFee
   return {
-    amount: monthlyFee > 0 ? String(monthlyFee) : "",
-    periodMonth: String(defaultMonth ?? month),
-    periodYear: String(defaultYear ?? year),
+    amount: due > 0 ? String(due) : "",
     method: "CASH",
     paidAt: toDateInputValue(now),
     note: "",
-    waiveShortfall: false,
+    waiveRemaining: false,
   }
+}
+
+type AllocationContext = {
+  admission: { year: number; month: number }
+  paidByMonth: Record<string, number>
+  waivedByMonth: Record<string, number>
+}
+
+// Total still owed across every billable month (admission..now), from the live
+// per-month ledger — mirrors the server's totalOutstanding. Drives the
+// "waive remaining" option. Falls back to the single `remainingDue` when no
+// ledger is loaded yet. Capped per month so a prepaid month can't offset another.
+function totalDue(
+  monthlyFee: number,
+  allocationContext?: AllocationContext,
+  fallback?: number
+): number {
+  if (!allocationContext) return Math.max(0, fallback ?? 0)
+  const now = appYearMonth(new Date())
+  let total = 0
+  let y = allocationContext.admission.year
+  let m = allocationContext.admission.month
+  while (y < now.year || (y === now.year && m <= now.month)) {
+    const k = `${y}-${m}`
+    total += Math.max(
+      0,
+      monthlyFee -
+        (allocationContext.paidByMonth[k] ?? 0) -
+        (allocationContext.waivedByMonth[k] ?? 0)
+    )
+    if (m === 12) {
+      y += 1
+      m = 1
+    } else {
+      m += 1
+    }
+  }
+  return total
 }
 
 type PaymentFormProps = {
   monthlyFee: number
-  // Outstanding due for the default period; enables the "settle short" option.
+  // Outstanding due for the default period; the amount prefill and a fallback for
+  // total outstanding before the ledger loads.
   remainingDue?: number
-  // Whether the viewer holds fee:waive — required to show the settle-short option.
+  // Whether the viewer holds fee:waive — required to show the "waive remaining" option.
   canWaive?: boolean
   // Lets the form preview where the payment will land (runs the real allocator).
   allocationContext?: {
@@ -82,8 +117,6 @@ type PaymentFormProps = {
   submitting: boolean
   onSubmit: (values: PaymentFormValues) => void
   onCancel: () => void
-  defaultMonth?: number
-  defaultYear?: number
 }
 
 export function PaymentForm({
@@ -94,64 +127,78 @@ export function PaymentForm({
   submitting,
   onSubmit,
   onCancel,
-  defaultMonth,
-  defaultYear,
 }: PaymentFormProps) {
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentFormSchema),
-    defaultValues: defaults(monthlyFee, defaultMonth, defaultYear),
+    defaultValues: defaults(monthlyFee, remainingDue),
   })
 
-  const thisYear = appYearMonth(new Date()).year
-  const years = [thisYear - 1, thisYear, thisYear + 1]
-
-  // Settle-short: only offer to waive the leftover when we actually know the due
-  // for the period being recorded — i.e. the default month/year that `remainingDue`
-  // was computed for. Changing the month hides it (that month's due is unknown).
   const watched = useWatch({ control: form.control })
   const amount = Number(watched.amount || 0)
-  const samePeriod =
-    defaultMonth != null &&
-    defaultYear != null &&
-    Number(watched.periodMonth) === defaultMonth &&
-    Number(watched.periodYear) === defaultYear
-  const shortfall =
-    remainingDue != null && samePeriod ? Math.max(0, remainingDue - amount) : 0
-  // Show the settle-short option only if the viewer can waive AND there's a real
-  // shortfall on the known period.
-  const showWaiveOption = canWaive && shortfall > 0 && amount > 0
 
-  // Don't leave a stale "waive" checked once the shortfall disappears (full/over-
-  // payment, the month was changed, or the viewer lacks fee:waive).
+  // Pay-and-clear: offer to waive whatever the cash leaves owing, across every
+  // month — so a partial payment can fully settle a student who owes several
+  // months. The waiver is total outstanding minus what this payment covers.
+  const totalOutstanding = useMemo(
+    () => totalDue(monthlyFee, allocationContext, remainingDue),
+    [monthlyFee, allocationContext, remainingDue]
+  )
+  const waiveAmount = Math.max(0, totalOutstanding - amount)
+  const showWaiveOption = canWaive && amount > 0 && waiveAmount > 0
+
+  // Don't leave a stale "waive" checked once there's nothing left to waive
+  // (the amount now covers all dues, or the viewer lacks fee:waive).
   useEffect(() => {
-    if (!showWaiveOption && form.getValues("waiveShortfall")) {
-      form.setValue("waiveShortfall", false)
+    if (!showWaiveOption && form.getValues("waiveRemaining")) {
+      form.setValue("waiveRemaining", false)
     }
   }, [showWaiveOption, form])
 
-  // Live preview of where the cash lands, using the SAME allocator the server
-  // runs. A normal payment backfills the oldest unpaid month first, so money
-  // recorded "for June" may land on earlier months — surface that up front.
-  const periodMonth = Number(watched.periodMonth)
-  const periodYear = Number(watched.periodYear)
-  const allocationPreview = useMemo(() => {
-    if (!allocationContext || amount <= 0) return null
-    return planPayment({
+  // Live breakdown of where the cash lands, using the SAME allocator the server
+  // runs — oldest unpaid month first, then prepaying upcoming months. This is the
+  // receipt-in-advance, so there's no month to pick.
+  const now = appYearMonth(new Date())
+  const nowOrd = now.year * 12 + now.month
+  const willWaive = Boolean(watched.waiveRemaining)
+
+  // Per-month settlement preview: cash (oldest-first) plus, when "waive remaining"
+  // is on, the months waived to clear the rest. Merged so a month that gets both
+  // partial cash and a waiver shows both (e.g. Apr ₹300 + ₹1,200 waived).
+  const breakdown = useMemo(() => {
+    if (!allocationContext || amount <= 0) return []
+    const plan = planPayment({
       fee: monthlyFee,
       paid: new Map(Object.entries(allocationContext.paidByMonth)),
       waived: new Map(Object.entries(allocationContext.waivedByMonth)),
-      selected: { year: periodYear, month: periodMonth },
+      selected: now,
       admission: allocationContext.admission,
-      now: appYearMonth(new Date()),
+      now,
       amount,
-      waiveShortfall: Boolean(watched.waiveShortfall),
-    }).allocations
-  }, [allocationContext, monthlyFee, amount, periodMonth, periodYear, watched.waiveShortfall])
+      waiveRemaining: willWaive,
+    })
+    const byMonth = new Map<
+      string,
+      { year: number; month: number; paid: number; waived: number }
+    >()
+    const slot = (y: number, m: number) => {
+      const k = `${y}-${m}`
+      let e = byMonth.get(k)
+      if (!e) {
+        e = { year: y, month: m, paid: 0, waived: 0 }
+        byMonth.set(k, e)
+      }
+      return e
+    }
+    for (const a of plan.allocations) slot(a.year, a.month).paid += a.amount
+    for (const w of plan.waiveAllocations) slot(w.year, w.month).waived += w.amount
+    return [...byMonth.values()].sort(
+      (a, b) => a.year - b.year || a.month - b.month
+    )
+  }, [allocationContext, monthlyFee, amount, now, willWaive])
 
-  const backfillsEarlier =
-    allocationPreview?.some(
-      (a) => a.year < periodYear || (a.year === periodYear && a.month < periodMonth)
-    ) ?? false
+  // A month is a prepayment when it's later than the current period.
+  const isPrepay = (e: { year: number; month: number }) =>
+    e.year * 12 + e.month > nowOrd
 
   return (
     <Form {...form}>
@@ -169,59 +216,6 @@ export function PaymentForm({
             </FormItem>
           )}
         />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="periodMonth"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>For month</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(v: string) => MONTHS[Number(v) - 1] ?? "Month"}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {MONTHS.map((m, i) => (
-                      <SelectItem key={m} value={String(i + 1)}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="periodYear"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Year</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {years.map((y) => (
-                      <SelectItem key={y} value={String(y)}>
-                        {y}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -288,7 +282,7 @@ export function PaymentForm({
         {showWaiveOption && (
           <FormField
             control={form.control}
-            name="waiveShortfall"
+            name="waiveRemaining"
             render={({ field }) => (
               <FormItem>
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
@@ -299,12 +293,11 @@ export function PaymentForm({
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium">
-                      Mark fully paid — waive remaining {formatCurrency(shortfall)}
+                      Mark fully settled — waive remaining {formatCurrency(waiveAmount)}
                     </span>
                     <span className="text-muted-foreground block text-xs">
-                      Records {formatCurrency(amount)} as collected and waives{" "}
-                      {formatCurrency(shortfall)} as a concession, so this month
-                      closes as settled.
+                      Collects {formatCurrency(amount)} and waives the remaining{" "}
+                      {formatCurrency(waiveAmount)}, clearing this student&apos;s dues.
                     </span>
                   </span>
                 </label>
@@ -313,41 +306,39 @@ export function PaymentForm({
           />
         )}
 
-        {backfillsEarlier && allocationPreview && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
-            <p className="text-sm font-medium">
-              Heads up — this clears earlier dues first
-            </p>
-            <p className="text-muted-foreground mt-0.5 text-xs">
-              You&apos;re recording for {MONTHS[periodMonth - 1]} {periodYear}, but
-              this student owes earlier months. The payment is applied oldest-first:
+        {breakdown.length > 0 && (
+          <div className="bg-muted/40 rounded-lg border px-3 py-2.5">
+            <p className="text-muted-foreground text-xs">
+              {willWaive
+                ? "This clears the student's dues, oldest-first:"
+                : "This payment is applied oldest-first:"}
             </p>
             <ul className="mt-2 space-y-0.5">
-              {allocationPreview.map((a, idx) => (
+              {breakdown.map((e) => (
                 <li
-                  key={`${a.year}-${a.month}-${idx}`}
+                  key={`${e.year}-${e.month}`}
                   className="flex items-center justify-between text-xs tabular-nums"
                 >
-                  <span
-                    className={
-                      a.year < periodYear ||
-                      (a.year === periodYear && a.month < periodMonth)
-                        ? "font-medium text-amber-700 dark:text-amber-300"
-                        : ""
-                    }
-                  >
-                    {MONTHS[a.month - 1]} {a.year}
+                  <span>
+                    {MONTHS[e.month - 1]} {e.year}
+                    {isPrepay(e) && (
+                      <span className="text-muted-foreground"> · prepaid</span>
+                    )}
                   </span>
-                  <span className="font-medium">{formatCurrency(a.amount)}</span>
+                  <span className="font-medium">
+                    {e.paid > 0 && formatCurrency(e.paid)}
+                    {e.paid > 0 && e.waived > 0 && " + "}
+                    {e.waived > 0 && (
+                      <span className="text-indigo-600 dark:text-indigo-300">
+                        {formatCurrency(e.waived)} waived
+                      </span>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
         )}
-
-        <p className="text-muted-foreground text-xs">
-          Payments clear the oldest unpaid month first, then prepay upcoming months.
-        </p>
 
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <Button

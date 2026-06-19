@@ -72,9 +72,14 @@ export function useWaiveFee() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: WaiveFeeInput) => feesApi.waive(data),
-    onSuccess: () => {
+    onSuccess: ({ waivers, total }) => {
       qc.invalidateQueries({ queryKey: feeKeys.all })
-      toast.success("Fee waived for this month.")
+      const amount = `₹${total.toLocaleString("en-IN")}`
+      toast.success(
+        waivers.length <= 1
+          ? `Fee waived — ${amount}.`
+          : `${amount} waived across ${waivers.length} months.`
+      )
     },
     onError: (e) => reportError(e, "Couldn't waive the fee."),
   })

@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import { NotFoundError, ValidationError } from "@/lib/errors"
-import { deriveMonth, planPayment, resolveReversal } from "@/features/fees/logic"
+import { deriveMonth, planPayment, planWaiver, resolveReversal } from "@/features/fees/logic"
 import type { Paginated } from "@/features/students/types"
 import type {
   FeeQuery,
@@ -29,9 +29,9 @@ import type {
 // Every function is scoped by instituteId — the tenant boundary.
 
 // Default waiver reasons, autofilled when staff don't type one. Centralized so the
-// settle-short flow and the manual waiver stay consistent.
+// pay-and-clear flow and the manual waiver stay consistent.
 const WAIVER_REASON_DEFAULT = "Fee concession"
-const WAIVER_REASON_SETTLE = "Balance waived to settle the month"
+const WAIVER_REASON_SETTLE = "Balance waived to settle dues"
 
 function currentPeriod() {
   const { year, month } = appYearMonth(new Date())
@@ -315,12 +315,12 @@ export async function getStudentFee(
 }
 
 /**
- * Records a payment and distributes it across fee months. The selected month is
- * cleared first, then any other outstanding months from admission to now (oldest
- * first), then — if money is left over — upcoming months are prepaid. One
- * FeePayment row (and receipt) is created per month the payment touches, each with
- * its own sequential receipt number, so every month reflects what it actually
- * received. Returns the rows created, in allocation order.
+ * Records a payment and distributes it across fee months, oldest outstanding
+ * first (admission → now), then — if money is left over — prepays upcoming months.
+ * One FeePayment row (and receipt) is created per month the payment touches, each
+ * with its own sequential receipt number. When `waiveRemaining` is set, every
+ * month still owing after the cash is waived too (one FeeWaiver row each), so the
+ * student ends fully settled. Returns the rows created, in allocation order.
  */
 export async function recordPayment(
   instituteId: string,
@@ -361,16 +361,21 @@ export async function recordPayment(
       waived.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
     }
 
-    // Pure allocation: which months get how much, plus any settle-short waiver.
+    // Pure allocation: which months get how much, plus any months to waive so the
+    // student is fully settled (when waiveRemaining is set).
     const plan = planPayment({
       fee,
       paid,
       waived,
-      selected: { year: input.periodYear, month: input.periodMonth },
+      // Allocation is oldest-first; this anchor only feeds the fee=0 safety net.
+      selected: {
+        year: input.periodYear ?? now.year,
+        month: input.periodMonth ?? now.month,
+      },
       admission: appYearMonth(student.admissionDate),
       now,
       amount: input.amount,
-      waiveShortfall: input.waiveShortfall,
+      waiveRemaining: input.waiveRemaining,
     })
 
     // Persist: one FeePayment row (+ sequential receipt) per allocated month.
@@ -401,20 +406,21 @@ export async function recordPayment(
       rows.push(row)
     }
 
+    // Clear whatever still owes after the cash, one waiver row per month.
     let waivedAmount = 0
-    if (plan.waiveAmount > 0) {
+    for (const w of plan.waiveAllocations) {
       await tx.feeWaiver.create({
         data: {
           instituteId,
           studentId: student.id,
-          amount: plan.waiveAmount,
-          periodMonth: input.periodMonth,
-          periodYear: input.periodYear,
+          amount: w.amount,
+          periodMonth: w.month,
+          periodYear: w.year,
           reason: WAIVER_REASON_SETTLE,
           waivedById: recordedById,
         },
       })
-      waivedAmount = plan.waiveAmount
+      waivedAmount += w.amount
     }
 
     return { rows, waivedAmount }
@@ -502,34 +508,90 @@ export async function reversePayment(
 }
 
 /**
- * Records a fee concession for one student for one month. A waiver reduces the
- * amount due — it is NOT cash, so it never counts towards collected totals.
+ * Records a fee concession and distributes it across outstanding months, oldest
+ * first (admission → now) — so "waive the full due" can clear back-dues spanning
+ * several months in one action. One FeeWaiver row is written per month it touches.
+ * A waiver reduces the amount due — it is NOT cash, so it never counts towards
+ * collected totals. Rejects an amount larger than the student's total outstanding.
  */
 export async function recordWaiver(
   instituteId: string,
   waivedById: string | null,
   input: WaiveFeeInput
-): Promise<WaiverItem> {
-  const student = await prisma.student.findFirst({
-    where: { id: input.studentId, instituteId },
-    select: { id: true },
-  })
-  if (!student) throw new NotFoundError("Student not found.")
+): Promise<{ waivers: WaiverItem[]; total: number }> {
+  const created = await prisma.$transaction(async (tx) => {
+    const student = await tx.student.findFirst({
+      where: { id: input.studentId, instituteId },
+      select: { id: true, monthlyFee: true, admissionDate: true },
+    })
+    if (!student) throw new NotFoundError("Student not found.")
 
-  const waiver = await prisma.feeWaiver.create({
-    data: {
-      instituteId,
-      studentId: input.studentId,
+    const fee = Number(student.monthlyFee)
+    const now = appYearMonth(new Date())
+
+    // What's already settled per month, so we only ever waive the unmet due.
+    const [paidGroups, waiverGroups] = await Promise.all([
+      tx.feePayment.groupBy({
+        by: ["periodYear", "periodMonth"],
+        where: { instituteId, studentId: student.id, periodYear: { not: null } },
+        _sum: { amount: true },
+      }),
+      tx.feeWaiver.groupBy({
+        by: ["periodYear", "periodMonth"],
+        where: { instituteId, studentId: student.id },
+        _sum: { amount: true },
+      }),
+    ])
+    const key = (y: number, m: number) => `${y}-${m}`
+    const paid = new Map<string, number>()
+    for (const g of paidGroups) {
+      if (g.periodYear == null || g.periodMonth == null) continue
+      paid.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
+    }
+    const waived = new Map<string, number>()
+    for (const g of waiverGroups) {
+      waived.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
+    }
+
+    const plan = planWaiver({
+      fee,
+      paid,
+      waived,
+      admission: appYearMonth(student.admissionDate),
+      now,
       amount: input.amount,
-      periodMonth: input.periodMonth,
-      periodYear: input.periodYear,
-      reason: input.reason ?? WAIVER_REASON_DEFAULT,
-      waivedById,
-    },
-    include: { waivedBy: { select: { name: true } } },
+    })
+    // Can't waive more than is actually owed.
+    if (plan.unallocated > 0 || plan.allocations.length === 0) {
+      throw new ValidationError(
+        "That's more than this student's total outstanding."
+      )
+    }
+
+    const reason = input.reason ?? WAIVER_REASON_DEFAULT
+    const rows: WaiverWithGranter[] = []
+    for (const a of plan.allocations) {
+      const row = await tx.feeWaiver.create({
+        data: {
+          instituteId,
+          studentId: student.id,
+          amount: a.amount,
+          periodMonth: a.month,
+          periodYear: a.year,
+          reason,
+          waivedById,
+        },
+        include: { waivedBy: { select: { name: true } } },
+      })
+      rows.push(row)
+    }
+    return rows
   })
 
-  return toWaiverItem(waiver)
+  return {
+    waivers: created.map(toWaiverItem),
+    total: created.reduce((sum, w) => sum + Number(w.amount), 0),
+  }
 }
 
 export async function getReceipt(
