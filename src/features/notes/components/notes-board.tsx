@@ -39,7 +39,7 @@ const PRIORITY_BADGE: Record<NotePriorityValue, string | null> = {
   URGENT: "bg-rose-600 text-white dark:bg-rose-600 dark:text-white",
   HIGH: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
   NORMAL: null,
-  LOW: "bg-muted text-muted-foreground",
+  LOW: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
 }
 
 function PriorityBadge({ priority }: { priority: NotePriorityValue }) {
