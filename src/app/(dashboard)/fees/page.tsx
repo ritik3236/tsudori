@@ -6,7 +6,11 @@ import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { todayInAppTz } from "@/lib/date-helper"
 import { feeKeys } from "@/features/fees/api"
-import { feeMonthlyOverview, listStudentFees } from "@/features/fees/service"
+import {
+  feeMonthlyOverview,
+  feeMonthSummary,
+  listStudentFees,
+} from "@/features/fees/service"
 import { FeesMonthView } from "@/features/fees/components/fees-month-view"
 
 export const metadata: Metadata = { title: "Fees" }
@@ -18,21 +22,21 @@ export default async function FeesPage() {
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
   const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
 
-  // Prefetch the current IST month's list + overview so the view paints with
-  // data. periodMonth/Year are derived in IST to match the browser's default
-  // selection (FeesMonthView uses the device's current month).
+  // Prefetch the current IST month's first list page + summary + overview so the
+  // view paints with data. periodMonth/Year are derived in IST to match the
+  // browser's default selection (FeesMonthView uses the device's current month).
   const [y, m] = todayInAppTz().split("-").map(Number)
   const qc = makeServerQueryClient()
   await Promise.all([
-    qc.prefetchQuery({
-      queryKey: feeKeys.list({ periodMonth: m, periodYear: y, pageSize: 100 }),
+    qc.prefetchInfiniteQuery({
+      queryKey: feeKeys.list({ periodMonth: m, periodYear: y }),
       queryFn: () =>
-        listStudentFees(ctx.institute.id, {
-          periodMonth: m,
-          periodYear: y,
-          page: 1,
-          pageSize: 100,
-        }),
+        listStudentFees(ctx.institute.id, { periodMonth: m, periodYear: y, offset: 0 }),
+      initialPageParam: 0,
+    }),
+    qc.prefetchQuery({
+      queryKey: feeKeys.summary({ periodMonth: m, periodYear: y }),
+      queryFn: () => feeMonthSummary(ctx.institute.id, { periodMonth: m, periodYear: y }),
     }),
     qc.prefetchQuery({
       queryKey: feeKeys.overview(null),

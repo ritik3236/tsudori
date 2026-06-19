@@ -1,14 +1,10 @@
 "use client"
 
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
+import { useInfiniteList } from "@/lib/use-infinite-list"
 import { ticketKeys, ticketsApi } from "@/features/tickets/api"
 import type {
   CommentCreateInput,
@@ -28,11 +24,9 @@ function reportError(error: unknown, fallback: string) {
 // nextOffset cursor; the component fetches the next page as the sentinel scrolls
 // into view, so 500 tickets never load at once.
 export function useTickets(filters?: TicketQuery) {
-  return useInfiniteQuery({
+  return useInfiniteList({
     queryKey: ticketKeys.list(filters),
-    queryFn: ({ pageParam }) => ticketsApi.list(filters, pageParam),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage) => lastPage.nextOffset,
+    queryFn: (offset) => ticketsApi.list(filters, offset),
   })
 }
 

@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TicketRow } from "@/features/tickets/components/ticket-row"
-import { InfiniteSentinel } from "@/features/tickets/components/infinite-sentinel"
+import { InfiniteSentinel } from "@/components/shared/infinite-sentinel"
 import { NewTicketButton } from "@/features/tickets/components/new-ticket-button"
 
 /** Super-admin view: the cross-institute work queue with scope/priority/search filters. */
@@ -41,14 +41,18 @@ export function TicketQueue() {
     activeChipRef.current?.scrollIntoView({ inline: "center", block: "nearest" })
   }, [scope])
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useTickets({
-      scope,
-      priority: priority === ALL ? undefined : priority,
-      q: q.trim() || undefined,
-    })
-  const tickets = data?.pages.flatMap((p) => p.items) ?? []
-  const total = data?.pages[0]?.total ?? 0
+  const {
+    items: tickets,
+    total,
+    isLoading,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+  } = useTickets({
+    scope,
+    priority: priority === ALL ? undefined : priority,
+    q: q.trim() || undefined,
+  })
 
   // Only surface the institute per-row when the queue actually spans more than
   // one — otherwise it's the same name repeated on every row.
@@ -137,9 +141,9 @@ export function TicketQueue() {
             ))}
           </div>
           <InfiniteSentinel
-            hasMore={!!hasNextPage}
-            isLoading={isFetchingNextPage}
-            onLoadMore={fetchNextPage}
+            hasMore={hasMore}
+            isLoading={isLoadingMore}
+            onLoadMore={loadMore}
           />
         </>
       )}

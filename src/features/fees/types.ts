@@ -20,6 +20,13 @@ export type StudentFeeListItem = {
   status: FeeStatus
 }
 
+/** One infinite-scroll page of the fee list (offset-paged). */
+export type StudentFeePage = {
+  items: StudentFeeListItem[]
+  nextOffset: number | null
+  total: number
+}
+
 export type PaymentItem = {
   id: string
   amount: number

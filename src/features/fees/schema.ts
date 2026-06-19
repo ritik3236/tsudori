@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/constants"
 import { appDateToUtc } from "@/lib/date-helper"
 
 export const PAYMENT_METHODS = [
@@ -86,14 +85,24 @@ export const reverseFeeSchema = z.object({
 
 export type ReverseFeeInput = z.infer<typeof reverseFeeSchema>
 
+// Fee list pages this many students at a time (infinite scroll).
+export const FEE_PAGE_SIZE = 30
+
 export const feeQuerySchema = z.object({
   q: z.string().trim().optional(),
   status: z.enum(FEE_STATUSES).optional(),
   classId: z.string().trim().optional(),
   periodMonth: z.coerce.number().int().min(1).max(12).optional(),
   periodYear: z.coerce.number().int().min(2000).max(2100).optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+
+// Summary aggregates are class-scoped but not affected by text search, so they
+// take only the month + class — never `q` or `offset`.
+export const feeSummaryQuerySchema = z.object({
+  classId: z.string().trim().optional(),
+  periodMonth: z.coerce.number().int().min(1).max(12).optional(),
+  periodYear: z.coerce.number().int().min(2000).max(2100).optional(),
 })
 
 export type FeeQuery = z.infer<typeof feeQuerySchema>

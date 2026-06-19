@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { deriveMonth, planPayment, planWaiver, resolveReversal } from "@/features/fees/logic"
-import type { Paginated } from "@/features/students/types"
+import { FEE_PAGE_SIZE } from "@/features/fees/schema"
 import type {
   FeeQuery,
   RecordPaymentInput,
@@ -21,6 +21,7 @@ import type {
   ReceiptData,
   StudentFeeDetail,
   StudentFeeListItem,
+  StudentFeePage,
   WaiverItem,
 } from "@/features/fees/types"
 
@@ -75,17 +76,17 @@ function toWaiverItem(w: WaiverWithGranter): WaiverItem {
 }
 
 /**
- * Lists active students with their current-month fee status. Status is computed
- * in-app (it can't be expressed in a single SQL filter), so when a status filter
- * is set we evaluate every matching student then page in memory — fine at the
- * per-institute scale this serves.
+ * Loads every matching student's computed fee status for one month. Status is
+ * derived in-app (deriveMonth) from monthly fee vs. paid vs. waived — it can't be
+ * a single SQL filter — so we evaluate the whole month, then sort/slice. Shared
+ * by the paged list and the month summary so both speak identical numbers.
  */
-export async function listStudentFees(
+async function loadMonthFeeRows(
   instituteId: string,
-  query: FeeQuery
-): Promise<Paginated<StudentFeeListItem>> {
-  const month = query.periodMonth ?? currentPeriod().month
-  const year = query.periodYear ?? currentPeriod().year
+  opts: { periodMonth?: number; periodYear?: number; classId?: string; q?: string }
+): Promise<StudentFeeListItem[]> {
+  const month = opts.periodMonth ?? currentPeriod().month
+  const year = opts.periodYear ?? currentPeriod().year
 
   const where: Prisma.StudentWhereInput = {
     instituteId,
@@ -95,10 +96,10 @@ export async function listStudentFees(
     // admitted in August isn't billed (or listed) for June/July. Cutoff is the
     // start of the NEXT month in app-tz (admitted-this-month still counts).
     admissionDate: { lt: appMonthStartUtc(year, month + 1) },
-    ...(query.classId ? { classId: query.classId } : {}),
+    ...(opts.classId ? { classId: opts.classId } : {}),
   }
-  if (query.q) {
-    const q = query.q
+  if (opts.q) {
+    const q = opts.q
     const or: Prisma.StudentWhereInput[] = [
       { fullName: { contains: q, mode: "insensitive" } },
       { guardianName: { contains: q, mode: "insensitive" } },
@@ -110,8 +111,6 @@ export async function listStudentFees(
 
   const students = await prisma.student.findMany({
     where,
-    // Final order is decided by the in-memory sort below (status-ranked, then by
-    // name), so the DB order here is just a stable base.
     orderBy: { fullName: "asc" },
     select: {
       id: true,
@@ -140,12 +139,10 @@ export async function listStudentFees(
     waiverGroups.map((g) => [g.studentId, Number(g._sum.amount ?? 0)])
   )
 
-  let items: StudentFeeListItem[] = students.map((s) => {
+  return students.map((s) => {
     const monthlyFee = Number(s.monthlyFee)
     const paid = paidMap.get(s.id) ?? 0
     const waived = waivedMap.get(s.id) ?? 0
-    // Pre-paid future months are seen by switching to that month; advance here is
-    // just an overpayment of the selected month's net due.
     const { pending, advance, status } = deriveMonth(monthlyFee, paid, waived)
     return {
       studentId: s.id,
@@ -160,30 +157,46 @@ export async function listStudentFees(
       status,
     }
   })
+}
 
-  if (query.status) items = items.filter((i) => i.status === query.status)
+// Who owes first: unpaid → partial → paid → waived → advance, then by name.
+const STATUS_RANK: Record<FeeStatus, number> = {
+  UNPAID: 0,
+  PARTIAL: 1,
+  PAID: 2,
+  WAIVED: 3,
+  ADVANCE: 4,
+}
 
-  // Surface who owes first: unpaid → partial → paid → waived → advance, then
-  // alphabetically by student name within each status group.
-  const rank: Record<FeeStatus, number> = {
-    UNPAID: 0,
-    PARTIAL: 1,
-    PAID: 2,
-    WAIVED: 3,
-    ADVANCE: 4,
-  }
-  items.sort(
-    (a, b) => rank[a.status] - rank[b.status] || a.fullName.localeCompare(b.fullName)
+/**
+ * One offset page of the fee list, ordered who-owes-first then by name. Returns
+ * the slice plus a nextOffset cursor (null when exhausted) for infinite scroll.
+ */
+export async function listStudentFees(
+  instituteId: string,
+  query: FeeQuery
+): Promise<StudentFeePage> {
+  let rows = await loadMonthFeeRows(instituteId, {
+    periodMonth: query.periodMonth,
+    periodYear: query.periodYear,
+    classId: query.classId,
+    q: query.q,
+  })
+
+  if (query.status) rows = rows.filter((r) => r.status === query.status)
+  rows.sort(
+    (a, b) =>
+      STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+      a.fullName.localeCompare(b.fullName)
   )
 
-  const total = items.length
-  const start = (query.page - 1) * query.pageSize
+  const total = rows.length
+  const start = query.offset
+  const end = start + FEE_PAGE_SIZE
   return {
-    items: items.slice(start, start + query.pageSize),
+    items: rows.slice(start, end),
+    nextOffset: end < total ? end : null,
     total,
-    page: query.page,
-    pageSize: query.pageSize,
-    totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
   }
 }
 
@@ -718,43 +731,36 @@ export async function feeMonthlyOverview(
   return { byMonth }
 }
 
-/** Headline numbers for the Fees overview. */
-export async function getFeeSummary(instituteId: string): Promise<FeeSummary> {
-  const { month, year } = currentPeriod()
+/**
+ * Month headline numbers (collected / expected / outstanding + paid vs pending
+ * counts) for the selected month and class. Computed over every matching student
+ * with the same deriveMonth math as the list, so the dashboard totals stay exact
+ * however the list is paged. Class-scoped but not affected by text search.
+ */
+export async function feeMonthSummary(
+  instituteId: string,
+  opts: { periodMonth?: number; periodYear?: number; classId?: string }
+): Promise<FeeSummary> {
+  const rows = await loadMonthFeeRows(instituteId, opts)
 
-  const [collectedAgg, students, grouped] = await Promise.all([
-    prisma.feePayment.aggregate({
-      where: { instituteId, periodMonth: month, periodYear: year },
-      _sum: { amount: true },
-    }),
-    prisma.student.findMany({
-      where: { instituteId, archivedAt: null, status: "ACTIVE" },
-      select: { id: true, monthlyFee: true },
-    }),
-    prisma.feePayment.groupBy({
-      by: ["studentId"],
-      where: { instituteId, periodMonth: month, periodYear: year },
-      _sum: { amount: true },
-    }),
-  ])
-
-  const paidMap = new Map(grouped.map((g) => [g.studentId, Number(g._sum.amount ?? 0)]))
   let expected = 0
+  let collected = 0
+  let outstanding = 0
   let paidCount = 0
-  for (const s of students) {
-    const fee = Number(s.monthlyFee)
-    expected += fee
-    const paid = paidMap.get(s.id) ?? 0
-    if (fee > 0 && paid >= fee) paidCount += 1
+  for (const r of rows) {
+    const netDue = Math.max(0, r.monthlyFee - r.waivedThisMonth)
+    expected += netDue
+    collected += Math.min(r.paidThisMonth, netDue)
+    outstanding += r.pendingThisMonth
+    if (r.pendingThisMonth <= 0) paidCount += 1
   }
 
-  const collected = Number(collectedAgg._sum.amount ?? 0)
   return {
     collectedThisMonth: collected,
     expectedThisMonth: expected,
-    pendingThisMonth: Math.max(0, expected - collected),
+    pendingThisMonth: outstanding,
     paidCount,
-    pendingCount: students.length - paidCount,
-    totalStudents: students.length,
+    pendingCount: rows.length - paidCount,
+    totalStudents: rows.length,
   }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 
 /** Invisible marker that triggers `onLoadMore` when it scrolls into view, with a
- *  small loading line. Shared by the ticket lists for infinite scroll. */
+ *  small loading line. Pair with useInfiniteList for infinite-scroll lists. */
 export function InfiniteSentinel({
   hasMore,
   isLoading,

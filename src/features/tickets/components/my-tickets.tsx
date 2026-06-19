@@ -7,13 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { NewTicketButton } from "@/features/tickets/components/new-ticket-button"
 import { TicketRow } from "@/features/tickets/components/ticket-row"
-import { InfiniteSentinel } from "@/features/tickets/components/infinite-sentinel"
+import { InfiniteSentinel } from "@/components/shared/infinite-sentinel"
 
 /** Member view: the tickets you've raised (institute admins see all of theirs). */
 export function MyTickets() {
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const { items: tickets, isLoading, hasMore, loadMore, isLoadingMore } =
     useTickets()
-  const tickets = data?.pages.flatMap((p) => p.items) ?? []
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -37,9 +36,9 @@ export function MyTickets() {
             ))}
           </div>
           <InfiniteSentinel
-            hasMore={!!hasNextPage}
-            isLoading={isFetchingNextPage}
-            onLoadMore={fetchNextPage}
+            hasMore={hasMore}
+            isLoading={isLoadingMore}
+            onLoadMore={loadMore}
           />
         </>
       )}

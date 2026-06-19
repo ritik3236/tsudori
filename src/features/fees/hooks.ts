@@ -9,7 +9,13 @@ import {
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
-import { feeKeys, feesApi, type FeeListParams } from "@/features/fees/api"
+import { useInfiniteList } from "@/lib/use-infinite-list"
+import {
+  feeKeys,
+  feesApi,
+  type FeeListParams,
+  type FeeSummaryParams,
+} from "@/features/fees/api"
 import type {
   RecordPaymentInput,
   ReverseFeeInput,
@@ -22,10 +28,22 @@ function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)
 }
 
+// Infinite scroll over the fee list; keepPrevious so switching month/class/search
+// doesn't flash a skeleton.
 export function useStudentFees(params: FeeListParams) {
-  return useQuery({
+  return useInfiniteList({
     queryKey: feeKeys.list(params),
-    queryFn: () => feesApi.list(params),
+    queryFn: (offset) => feesApi.list(params, offset),
+    keepPrevious: true,
+  })
+}
+
+// The month dashboard's headline totals + paid/pending counts, independent of
+// the list's paging and text search.
+export function useFeeMonthSummary(params: FeeSummaryParams) {
+  return useQuery({
+    queryKey: feeKeys.summary(params),
+    queryFn: () => feesApi.summary(params),
     placeholderData: keepPreviousData,
   })
 }

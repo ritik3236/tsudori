@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Receipt, Search } from "lucide-react"
@@ -13,13 +13,18 @@ import {
 } from "@/lib/constants"
 import { formatCurrency, getInitials } from "@/lib/format"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
-import { useFeeOverview, useStudentFees } from "@/features/fees/hooks"
+import {
+  useFeeMonthSummary,
+  useFeeOverview,
+  useStudentFees,
+} from "@/features/fees/hooks"
 import { useClassOptions } from "@/features/students/hooks"
-import type { FeeStatus, StudentFeeListItem } from "@/features/fees/types"
+import type { StudentFeeListItem } from "@/features/fees/types"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
+import { InfiniteSentinel } from "@/components/shared/infinite-sentinel"
 import {
   Select,
   SelectContent,
@@ -27,14 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-const STATUS_LABEL: Record<FeeStatus, string> = {
-  PAID: "Paid",
-  PARTIAL: "Partial",
-  UNPAID: "Unpaid",
-  ADVANCE: "Advance",
-  WAIVED: "Waived",
-}
 
 function monthStrip() {
   const { year, month } = appYearMonth(new Date())
@@ -63,6 +60,7 @@ export function FeesMonthView({
 }) {
   const nowYM = appYearMonth(new Date())
   const [sel, setSel] = useState({ month: nowYM.month, year: nowYM.year })
+  const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
   const [classId, setClassId] = useState(ALL)
   const months = monthStrip()
@@ -72,37 +70,46 @@ export function FeesMonthView({
     activeRef.current?.scrollIntoView({ inline: "center", block: "nearest" })
   }, [sel.month, sel.year])
 
+  // Debounce the search box into the server query so paging stays accurate.
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
   const classFilter = classId === ALL ? undefined : classId
   const { data: classes } = useClassOptions()
   const { data: overview } = useFeeOverview(classFilter)
-  const { data, isLoading } = useStudentFees({
+
+  // Headline totals + counts: whole month + class, independent of search/paging.
+  const { data: summary } = useFeeMonthSummary({
     periodMonth: sel.month,
     periodYear: sel.year,
     classId: classFilter,
-    pageSize: 100,
   })
-  const items = data?.items ?? []
 
-  // Category totals (class-scoped, not affected by the text search). `items` is
-  // already limited to students enrolled by the selected month. Expected is net
-  // of waivers (a waived month lowers what's owed in cash); collected is cash
-  // capped at that net due so it stays consistent with outstanding.
-  const netDue = (i: StudentFeeListItem) => Math.max(0, i.monthlyFee - i.waivedThisMonth)
-  const expected = items.reduce((s, i) => s + netDue(i), 0)
-  const collected = items.reduce((s, i) => s + Math.min(i.paidThisMonth, netDue(i)), 0)
-  const outstanding = items.reduce((s, i) => s + i.pendingThisMonth, 0)
-  const paidCount = items.filter((i) => i.pendingThisMonth <= 0).length
-  const pct = expected > 0 ? Math.round((collected / expected) * 100) : 0
-
-  // Text search filters only the visible rows, not the totals.
-  const text = q.trim().toLowerCase()
-  const shown = text
-    ? items.filter((i) => i.fullName.toLowerCase().includes(text))
-    : items
-  const pending = shown.filter((i) => i.pendingThisMonth > 0)
-  const paid = shown.filter((i) => i.pendingThisMonth <= 0)
+  // The student list itself: infinite scroll, ordered who-owes-first then name.
+  const { items, isLoading, isPlaceholder, hasMore, loadMore, isLoadingMore } =
+    useStudentFees({
+      periodMonth: sel.month,
+      periodYear: sel.year,
+      classId: classFilter,
+      q: q || undefined,
+    })
 
   const nowOrd = nowYM.year * 12 + nowYM.month
+  const searching = q.length > 0
+
+  const expected = summary?.expectedThisMonth ?? 0
+  const collected = summary?.collectedThisMonth ?? 0
+  const outstanding = summary?.pendingThisMonth ?? 0
+  const paidCount = summary?.paidCount ?? 0
+  const pendingCount = summary?.pendingCount ?? 0
+  const totalStudents = summary?.totalStudents ?? 0
+  const pct = expected > 0 ? Math.round((collected / expected) * 100) : 0
+
+  // The list arrives pending-first; the first paid row is where the "Paid"
+  // divider goes. -1 when everything is still pending.
+  const firstPaidIdx = items.findIndex((i) => i.pendingThisMonth <= 0)
 
   return (
     <div className="space-y-5">
@@ -152,8 +159,8 @@ export function FeesMonthView({
         <div className="relative flex-1">
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search student…"
             className="pl-9"
           />
@@ -177,7 +184,7 @@ export function FeesMonthView({
         </Select>
       </div>
 
-      {/* Month summary */}
+      {/* Month summary — from the aggregate, so totals stay exact while the list pages */}
       <div className="bg-card rounded-2xl border p-4">
         <div className="flex items-baseline justify-between">
           <span className="text-muted-foreground text-xs">Collected</span>
@@ -199,12 +206,12 @@ export function FeesMonthView({
             {formatCurrency(outstanding)} outstanding
           </span>
           <span className="text-muted-foreground">
-            {paidCount}/{items.length} paid
+            {paidCount}/{totalStudents} paid
           </span>
         </div>
       </div>
 
-      {/* Lists */}
+      {/* List */}
       {isLoading ? (
         <div className="space-y-2.5">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -213,61 +220,65 @@ export function FeesMonthView({
         </div>
       ) : items.length === 0 ? (
         <EmptyState
-          icon={Receipt}
-          title="No students"
-          description="Add students to start tracking fees."
-        />
-      ) : shown.length === 0 ? (
-        <EmptyState
-          icon={Search}
-          title="No matches"
-          description="No students match your search."
+          icon={searching ? Search : Receipt}
+          title={searching ? "No matches" : "No students"}
+          description={
+            searching
+              ? "No students match your search."
+              : "Add students to start tracking fees."
+          }
         />
       ) : (
-        <>
-          <Group title="Pending" count={pending.length} dot="bg-rose-500">
-            {pending.length > 0 ? (
-              pending.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
-              ))
-            ) : (
-              <p className="bg-card text-muted-foreground rounded-2xl border p-4 text-center text-sm">
-                Nothing pending here for {MONTHS[sel.month - 1]}.
-              </p>
-            )}
-          </Group>
-          {paid.length > 0 && (
-            <Group title="Paid" count={paid.length} dot="bg-emerald-500">
-              {paid.map((s, i) => (
-                <Row key={s.studentId} s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
-              ))}
-            </Group>
-          )}
-        </>
+        <div className={cn("space-y-2.5", isPlaceholder && "opacity-60")}>
+          {items.map((s, i) => (
+            <div key={s.studentId} className="space-y-2.5">
+              {i === 0 && s.pendingThisMonth > 0 && (
+                <SectionHeader
+                  label="Pending"
+                  dot="bg-rose-500"
+                  count={searching ? undefined : pendingCount}
+                />
+              )}
+              {i === firstPaidIdx && firstPaidIdx >= 0 && (
+                <SectionHeader
+                  label="Paid"
+                  dot="bg-emerald-500"
+                  count={searching ? undefined : paidCount}
+                  className={i > 0 ? "pt-2" : undefined}
+                />
+              )}
+              <Row s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
+            </div>
+          ))}
+          <InfiniteSentinel
+            hasMore={hasMore}
+            isLoading={isLoadingMore}
+            onLoadMore={loadMore}
+          />
+        </div>
       )}
     </div>
   )
 }
 
-function Group({
-  title,
+function SectionHeader({
+  label,
   count,
   dot,
-  children,
+  className,
 }: {
-  title: string
-  count: number
+  label: string
+  count?: number
   dot: string
-  children: ReactNode
+  className?: string
 }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center gap-2">
-        <span className={cn("size-2 rounded-full", dot)} />
-        <h2 className="text-sm font-medium">{title}</h2>
+    <div className={cn("flex items-center gap-2", className)}>
+      <span className={cn("size-2 rounded-full", dot)} />
+      <h2 className="text-sm font-medium">{label}</h2>
+      {count !== undefined && (
         <span className="text-muted-foreground text-xs">· {count}</span>
-      </div>
-      {children}
+      )}
     </div>
   )
 }
@@ -355,4 +366,12 @@ function Row({
       </div>
     </div>
   )
+}
+
+const STATUS_LABEL: Record<StudentFeeListItem["status"], string> = {
+  PAID: "Paid",
+  PARTIAL: "Partial",
+  UNPAID: "Unpaid",
+  ADVANCE: "Advance",
+  WAIVED: "Waived",
 }
