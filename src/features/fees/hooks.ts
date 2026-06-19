@@ -19,6 +19,7 @@ import {
 import type {
   RecordPaymentInput,
   ReverseFeeInput,
+  ReverseWaiverInput,
   WaiveFeeInput,
 } from "@/features/fees/schema"
 
@@ -114,5 +115,19 @@ export function useReversePayment() {
       )
     },
     onError: (e) => reportError(e, "Couldn't reverse the payment."),
+  })
+}
+
+export function useReverseWaiver() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: ReverseWaiverInput) => feesApi.reverseWaiver(data),
+    onSuccess: ({ reversal }) => {
+      qc.invalidateQueries({ queryKey: feeKeys.all })
+      toast.success(
+        `Waiver reversed — ₹${Math.abs(reversal.amount).toLocaleString("en-IN")}.`
+      )
+    },
+    onError: (e) => reportError(e, "Couldn't reverse the waiver."),
   })
 }

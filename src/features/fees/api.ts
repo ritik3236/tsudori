@@ -11,6 +11,7 @@ import type {
 import type {
   RecordPaymentInput,
   ReverseFeeInput,
+  ReverseWaiverInput,
   WaiveFeeInput,
 } from "@/features/fees/schema"
 
@@ -58,6 +59,11 @@ export const feesApi = {
     http.post<{ payments: PaymentItem[]; waivedAmount: number }>("/api/fees", data),
   waive: (data: WaiveFeeInput) =>
     http.post<{ waivers: WaiverItem[]; total: number }>("/api/fees/waiver", data),
+  reverseWaiver: (data: ReverseWaiverInput) =>
+    http.post<{ reversal: WaiverItem; original: WaiverItem }>(
+      "/api/fees/waiver/reverse",
+      data
+    ),
   reverse: (data: ReverseFeeInput) =>
     http.post<{ reversal: PaymentItem; original: PaymentItem }>(
       "/api/fees/reverse",

@@ -57,6 +57,10 @@ export type WaiverItem = {
   reason: string | null
   createdAt: string
   waivedBy: string | null
+  /** Set when this row reverses another waiver (negative amount). */
+  reversalOfId: string | null
+  /** For an original waiver: how much of it has been reversed (0 if none). */
+  reversedAmount: number
 }
 
 export type StudentFeeDetail = {

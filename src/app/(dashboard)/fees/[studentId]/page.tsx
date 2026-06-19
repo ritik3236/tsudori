@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { FeeStatusBadge } from "@/features/fees/components/fee-status-badge"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
 import { ReversePaymentButton } from "@/features/fees/components/reverse-payment-button"
+import { ReverseWaiverButton } from "@/features/fees/components/reverse-waiver-button"
 import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
 
 export const metadata: Metadata = { title: "Student fees" }
@@ -110,7 +111,7 @@ export default async function StudentFeesPage({
       remaining: p.amount - p.reversedAmount,
     })),
     ...fee.waivers.map((w) => ({
-      kind: "waiver" as const,
+      kind: w.reversalOfId != null ? ("waiver-reversal" as const) : ("waiver" as const),
       id: w.id,
       at: w.createdAt,
       amount: w.amount,
@@ -119,8 +120,9 @@ export default async function StudentFeesPage({
       method: null,
       detail: w.reason,
       by: w.waivedBy,
-      reversedAmount: 0,
-      remaining: 0,
+      // Original waivers only: how much has been reversed, and what remains.
+      reversedAmount: w.reversedAmount,
+      remaining: w.amount - w.reversedAmount,
     })),
   ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
 
@@ -212,7 +214,7 @@ export default async function StudentFeesPage({
                       "flex size-9 shrink-0 items-center justify-center rounded-full",
                       e.kind === "payment" &&
                         "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
-                      e.kind === "reversal" &&
+                      (e.kind === "reversal" || e.kind === "waiver-reversal") &&
                         "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
                       e.kind === "waiver" &&
                         "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300"
@@ -220,10 +222,10 @@ export default async function StudentFeesPage({
                   >
                     {e.kind === "payment" ? (
                       <Receipt className="size-4" />
-                    ) : e.kind === "reversal" ? (
-                      <Undo2 className="size-4" />
-                    ) : (
+                    ) : e.kind === "waiver" ? (
                       <HandCoins className="size-4" />
+                    ) : (
+                      <Undo2 className="size-4" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -235,13 +237,19 @@ export default async function StudentFeesPage({
                         </span>
                       )}
                       {e.kind === "waiver" && `${formatCurrency(e.amount)} waived`}
-                      {e.kind === "payment" && e.reversedAmount > 0 && (
-                        <span className="ml-2 rounded bg-rose-100 px-1.5 py-0.5 align-middle text-[10px] font-medium text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
-                          {e.remaining > 0
-                            ? `${formatCurrency(e.reversedAmount)} reversed`
-                            : "Reversed"}
+                      {e.kind === "waiver-reversal" && (
+                        <span className="text-rose-600 dark:text-rose-400">
+                          −{formatCurrency(Math.abs(e.amount))} waiver reversed
                         </span>
                       )}
+                      {(e.kind === "payment" || e.kind === "waiver") &&
+                        e.reversedAmount > 0 && (
+                          <span className="ml-2 rounded bg-rose-100 px-1.5 py-0.5 align-middle text-[10px] font-medium text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
+                            {e.remaining > 0
+                              ? `${formatCurrency(e.reversedAmount)} reversed`
+                              : "Reversed"}
+                          </span>
+                        )}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {e.periodMonth
@@ -272,6 +280,15 @@ export default async function StudentFeesPage({
                       >
                         <Printer className="size-3.5" /> Receipt
                       </Link>
+                    </div>
+                  )}
+                  {e.kind === "waiver" && canWaive && e.remaining > 0 && (
+                    <div className="flex shrink-0 items-center">
+                      <ReverseWaiverButton
+                        waiverId={e.id}
+                        studentName={fee.fullName}
+                        amount={e.remaining}
+                      />
                     </div>
                   )}
                 </li>

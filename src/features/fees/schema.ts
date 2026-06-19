@@ -85,6 +85,20 @@ export const reverseFeeSchema = z.object({
 
 export type ReverseFeeInput = z.infer<typeof reverseFeeSchema>
 
+// A waiver is reversed in full (one row per month), so no amount — just an
+// optional reason. Gated on fee:waive, like granting the waiver.
+export const reverseWaiverSchema = z.object({
+  waiverId: z.string().min(1, "Waiver is required."),
+  reason: z
+    .string()
+    .trim()
+    .max(500)
+    .nullish()
+    .transform((v) => v || null),
+})
+
+export type ReverseWaiverInput = z.infer<typeof reverseWaiverSchema>
+
 // Fee list pages this many students at a time (infinite scroll).
 export const FEE_PAGE_SIZE = 30
 
@@ -186,4 +200,18 @@ export function reversalValuesToInput(
     amount: Number(v.amount),
     reason: v.reason || null,
   }
+}
+
+// Waiver reversal form: full reversal, so only an optional reason.
+export const waiverReversalFormSchema = z.object({
+  reason: z.string().trim().max(500),
+})
+
+export type WaiverReversalFormValues = z.infer<typeof waiverReversalFormSchema>
+
+export function waiverReversalValuesToInput(
+  waiverId: string,
+  v: WaiverReversalFormValues
+): ReverseWaiverInput {
+  return { waiverId, reason: v.reason || null }
 }

@@ -11,6 +11,7 @@ import type {
   FeeQuery,
   RecordPaymentInput,
   ReverseFeeInput,
+  ReverseWaiverInput,
   WaiveFeeInput,
 } from "@/features/fees/schema"
 import type {
@@ -33,6 +34,7 @@ import type {
 // pay-and-clear flow and the manual waiver stay consistent.
 const WAIVER_REASON_DEFAULT = "Fee concession"
 const WAIVER_REASON_SETTLE = "Balance waived to settle dues"
+const WAIVER_REASON_REVERSED = "Waiver reversed"
 
 function currentPeriod() {
   const { year, month } = appYearMonth(new Date())
@@ -63,7 +65,7 @@ type WaiverWithGranter = Prisma.FeeWaiverGetPayload<{
   include: { waivedBy: { select: { name: true } } }
 }>
 
-function toWaiverItem(w: WaiverWithGranter): WaiverItem {
+function toWaiverItem(w: WaiverWithGranter, reversedAmount = 0): WaiverItem {
   return {
     id: w.id,
     amount: Number(w.amount),
@@ -72,6 +74,8 @@ function toWaiverItem(w: WaiverWithGranter): WaiverItem {
     reason: w.reason,
     createdAt: w.createdAt.toISOString(),
     waivedBy: w.waivedBy?.name ?? null,
+    reversalOfId: w.reversalOfId,
+    reversedAmount,
   }
 }
 
@@ -309,6 +313,17 @@ export async function getStudentFee(
     )
   }
 
+  // Same for waivers: reversal rows hold a negative amount, so reversed-so-far is
+  // the negation of their sum.
+  const reversedByWaiver = new Map<string, number>()
+  for (const w of waivers) {
+    if (w.reversalOfId == null) continue
+    reversedByWaiver.set(
+      w.reversalOfId,
+      (reversedByWaiver.get(w.reversalOfId) ?? 0) - Number(w.amount)
+    )
+  }
+
   const futurePaid = payments.reduce((sum, p) => {
     const isFuture =
       p.periodYear != null &&
@@ -369,7 +384,7 @@ export async function getStudentFee(
     payments: payments.map((p) =>
       toPaymentItem(p, reversedByPayment.get(p.id) ?? 0)
     ),
-    waivers: waivers.map(toWaiverItem),
+    waivers: waivers.map((w) => toWaiverItem(w, reversedByWaiver.get(w.id) ?? 0)),
     admission: { year: adm.year, month: adm.month },
     paidByMonth: Object.fromEntries(paidByPeriod),
     waivedByMonth: Object.fromEntries(waivedByPeriod),
@@ -565,6 +580,75 @@ export async function reversePayment(
     return {
       reversal: toPaymentItem(row),
       original: toPaymentItem(original, reversedSoFar + plan.amount),
+    }
+  })
+}
+
+const WAIVER_REVERSAL_ERRORS: Record<
+  Exclude<ReturnType<typeof resolveReversal>, { ok: true }>["reason"],
+  string
+> = {
+  ALREADY_REVERSED: "This waiver has already been reversed.",
+  INVALID_AMOUNT: "There's nothing left to reverse on this waiver.",
+  EXCEEDS_REMAINING: "That's more than the amount left to reverse on this waiver.",
+}
+
+/**
+ * Reverses a single waiver row in full, WITHOUT deleting it — writes a linked
+ * FeeWaiver row with a negative amount for the same period, so waived totals net
+ * out automatically while the concession history stays intact. Gated on fee:waive
+ * (whoever may grant a concession may undo it; no separate reverse permission).
+ */
+export async function reverseWaiver(
+  instituteId: string,
+  waivedById: string | null,
+  input: ReverseWaiverInput
+): Promise<{ reversal: WaiverItem; original: WaiverItem }> {
+  return prisma.$transaction(async (tx) => {
+    // Lock the original so concurrent reversals of the same waiver serialize.
+    await tx.$queryRaw`SELECT id FROM public."FeeWaiver" WHERE id = ${input.waiverId} FOR UPDATE`
+
+    const original = await tx.feeWaiver.findFirst({
+      where: { id: input.waiverId, instituteId },
+      include: { waivedBy: { select: { name: true } } },
+    })
+    if (!original) throw new NotFoundError("Waiver not found.")
+    if (original.reversalOfId != null) {
+      throw new ValidationError("That entry is a reversal and can't be reversed.")
+    }
+    const originalAmount = Number(original.amount)
+    if (originalAmount <= 0) {
+      throw new ValidationError("Only a waiver can be reversed.")
+    }
+
+    // Reversal rows are negative, so reversed-so-far is the negation of their sum.
+    const reversedAgg = await tx.feeWaiver.aggregate({
+      where: { reversalOfId: original.id },
+      _sum: { amount: true },
+    })
+    const reversedSoFar = -Number(reversedAgg._sum.amount ?? 0)
+
+    // A waiver row is reversed in full (one row per month), so no partial amount.
+    const plan = resolveReversal(originalAmount, reversedSoFar)
+    if (!plan.ok) throw new ValidationError(WAIVER_REVERSAL_ERRORS[plan.reason])
+
+    const row = await tx.feeWaiver.create({
+      data: {
+        instituteId,
+        studentId: original.studentId,
+        amount: -plan.amount,
+        periodMonth: original.periodMonth,
+        periodYear: original.periodYear,
+        reason: input.reason ?? WAIVER_REASON_REVERSED,
+        waivedById,
+        reversalOfId: original.id,
+      },
+      include: { waivedBy: { select: { name: true } } },
+    })
+
+    return {
+      reversal: toWaiverItem(row),
+      original: toWaiverItem(original, reversedSoFar + plan.amount),
     }
   })
 }
