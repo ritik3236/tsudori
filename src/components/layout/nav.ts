@@ -6,6 +6,7 @@ import {
   Settings,
   ShieldCheck,
   StickyNote,
+  Ticket,
   Users,
   Wallet,
   type LucideIcon,
@@ -81,6 +82,14 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/notes",
     icon: StickyNote,
     activeColor: "text-teal-600 dark:text-teal-400",
+  },
+  {
+    // Support tickets. Open to every member (no permission gate): members file +
+    // track their own; the platform super admin sees the cross-institute queue.
+    label: "Tickets",
+    href: "/tickets",
+    icon: Ticket,
+    activeColor: "text-indigo-600 dark:text-indigo-400",
   },
   {
     // Personal settings (your profile + password) — open to every member.

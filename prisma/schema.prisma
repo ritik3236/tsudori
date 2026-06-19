@@ -46,6 +46,8 @@ model User {
   recordedPayments FeePayment[] @relation("PaymentRecordedBy")
   grantedWaivers   FeeWaiver[]  @relation("WaiverBy")
   notes            Note[]       @relation("NoteAuthor")
+  tickets          Ticket[]        @relation("TicketRequester")
+  ticketComments   TicketComment[] @relation("TicketCommentAuthor")
 
   @@map("user")
   @@schema("neon_auth")
@@ -89,6 +91,7 @@ model Institute {
   notes       Note[]
   settings    Setting[]
   invitations Invitation[]
+  tickets     Ticket[]
 
   @@schema("public")
 }
@@ -396,6 +399,85 @@ model Note {
   author    User?     @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([instituteId, createdAt])
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Support tickets
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A product-support ticket. Any institute member files one (bug / feature
+/// request / question / billing); it routes to the platform super admin, who sees
+/// every institute's tickets in one queue and works them. Requesters see only
+/// their own. A flat reply thread (TicketComment) carries the conversation.
+/// Priority/Status/Category are their own enums (kept separate from NotePriority)
+/// so ticket triage can evolve without touching the notes board.
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+
+  @@schema("public")
+}
+
+enum TicketCategory {
+  BUG
+  FEATURE
+  QUESTION
+  BILLING
+  OTHER
+
+  @@schema("public")
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+
+  @@schema("public")
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  instituteId String
+  requesterId String?        @db.Uuid
+  subject     String
+  description String
+  category    TicketCategory @default(QUESTION)
+  priority    TicketPriority @default(NORMAL)
+  status      TicketStatus   @default(OPEN)
+  /// Set when status first reaches RESOLVED; cleared on reopen.
+  resolvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  institute Institute       @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  requester User?           @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  comments  TicketComment[]
+
+  @@index([instituteId, createdAt])
+  @@index([status, createdAt])
+  @@schema("public")
+}
+
+model TicketComment {
+  id            String   @id @default(cuid())
+  ticketId      String
+  authorId      String?  @db.Uuid
+  body          String
+  /// True when authored by the platform super admin (support). Stored, not
+  /// derived, so it stays correct even if the author's user row is later nulled.
+  authorIsStaff Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation("TicketCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
   @@schema("public")
 }
 
