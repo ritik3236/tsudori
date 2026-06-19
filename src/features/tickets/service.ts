@@ -5,13 +5,14 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { ForbiddenError, NotFoundError } from "@/lib/errors"
 import { nextResolvedAt } from "@/features/tickets/logic"
+import { TICKET_PAGE_SIZE } from "@/features/tickets/schema"
 import type {
   CommentCreateInput,
   TicketCreateInput,
   TicketQuery,
   TicketTriageInput,
 } from "@/features/tickets/schema"
-import type { TicketDetail, TicketListItem } from "@/features/tickets/types"
+import type { TicketDetail, TicketListItem, TicketPage } from "@/features/tickets/types"
 
 // Tickets are a product-support desk. Any institute member files one and sees
 // their own; an institute admin sees all of their institute's; the platform
@@ -57,6 +58,15 @@ function toListItem(t: TicketForList): TicketListItem {
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   }
+}
+
+// Builds an infinite-scroll page. Queries fetch PAGE_SIZE + 1 rows so the extra
+// row signals "there's more" without a second round trip; `total` comes from a
+// parallel count so the UI can show an accurate tally.
+function toPage(rows: TicketForList[], offset: number, total: number): TicketPage {
+  const items = rows.slice(0, TICKET_PAGE_SIZE).map(toListItem)
+  const nextOffset = rows.length > TICKET_PAGE_SIZE ? offset + TICKET_PAGE_SIZE : null
+  return { items, nextOffset, total }
 }
 
 function toDetail(
@@ -117,25 +127,31 @@ async function loadDetail(id: string, v: TicketViewer): Promise<TicketDetail> {
 export async function listMyTickets(
   instituteId: string,
   viewerId: string,
-  isInstituteAdmin: boolean
-): Promise<TicketListItem[]> {
+  isInstituteAdmin: boolean,
+  offset = 0
+): Promise<TicketPage> {
   const where: Prisma.TicketWhereInput = isInstituteAdmin
     ? { instituteId }
     : { instituteId, requesterId: viewerId }
-  const rows = await prisma.ticket.findMany({
-    where,
-    // Unfinished first (enum order OPEN < … < CLOSED), newest within a status.
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: LIST_INCLUDE,
-  })
-  return rows.map(toListItem)
+  const [rows, total] = await Promise.all([
+    prisma.ticket.findMany({
+      where,
+      // Unfinished first (enum order OPEN < … < CLOSED), newest within a status.
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      include: LIST_INCLUDE,
+      skip: offset,
+      take: TICKET_PAGE_SIZE + 1,
+    }),
+    // Only count on the first page — the UI reads total from page 0, so counting
+    // again on every scroll-load would be wasted DB work.
+    offset === 0 ? prisma.ticket.count({ where }) : Promise.resolve(0),
+  ])
+  return toPage(rows, offset, total)
 }
 
 /** Maps a queue scope to a status filter (undefined = no status constraint). */
 function scopeFilter(scope: TicketQuery["scope"]): Prisma.TicketWhereInput["status"] {
   switch (scope) {
-    case "active":
-      return { in: ["OPEN", "IN_PROGRESS"] }
     case "open":
       return "OPEN"
     case "in_progress":
@@ -150,9 +166,9 @@ function scopeFilter(scope: TicketQuery["scope"]): Prisma.TicketWhereInput["stat
 }
 
 /** The platform-wide queue across every institute (super admin only). */
-export async function listQueue(filters: TicketQuery): Promise<TicketListItem[]> {
+export async function listQueue(filters: TicketQuery, offset = 0): Promise<TicketPage> {
   const where: Prisma.TicketWhereInput = {}
-  const status = scopeFilter(filters.scope ?? "active")
+  const status = scopeFilter(filters.scope)
   if (status !== undefined) where.status = status
   if (filters.priority) where.priority = filters.priority
   if (filters.q) {
@@ -162,13 +178,20 @@ export async function listQueue(filters: TicketQuery): Promise<TicketListItem[]>
       { requester: { name: { contains: filters.q, mode: "insensitive" } } },
     ]
   }
-  const rows = await prisma.ticket.findMany({
-    where,
-    // Highest priority first, newest within a priority.
-    orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
-    include: LIST_INCLUDE,
-  })
-  return rows.map(toListItem)
+  const [rows, total] = await Promise.all([
+    prisma.ticket.findMany({
+      where,
+      // Highest priority first, newest within a priority.
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+      include: LIST_INCLUDE,
+      skip: offset,
+      take: TICKET_PAGE_SIZE + 1,
+    }),
+    // Only count on the first page — the UI reads total from page 0, so counting
+    // again on every scroll-load would be wasted DB work.
+    offset === 0 ? prisma.ticket.count({ where }) : Promise.resolve(0),
+  ])
+  return toPage(rows, offset, total)
 }
 
 /** Detail + reply thread, authorized to the viewer. */

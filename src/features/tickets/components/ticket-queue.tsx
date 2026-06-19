@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Search, Ticket } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -25,28 +25,37 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TicketRow } from "@/features/tickets/components/ticket-row"
+import { InfiniteSentinel } from "@/features/tickets/components/infinite-sentinel"
+import { NewTicketButton } from "@/features/tickets/components/new-ticket-button"
 
 /** Super-admin view: the cross-institute work queue with scope/priority/search filters. */
 export function TicketQueue() {
-  const [scope, setScope] = useState<TicketScope>("active")
+  const [scope, setScope] = useState<TicketScope>("open")
   const [priority, setPriority] = useState<TicketPriorityValue | typeof ALL>(ALL)
   const [q, setQ] = useState("")
 
-  const { data: tickets, isLoading } = useTickets({
-    scope,
-    priority: priority === ALL ? undefined : priority,
-    q: q.trim() || undefined,
-  })
+  // Keep the selected chip in view — the strip scrolls horizontally on mobile and
+  // the default ("All") would otherwise sit clipped off the right edge.
+  const activeChipRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    activeChipRef.current?.scrollIntoView({ inline: "center", block: "nearest" })
+  }, [scope])
+
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useTickets({
+      scope,
+      priority: priority === ALL ? undefined : priority,
+      q: q.trim() || undefined,
+    })
+  const tickets = data?.pages.flatMap((p) => p.items) ?? []
+  const total = data?.pages[0]?.total ?? 0
+
+  // Only surface the institute per-row when the queue actually spans more than
+  // one — otherwise it's the same name repeated on every row.
+  const multiInstitute = new Set(tickets.map((t) => t.instituteId)).size > 1
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Support queue</h1>
-        <p className="text-muted-foreground text-sm">
-          Tickets from every institute. Highest priority first.
-        </p>
-      </div>
-
+    <div className="mx-auto max-w-3xl space-y-4">
       {/* Scope chips */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {TICKET_SCOPES.map((s) => {
@@ -54,6 +63,7 @@ export function TicketQueue() {
           return (
             <button
               key={s}
+              ref={active ? activeChipRef : undefined}
               type="button"
               onClick={() => setScope(s)}
               className={cn(
@@ -110,7 +120,7 @@ export function TicketQueue() {
             <Skeleton key={i} className="h-[68px] rounded-2xl" />
           ))}
         </div>
-      ) : !tickets || tickets.length === 0 ? (
+      ) : tickets.length === 0 ? (
         <EmptyState
           icon={Ticket}
           title="No tickets here"
@@ -119,15 +129,22 @@ export function TicketQueue() {
       ) : (
         <>
           <p className="text-muted-foreground text-xs">
-            {tickets.length} {tickets.length === 1 ? "ticket" : "tickets"}
+            {total} {total === 1 ? "ticket" : "tickets"}
           </p>
           <div className="space-y-2.5">
-            {tickets.map((t, i) => (
-              <TicketRow key={t.id} ticket={t} index={i} showInstitute />
+            {tickets.map((t) => (
+              <TicketRow key={t.id} ticket={t} showInstitute={multiInstitute} />
             ))}
           </div>
+          <InfiniteSentinel
+            hasMore={!!hasNextPage}
+            isLoading={isFetchingNextPage}
+            onLoadMore={fetchNextPage}
+          />
         </>
       )}
+
+      <NewTicketButton floating />
     </div>
   )
 }

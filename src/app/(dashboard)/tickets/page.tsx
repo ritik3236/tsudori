@@ -19,10 +19,11 @@ export default async function TicketsPage() {
   const qc = makeServerQueryClient()
 
   if (ctx.isSuperAdmin) {
-    const filters = { scope: "active" as const }
-    await qc.prefetchQuery({
+    const filters = { scope: "open" as const }
+    await qc.prefetchInfiniteQuery({
       queryKey: ticketKeys.list(filters),
-      queryFn: () => listQueue(filters),
+      queryFn: () => listQueue(filters, 0),
+      initialPageParam: 0,
     })
     return (
       <HydrationBoundary state={dehydrate(qc)}>
@@ -32,13 +33,14 @@ export default async function TicketsPage() {
   }
 
   const isInstituteAdmin = can(ctx, PERMISSIONS.INSTITUTE_MANAGE)
-  await qc.prefetchQuery({
+  await qc.prefetchInfiniteQuery({
     queryKey: ticketKeys.list(),
-    queryFn: () => listMyTickets(ctx.institute.id, ctx.user.id, isInstituteAdmin),
+    queryFn: () => listMyTickets(ctx.institute.id, ctx.user.id, isInstituteAdmin, 0),
+    initialPageParam: 0,
   })
   return (
     <HydrationBoundary state={dehydrate(qc)}>
-      <MyTickets canSeeAllInstitute={isInstituteAdmin} />
+      <MyTickets />
     </HydrationBoundary>
   )
 }

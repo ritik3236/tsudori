@@ -20,6 +20,13 @@ export type TicketListItem = {
   updatedAt: string
 }
 
+/** One page of a list, for infinite scroll. `nextOffset` is null on the last page. */
+export type TicketPage = {
+  items: TicketListItem[]
+  nextOffset: number | null
+  total: number
+}
+
 export type TicketComment = {
   id: string
   body: string

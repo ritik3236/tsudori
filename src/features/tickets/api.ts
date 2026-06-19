@@ -1,5 +1,5 @@
 import { buildQuery, http } from "@/lib/http"
-import type { TicketDetail, TicketListItem } from "@/features/tickets/types"
+import type { TicketDetail, TicketListItem, TicketPage } from "@/features/tickets/types"
 import type {
   CommentCreateInput,
   TicketCreateInput,
@@ -18,8 +18,10 @@ export const ticketKeys = {
 }
 
 export const ticketsApi = {
-  list: (filters?: TicketQuery) =>
-    http.get<TicketListItem[]>(`/api/tickets${buildQuery(filters ?? {})}`),
+  list: (filters?: TicketQuery, offset = 0) =>
+    http.get<TicketPage>(
+      `/api/tickets${buildQuery({ ...(filters ?? {}), offset: offset || undefined })}`
+    ),
   create: (data: TicketCreateInput) => http.post<TicketListItem>("/api/tickets", data),
   detail: (id: string) => http.get<TicketDetail>(`/api/tickets/${id}`),
   triage: (id: string, data: TicketTriageInput) =>

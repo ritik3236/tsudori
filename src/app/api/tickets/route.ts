@@ -10,12 +10,14 @@ import { createTicket, listMyTickets, listQueue } from "@/features/tickets/servi
 
 export const GET = route(async (req) => {
   const ctx = await getTenantContext()
+  const params = new URL(req.url).searchParams
+  const offset = Math.max(0, Math.floor(Number(params.get("offset")) || 0))
   if (ctx.isSuperAdmin) {
-    const filters = parseQuery(new URL(req.url).searchParams, ticketQuerySchema)
-    return ok(await listQueue(filters))
+    const filters = parseQuery(params, ticketQuerySchema)
+    return ok(await listQueue(filters, offset))
   }
   const isInstituteAdmin = can(ctx, PERMISSIONS.INSTITUTE_MANAGE)
-  return ok(await listMyTickets(ctx.institute.id, ctx.user.id, isInstituteAdmin))
+  return ok(await listMyTickets(ctx.institute.id, ctx.user.id, isInstituteAdmin, offset))
 })
 
 export const POST = route(async (req) => {

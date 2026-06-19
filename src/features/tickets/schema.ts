@@ -41,10 +41,9 @@ export const PRIORITY_LABELS: Record<TicketPriorityValue, string> = {
   URGENT: "Urgent",
 }
 
-// Queue scope — a status grouping for the super-admin work queue. "active" spans
-// the two unfinished states; the rest map 1:1 to a status; "all" drops the filter.
+// Queue scope — the four real statuses (1:1 with the ticket status) plus "all",
+// which drops the filter. No synthetic buckets: every chip matches a status badge.
 export const TICKET_SCOPES = [
-  "active",
   "open",
   "in_progress",
   "resolved",
@@ -54,13 +53,15 @@ export const TICKET_SCOPES = [
 export type TicketScope = (typeof TICKET_SCOPES)[number]
 
 export const SCOPE_LABELS: Record<TicketScope, string> = {
-  active: "Active",
   open: "Open",
   in_progress: "In progress",
   resolved: "Resolved",
   closed: "Closed",
   all: "All",
 }
+
+// How many tickets a list page returns; the rest load on scroll (infinite query).
+export const TICKET_PAGE_SIZE = 30
 
 // ─── API / domain contract ────────────────────────────────────────────────────
 

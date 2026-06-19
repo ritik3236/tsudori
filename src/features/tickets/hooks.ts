@@ -1,6 +1,11 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
@@ -19,10 +24,15 @@ function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)
 }
 
+// Infinite scroll: each page returns up to TICKET_PAGE_SIZE rows plus a
+// nextOffset cursor; the component fetches the next page as the sentinel scrolls
+// into view, so 500 tickets never load at once.
 export function useTickets(filters?: TicketQuery) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ticketKeys.list(filters),
-    queryFn: () => ticketsApi.list(filters),
+    queryFn: ({ pageParam }) => ticketsApi.list(filters, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
   })
 }
 

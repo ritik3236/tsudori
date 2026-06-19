@@ -1,11 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Headset, RotateCcw, Send } from "lucide-react"
+import { RotateCcw, Send } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { AVATAR_TINTS as AVATAR } from "@/lib/constants"
-import { getInitials } from "@/lib/format"
 import { formatRelative } from "@/lib/date-helper"
 import {
   useAddComment,
@@ -20,11 +18,9 @@ import {
   TICKET_CATEGORIES,
   TICKET_PRIORITIES,
   TICKET_STATUSES,
-  type TicketCategoryValue,
-  type TicketPriorityValue,
   type TicketStatusValue,
 } from "@/features/tickets/schema"
-import type { TicketComment, TicketDetail } from "@/features/tickets/types"
+import type { TicketDetail } from "@/features/tickets/types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -37,20 +33,24 @@ import {
 } from "@/components/ui/select"
 import { BackLink } from "@/components/shared/back-link"
 import {
+  CATEGORY_STYLE,
   CategoryBadge,
+  PRIORITY_STYLE,
   PriorityBadge,
+  STATUS_STYLE,
   StatusBadge,
 } from "@/features/tickets/components/ticket-badges"
 
 export function TicketDetailView({ id }: { id: string }) {
   const { data: ticket, isLoading } = useTicket(id)
+  const triage = useTriageTicket(id)
 
   if (isLoading || !ticket) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6">
+      <div className="mx-auto max-w-3xl space-y-4">
         <Skeleton className="h-5 w-24" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-32 rounded-2xl" />
       </div>
     )
   }
@@ -58,55 +58,74 @@ export function TicketDetailView({ id }: { id: string }) {
   const done = ticket.status === "RESOLVED" || ticket.status === "CLOSED"
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    // Fill the viewport so the reply box can sit at the bottom even on a short
+    // ticket; the flex-1 spacer below pushes it down when there's slack, and the
+    // composer stays sticky for long threads.
+    <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-4">
       <BackLink href="/tickets" label="Tickets" />
 
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{ticket.subject}</h1>
+      {/* Title block — plain (no card). The status/priority/category chips are
+          editable in place for the super admin (click → pick → saves immediately),
+          and plain read-only badges for everyone else. No separate triage panel. */}
+      <header className="space-y-2">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+          {ticket.subject}
+        </h1>
         <div className="flex flex-wrap items-center gap-1.5">
-          <StatusBadge status={ticket.status} />
-          <PriorityBadge priority={ticket.priority} />
-          <CategoryBadge category={ticket.category} />
+          {ticket.canManage ? (
+            <>
+              <TriageChip
+                value={ticket.status}
+                options={TICKET_STATUSES}
+                labels={STATUS_LABELS}
+                styleMap={STATUS_STYLE}
+                ariaLabel="Status"
+                disabled={triage.isPending}
+                onChange={(v) => triage.mutate({ status: v })}
+              />
+              <TriageChip
+                value={ticket.priority}
+                options={TICKET_PRIORITIES}
+                labels={PRIORITY_LABELS}
+                styleMap={PRIORITY_STYLE}
+                ariaLabel="Priority"
+                disabled={triage.isPending}
+                onChange={(v) => triage.mutate({ priority: v })}
+              />
+              <TriageChip
+                value={ticket.category}
+                options={TICKET_CATEGORIES}
+                labels={CATEGORY_LABELS}
+                styleMap={CATEGORY_STYLE}
+                ariaLabel="Category"
+                disabled={triage.isPending}
+                onChange={(v) => triage.mutate({ category: v })}
+              />
+            </>
+          ) : (
+            <>
+              <StatusBadge status={ticket.status} />
+              <PriorityBadge priority={ticket.priority} />
+              <CategoryBadge category={ticket.category} />
+            </>
+          )}
+          {ticket.instituteName && (
+            <span className="text-muted-foreground ml-1 text-xs">
+              {ticket.instituteName}
+            </span>
+          )}
         </div>
-        <p className="text-muted-foreground text-sm">
-          Opened {formatRelative(ticket.createdAt)} by{" "}
-          <span className="text-foreground font-medium">
-            {ticket.requesterName ?? "Unknown"}
-          </span>
-          {ticket.instituteName ? ` · ${ticket.instituteName}` : ""}
-          {ticket.resolvedAt ? ` · resolved ${formatRelative(ticket.resolvedAt)}` : ""}
-        </p>
-      </div>
+      </header>
 
-      {/* Triage (super admin only) */}
-      {ticket.canManage && <TriagePanel id={id} ticket={ticket} />}
+      {/* Conversation — chat bubbles. The request is the first (reporter) bubble;
+          consecutive messages from the same person are grouped so the name shows
+          once, not on every reply. */}
+      <ChatThread ticket={ticket} />
 
-      {/* Description */}
-      <div className="bg-card rounded-2xl border p-4">
-        <p className="text-sm whitespace-pre-wrap break-words">{ticket.description}</p>
-      </div>
+      {/* Pushes the reply box to the bottom when the ticket is short. */}
+      <div className="flex-1" aria-hidden="true" />
 
-      {/* Conversation */}
-      <div className="space-y-3">
-        <h2 className="text-muted-foreground text-sm font-medium">
-          Conversation
-          {ticket.comments.length > 0 ? ` · ${ticket.comments.length}` : ""}
-        </h2>
-        {ticket.comments.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No replies yet. {ticket.canManage ? "Reply to the requester below." : "We'll respond here."}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {ticket.comments.map((c, i) => (
-              <CommentBubble key={c.id} comment={c} index={i} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Reply composer + reopen */}
+      {/* Composer */}
       <ReplyComposer
         id={id}
         status={ticket.status}
@@ -116,123 +135,133 @@ export function TicketDetailView({ id }: { id: string }) {
   )
 }
 
-function TriagePanel({ id, ticket }: { id: string; ticket: TicketDetail }) {
-  const triage = useTriageTicket(id)
+type ThreadMessage = {
+  id: string
+  name: string
+  body: string
+  isStaff: boolean
+  time: string
+}
+
+function ChatThread({ ticket }: { ticket: TicketDetail }) {
+  // The reporter's request is the first message; replies follow.
+  const messages: ThreadMessage[] = [
+    {
+      id: "request",
+      name: ticket.requesterName ?? "Unknown",
+      body: ticket.description,
+      isStaff: false,
+      time: ticket.createdAt,
+    },
+    ...ticket.comments.map((c) => ({
+      id: c.id,
+      name: c.authorName ?? "Unknown",
+      body: c.body,
+      isStaff: c.authorIsStaff,
+      time: c.createdAt,
+    })),
+  ]
+
+  // Collapse consecutive messages from the same author into one group so the
+  // name/timestamp aren't repeated on every bubble.
+  const groups: { key: string; name: string; isStaff: boolean; items: ThreadMessage[] }[] = []
+  for (const m of messages) {
+    const last = groups[groups.length - 1]
+    if (last && last.isStaff === m.isStaff && last.name === m.name) {
+      last.items.push(m)
+    } else {
+      groups.push({ key: m.id, name: m.name, isStaff: m.isStaff, items: [m] })
+    }
+  }
+
   return (
-    <div className="bg-muted/40 grid grid-cols-1 gap-3 rounded-2xl border p-4 sm:grid-cols-3">
-      <Field label="Status">
-        <Select
-          value={ticket.status}
-          onValueChange={(v) =>
-            v !== ticket.status && triage.mutate({ status: v as TicketStatusValue })
-          }
-          disabled={triage.isPending}
-        >
-          <SelectTrigger className="w-full" aria-label="Status">
-            <SelectValue>
-              {(v: string) => STATUS_LABELS[v as TicketStatusValue] ?? v}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {TICKET_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field label="Priority">
-        <Select
-          value={ticket.priority}
-          onValueChange={(v) =>
-            v !== ticket.priority && triage.mutate({ priority: v as TicketPriorityValue })
-          }
-          disabled={triage.isPending}
-        >
-          <SelectTrigger className="w-full" aria-label="Priority">
-            <SelectValue>
-              {(v: string) => PRIORITY_LABELS[v as TicketPriorityValue] ?? v}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {TICKET_PRIORITIES.map((p) => (
-              <SelectItem key={p} value={p}>
-                {PRIORITY_LABELS[p]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field label="Category">
-        <Select
-          value={ticket.category}
-          onValueChange={(v) =>
-            v !== ticket.category && triage.mutate({ category: v as TicketCategoryValue })
-          }
-          disabled={triage.isPending}
-        >
-          <SelectTrigger className="w-full" aria-label="Category">
-            <SelectValue>
-              {(v: string) => CATEGORY_LABELS[v as TicketCategoryValue] ?? v}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {TICKET_CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {CATEGORY_LABELS[c]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+    <div className="space-y-3">
+      {groups.map((g) => (
+        <BubbleGroup key={g.key} group={g} />
+      ))}
     </div>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function BubbleGroup({
+  group,
+}: {
+  group: { name: string; isStaff: boolean; items: ThreadMessage[] }
+}) {
+  const staff = group.isStaff
+  const last = group.items[group.items.length - 1]
   return (
-    <label className="block space-y-1">
-      <span className="text-muted-foreground text-xs font-medium">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function CommentBubble({ comment, index }: { comment: TicketComment; index: number }) {
-  const name = comment.authorName ?? "Unknown"
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border p-4",
-        comment.authorIsStaff
-          ? "border-indigo-200 bg-indigo-50/60 dark:border-indigo-500/20 dark:bg-indigo-500/10"
-          : "bg-card"
-      )}
-    >
-      <div className="flex items-center gap-2.5">
-        <span
+    <div className={cn("flex flex-col gap-1", staff ? "items-end" : "items-start")}>
+      <span className="text-muted-foreground px-1 text-[11px] font-medium">
+        {group.name}
+        {staff && (
+          <span className="text-indigo-600 dark:text-indigo-300"> · Support</span>
+        )}
+      </span>
+      {group.items.map((m) => (
+        <div
+          key={m.id}
           className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-            comment.authorIsStaff
-              ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200"
-              : AVATAR[index % AVATAR.length]
+            "max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap",
+            staff
+              ? "rounded-tr-sm bg-indigo-600 text-white"
+              : "bg-card text-foreground rounded-tl-sm border"
           )}
         >
-          {comment.authorIsStaff ? <Headset className="size-4" /> : getInitials(name)}
-        </span>
-        <span className="text-sm font-medium">{name}</span>
-        {comment.authorIsStaff && (
-          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-indigo-700 uppercase dark:bg-indigo-500/20 dark:text-indigo-200">
-            Support
-          </span>
-        )}
-        <span className="text-muted-foreground text-xs">
-          {formatRelative(comment.createdAt)}
-        </span>
-      </div>
-      <p className="mt-2 text-sm whitespace-pre-wrap break-words">{comment.body}</p>
+          {m.body}
+        </div>
+      ))}
+      <span className="text-muted-foreground px-1 text-[11px]">
+        {formatRelative(last.time)}
+      </span>
     </div>
+  )
+}
+
+// An editable status/priority/category value rendered as a coloured chip (same
+// look as the read-only badges) that opens a dropdown and saves on pick — mirrors
+// the notes board's inline priority chip. The `!` overrides shrink the Base UI
+// trigger from a button down to chip dimensions.
+function TriageChip<T extends string>({
+  value,
+  options,
+  labels,
+  styleMap,
+  onChange,
+  ariaLabel,
+  disabled,
+}: {
+  value: T
+  options: readonly T[]
+  labels: Record<T, string>
+  styleMap: Record<T, string>
+  onChange: (value: T) => void
+  ariaLabel: string
+  disabled?: boolean
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => v !== value && onChange(v as T)}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className={cn(
+          "h-auto! w-auto gap-1 rounded! border-0! px-1.5! py-0.5! text-[10px]! font-semibold tracking-wide uppercase shadow-none [&>svg]:size-2.5 [&>svg]:text-current [&>svg]:opacity-70",
+          styleMap[value]
+        )}
+      >
+        <SelectValue>{(v: string) => labels[v as T]}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o} value={o}>
+            {labels[o]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -257,39 +286,45 @@ function ReplyComposer({
   }
 
   return (
-    <div className="bg-card space-y-3 rounded-2xl border p-4">
-      {done && (
-        <p className="text-muted-foreground text-xs">
-          This ticket is {STATUS_LABELS[status].toLowerCase()}.
-          {canReopen ? " Use “Reopen” if you still need help." : ""}
-        </p>
-      )}
-      <Textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={3}
-        placeholder="Write a reply…"
-        onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send()
-        }}
-      />
-      <div className="flex items-center justify-between gap-2">
-        {canReopen ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => reopen.mutate()}
-            disabled={reopen.isPending}
-          >
-            <RotateCcw className="size-4" /> {reopen.isPending ? "Reopening…" : "Reopen"}
-          </Button>
-        ) : (
-          <span />
+    // Pinned to the bottom while the thread scrolls behind it (offset clears the
+    // fixed mobile bottom-nav). Sticky, not fixed, so a short ticket keeps it in
+    // normal flow and it never hides the last message.
+    <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-20 lg:bottom-4">
+      <div className="bg-card focus-within:border-ring focus-within:ring-ring/50 rounded-2xl border shadow-sm transition-colors focus-within:ring-3">
+        {done && (
+          <p className="text-muted-foreground px-3 pt-2.5 text-xs">
+            This ticket is {STATUS_LABELS[status].toLowerCase()}.
+            {canReopen ? " Use “Reopen” if you still need help." : ""}
+          </p>
         )}
-        <Button onClick={send} disabled={!text || addComment.isPending} size="sm">
-          <Send className="size-4" /> {addComment.isPending ? "Sending…" : "Reply"}
-        </Button>
+        <Textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={2}
+          placeholder="Write a reply…"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send()
+          }}
+          className="min-h-0 resize-none border-0 bg-transparent px-3 pt-2.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
+        />
+        <div className="flex items-center justify-between gap-2 px-2 pb-2">
+          {canReopen ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => reopen.mutate()}
+              disabled={reopen.isPending}
+            >
+              <RotateCcw className="size-4" /> {reopen.isPending ? "Reopening…" : "Reopen"}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Button onClick={send} disabled={!text || addComment.isPending} size="sm">
+            <Send className="size-4" /> {addComment.isPending ? "Sending…" : "Reply"}
+          </Button>
+        </div>
       </div>
     </div>
   )
