@@ -27,7 +27,7 @@ function computeSummary(students: StudentAttendance[]) {
 async function getAttendanceDayAll(instituteId: string, date: string): Promise<DayAttendance> {
   const students = await prisma.student.findMany({
     where: { instituteId, status: "ACTIVE", archivedAt: null },
-    orderBy: [{ classId: "asc" }, { serialNo: "asc" }],
+    orderBy: [{ classId: "asc" }, { fullName: "asc" }],
     select: { id: true, fullName: true, serialNo: true, rollNumber: true },
   })
 
@@ -80,7 +80,7 @@ export async function getAttendanceDay(
 
   const students = await prisma.student.findMany({
     where: { classId, instituteId, status: "ACTIVE", archivedAt: null },
-    orderBy: { serialNo: "asc" },
+    orderBy: { fullName: "asc" },
     select: { id: true, fullName: true, serialNo: true, rollNumber: true },
   })
 
@@ -206,7 +206,7 @@ export async function getMonthlyReport(
 
   const students = await prisma.student.findMany({
     where: { classId, instituteId, archivedAt: null },
-    orderBy: { serialNo: "asc" },
+    orderBy: { fullName: "asc" },
     select: { id: true, fullName: true, serialNo: true },
   })
 

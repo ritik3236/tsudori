@@ -57,7 +57,7 @@ export async function listStudents(
     prisma.student.findMany({
       where,
       include: { class: { select: { name: true } } },
-      orderBy: { serialNo: "asc" },
+      orderBy: { fullName: "asc" },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),

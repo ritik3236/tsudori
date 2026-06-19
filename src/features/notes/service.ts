@@ -125,13 +125,13 @@ export async function addNoteComment(
   })
   if (!note) throw new NotFoundError("Note not found.")
 
-  await prisma.noteComment.create({
+  // Create the reply and read the parent note back (with the full refreshed
+  // thread) in one call — the include resolves after the insert, so the new
+  // reply is already in note.comments. Lets the client seed its cache without a
+  // separate round trip.
+  const comment = await prisma.noteComment.create({
     data: { noteId, authorId, body: input.body },
+    include: { note: { include: NOTE_INCLUDE } },
   })
-
-  const refreshed = await prisma.note.findUniqueOrThrow({
-    where: { id: noteId },
-    include: NOTE_INCLUDE,
-  })
-  return toItem(refreshed, authorId, isAdmin)
+  return toItem(comment.note, authorId, isAdmin)
 }

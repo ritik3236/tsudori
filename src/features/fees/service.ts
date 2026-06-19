@@ -110,7 +110,9 @@ export async function listStudentFees(
 
   const students = await prisma.student.findMany({
     where,
-    orderBy: { serialNo: "asc" },
+    // Final order is decided by the in-memory sort below (status-ranked, then by
+    // name), so the DB order here is just a stable base.
+    orderBy: { fullName: "asc" },
     select: {
       id: true,
       serialNo: true,
@@ -161,7 +163,8 @@ export async function listStudentFees(
 
   if (query.status) items = items.filter((i) => i.status === query.status)
 
-  // Surface who owes first: unpaid → partial → paid → waived → advance, then by id.
+  // Surface who owes first: unpaid → partial → paid → waived → advance, then
+  // alphabetically by student name within each status group.
   const rank: Record<FeeStatus, number> = {
     UNPAID: 0,
     PARTIAL: 1,
@@ -169,7 +172,9 @@ export async function listStudentFees(
     WAIVED: 3,
     ADVANCE: 4,
   }
-  items.sort((a, b) => rank[a.status] - rank[b.status] || a.serialNo - b.serialNo)
+  items.sort(
+    (a, b) => rank[a.status] - rank[b.status] || a.fullName.localeCompare(b.fullName)
+  )
 
   const total = items.length
   const start = (query.page - 1) * query.pageSize
