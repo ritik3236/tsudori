@@ -35,7 +35,10 @@ export default async function AttendanceRoute() {
 
   return (
     <HydrationBoundary state={dehydrate(qc)}>
-      <AttendancePage canMark={can(ctx, PERMISSIONS.ATTENDANCE_MARK)} />
+      <AttendancePage
+        canMark={can(ctx, PERMISSIONS.ATTENDANCE_MARK)}
+        instituteName={ctx.institute.name}
+      />
     </HydrationBoundary>
   )
 }

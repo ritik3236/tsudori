@@ -25,9 +25,9 @@ import {
   feeReminderMessage,
   toWhatsAppNumber,
   whatsappUrl,
-} from "@/features/fees/whatsapp"
+  WhatsAppIconLink,
+} from "@/lib/whatsapp"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
-import { WhatsAppGlyph } from "@/features/fees/components/whatsapp-icon"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -442,20 +442,14 @@ function Row({
         {(waUrl || (canRecord && s.pendingThisMonth > 0)) && (
           <div className="flex items-center gap-1">
             {waUrl && (
-              <a
+              <WhatsAppIconLink
                 href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Send on WhatsApp"
                 title={
                   s.pendingThisMonth > 0
                     ? "Send fee reminder on WhatsApp"
                     : "Send receipt on WhatsApp"
                 }
-                className="inline-flex size-8 items-center justify-center rounded-md text-[#25D366] transition-colors hover:bg-[#25D366]/10"
-              >
-                <WhatsAppGlyph className="size-4" />
-              </a>
+              />
             )}
             {canRecord && s.pendingThisMonth > 0 && (
               <RecordPaymentButton

@@ -6,6 +6,8 @@ export type StudentAttendance = {
   studentName: string
   serialNo: number
   rollNumber: string | null
+  /** Parent/guardian phone — for the WhatsApp absence notification. */
+  contactNumber: string | null
   attendanceId: string | null
   status: AttendanceStatus | null
   note: string | null

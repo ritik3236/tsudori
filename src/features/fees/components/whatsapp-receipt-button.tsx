@@ -6,8 +6,8 @@ import {
   feeReceivedMessage,
   toWhatsAppNumber,
   whatsappUrl,
-} from "@/features/fees/whatsapp"
-import { WhatsAppGlyph } from "@/features/fees/components/whatsapp-icon"
+  WhatsAppGlyph,
+} from "@/lib/whatsapp"
 
 export function WhatsAppReceiptButton({ receipt }: { receipt: ReceiptData }) {
   const number = toWhatsAppNumber(receipt.student.contactNumber)

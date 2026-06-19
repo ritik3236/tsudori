@@ -40,9 +40,9 @@ function shiftMonth(yyyyMm: string, delta: number) {
   return shiftMonthStr(yyyyMm, delta)
 }
 
-type Props = { canMark: boolean }
+type Props = { canMark: boolean; instituteName: string }
 
-export function AttendancePage({ canMark }: Props) {
+export function AttendancePage({ canMark, instituteName }: Props) {
   const { data: classes } = useClasses()
   const [tab, setTab] = useState<"mark" | "report">("mark")
   const [classId, setClassId] = useState<string>(ALL_CLASSES)
@@ -119,7 +119,12 @@ export function AttendancePage({ canMark }: Props) {
         </div>
 
         <TabsContent value="mark">
-          <AttendanceDayView classId={classId} date={date} canMark={canMark} />
+          <AttendanceDayView
+            classId={classId}
+            date={date}
+            canMark={canMark}
+            instituteName={instituteName}
+          />
         </TabsContent>
 
         <TabsContent value="report">

@@ -4,6 +4,13 @@ import { useEffect, useRef } from "react"
 import { Users } from "lucide-react"
 import { toast } from "sonner"
 
+import { formatDateLong } from "@/lib/format"
+import {
+  attendanceAbsenceMessage,
+  toWhatsAppNumber,
+  whatsappUrl,
+  WhatsAppIconLink,
+} from "@/lib/whatsapp"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -15,9 +22,10 @@ type Props = {
   classId: string
   date: string
   canMark: boolean
+  instituteName: string
 }
 
-export function AttendanceDayView({ classId, date, canMark }: Props) {
+export function AttendanceDayView({ classId, date, canMark, instituteName }: Props) {
   const { data, isLoading } = useAttendanceDay(classId, date)
   const mark = useMarkAttendance(classId, date)
   const markBulk = useMarkBulkAttendance(classId, date)
@@ -131,24 +139,40 @@ export function AttendanceDayView({ classId, date, canMark }: Props) {
 
       {/* Student rows */}
       <div className="bg-card divide-y overflow-hidden rounded-xl border">
-        {students.map((s) => (
-          <div
-            key={s.studentId}
-            className="flex items-center gap-3 px-4 py-3"
-          >
-            <span className="text-muted-foreground w-7 shrink-0 text-right text-xs tabular-nums">
-              {s.rollNumber ?? s.serialNo}
-            </span>
-            <p className="min-w-0 flex-1 truncate text-sm font-medium">
-              {s.studentName}
-            </p>
-            <AttendanceStatusToggle
-              value={s.status}
-              onChange={(status) => handleMark(s.studentId, status)}
-              disabled={!canMark}
-            />
-          </div>
-        ))}
+        {students.map((s) => {
+          // WhatsApp the parent when the student is absent / on leave (and has a number).
+          const number = toWhatsAppNumber(s.contactNumber)
+          const notifyUrl =
+            number && (s.status === "ABSENT" || s.status === "LEAVE")
+              ? whatsappUrl(
+                  number,
+                  attendanceAbsenceMessage({
+                    studentName: s.studentName,
+                    status: s.status,
+                    date: formatDateLong(date),
+                    institutionName: instituteName,
+                  })
+                )
+              : null
+          return (
+            <div key={s.studentId} className="flex items-center gap-3 px-4 py-3">
+              <span className="text-muted-foreground w-7 shrink-0 text-right text-xs tabular-nums">
+                {s.rollNumber ?? s.serialNo}
+              </span>
+              <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                {s.studentName}
+              </p>
+              {notifyUrl && (
+                <WhatsAppIconLink href={notifyUrl} title="Notify parent on WhatsApp" />
+              )}
+              <AttendanceStatusToggle
+                value={s.status}
+                onChange={(status) => handleMark(s.studentId, status)}
+                disabled={!canMark}
+              />
+            </div>
+          )
+        })}
       </div>
     </div>
   )

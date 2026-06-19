@@ -28,7 +28,7 @@ async function getAttendanceDayAll(instituteId: string, date: string): Promise<D
   const students = await prisma.student.findMany({
     where: { instituteId, status: "ACTIVE", archivedAt: null },
     orderBy: [{ classId: "asc" }, { fullName: "asc" }],
-    select: { id: true, fullName: true, serialNo: true, rollNumber: true },
+    select: { id: true, fullName: true, serialNo: true, rollNumber: true, contactNumber: true },
   })
 
   const dateObj = parseDate(date)
@@ -50,6 +50,7 @@ async function getAttendanceDayAll(instituteId: string, date: string): Promise<D
       studentName: s.fullName,
       serialNo: s.serialNo,
       rollNumber: s.rollNumber,
+      contactNumber: s.contactNumber,
       attendanceId: a?.id ?? null,
       status: (a?.status ?? null) as AttendanceStatus | null,
       note: a?.note ?? null,
@@ -81,7 +82,7 @@ export async function getAttendanceDay(
   const students = await prisma.student.findMany({
     where: { classId, instituteId, status: "ACTIVE", archivedAt: null },
     orderBy: { fullName: "asc" },
-    select: { id: true, fullName: true, serialNo: true, rollNumber: true },
+    select: { id: true, fullName: true, serialNo: true, rollNumber: true, contactNumber: true },
   })
 
   const dateObj = parseDate(date)
@@ -103,6 +104,7 @@ export async function getAttendanceDay(
       studentName: s.fullName,
       serialNo: s.serialNo,
       rollNumber: s.rollNumber,
+      contactNumber: s.contactNumber,
       attendanceId: a?.id ?? null,
       status: (a?.status ?? null) as AttendanceStatus | null,
       note: a?.note ?? null,
@@ -125,7 +127,7 @@ export async function markAttendance(
 ): Promise<StudentAttendance> {
   const student = await prisma.student.findFirst({
     where: { id: input.studentId, instituteId },
-    select: { id: true, fullName: true, serialNo: true, rollNumber: true },
+    select: { id: true, fullName: true, serialNo: true, rollNumber: true, contactNumber: true },
   })
   if (!student) throw new NotFoundError("Student not found")
 
@@ -153,6 +155,7 @@ export async function markAttendance(
     studentName: student.fullName,
     serialNo: student.serialNo,
     rollNumber: student.rollNumber,
+    contactNumber: student.contactNumber,
     attendanceId: record.id,
     status: record.status,
     note: record.note,
