@@ -117,6 +117,7 @@ async function loadMonthFeeRows(
       serialNo: true,
       fullName: true,
       monthlyFee: true,
+      contactNumber: true,
       class: { select: { name: true } },
     },
   })
@@ -155,6 +156,8 @@ async function loadMonthFeeRows(
       pendingThisMonth: pending,
       advance,
       status,
+      contactNumber: s.contactNumber,
+      lastReceipt: null, // filled per page (paid rows) by listStudentFees
     }
   })
 }
@@ -195,8 +198,47 @@ export async function listStudentFees(
   const total = rows.length
   const start = query.offset
   const end = start + FEE_PAGE_SIZE
+  const items = rows.slice(start, end)
+
+  // Attach each paid row's latest receipt (for the WhatsApp confirmation, so
+  // Amount/Receipt No/Date all come from one real payment). Scoped to the page's
+  // paid rows — a small bounded query, not the whole month.
+  const paidIds = items.filter((r) => r.paidThisMonth > 0).map((r) => r.studentId)
+  if (paidIds.length) {
+    const month = query.periodMonth ?? currentPeriod().month
+    const year = query.periodYear ?? currentPeriod().year
+    const receipts = await prisma.feePayment.findMany({
+      where: {
+        instituteId,
+        periodMonth: month,
+        periodYear: year,
+        studentId: { in: paidIds },
+        receiptNo: { not: null },
+        reversalOfId: null,
+      },
+      orderBy: { receiptNo: "desc" },
+      select: { studentId: true, receiptNo: true, amount: true, paidAt: true },
+    })
+    const latest = new Map<
+      string,
+      { receiptNo: number; amount: number; paidAt: string }
+    >()
+    for (const r of receipts) {
+      if (r.receiptNo != null && !latest.has(r.studentId)) {
+        latest.set(r.studentId, {
+          receiptNo: r.receiptNo,
+          amount: Number(r.amount),
+          paidAt: r.paidAt.toISOString(),
+        })
+      }
+    }
+    for (const row of items) {
+      row.lastReceipt = latest.get(row.studentId) ?? null
+    }
+  }
+
   return {
-    items: rows.slice(start, end),
+    items,
     nextOffset: end < total ? end : null,
     total,
   }
@@ -621,7 +663,14 @@ export async function getReceipt(
   const p = await prisma.feePayment.findFirst({
     where: { id: paymentId, instituteId },
     include: {
-      student: { select: { fullName: true, serialNo: true, class: { select: { name: true } } } },
+      student: {
+        select: {
+          fullName: true,
+          serialNo: true,
+          contactNumber: true,
+          class: { select: { name: true } },
+        },
+      },
       institute: {
         select: { name: true, addressLine: true, city: true, phone: true, email: true },
       },
@@ -646,6 +695,7 @@ export async function getReceipt(
       fullName: p.student.fullName,
       serialNo: p.student.serialNo,
       className: p.student.class?.name ?? null,
+      contactNumber: p.student.contactNumber,
     },
     institute: {
       name: p.institute.name,

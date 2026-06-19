@@ -51,7 +51,11 @@ export default async function FeesPage() {
 
   return (
     <HydrationBoundary state={dehydrate(qc)}>
-      <FeesMonthView canRecord={canRecord} canWaive={canWaive} />
+      <FeesMonthView
+        canRecord={canRecord}
+        canWaive={canWaive}
+        instituteName={ctx.institute.name}
+      />
     </HydrationBoundary>
   )
 }

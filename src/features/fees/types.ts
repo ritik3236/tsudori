@@ -18,6 +18,11 @@ export type StudentFeeListItem = {
   /** Credit in hand: overpayment of this month + payments for future months. */
   advance: number
   status: FeeStatus
+  /** Parent/guardian phone — for the WhatsApp reminder/confirmation link. */
+  contactNumber: string | null
+  /** Latest receipt for this month (paid rows only) — powers the WhatsApp
+   *  "fee received" confirmation so Amount/Receipt No/Date stay consistent. */
+  lastReceipt: { receiptNo: number; amount: number; paidAt: string } | null
 }
 
 /** One infinite-scroll page of the fee list (offset-paged). */
@@ -108,7 +113,13 @@ export type ReceiptData = {
   paidAt: string
   note: string | null
   recordedBy: string | null
-  student: { fullName: string; serialNo: number; className: string | null }
+  student: {
+    fullName: string
+    serialNo: number
+    className: string | null
+    /** Parent/guardian phone — used for the WhatsApp receipt link. */
+    contactNumber: string | null
+  }
   institute: {
     name: string
     addressLine: string | null

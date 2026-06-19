@@ -11,7 +11,7 @@ import {
   FILTER_ALL as ALL,
   MONTHS_SHORT as MONTHS,
 } from "@/lib/constants"
-import { formatCurrency, getInitials } from "@/lib/format"
+import { formatCurrency, formatDateLong, getInitials } from "@/lib/format"
 import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
 import {
   useFeeMonthSummary,
@@ -20,7 +20,14 @@ import {
 } from "@/features/fees/hooks"
 import { useClassOptions } from "@/features/students/hooks"
 import type { StudentFeeListItem } from "@/features/fees/types"
+import {
+  feeReceivedMessage,
+  feeReminderMessage,
+  toWhatsAppNumber,
+  whatsappUrl,
+} from "@/features/fees/whatsapp"
 import { RecordPaymentButton } from "@/features/fees/components/record-payment-button"
+import { WhatsAppGlyph } from "@/features/fees/components/whatsapp-icon"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -54,9 +61,11 @@ function compact(n: number): string {
 export function FeesMonthView({
   canRecord,
   canWaive,
+  instituteName,
 }: {
   canRecord: boolean
   canWaive: boolean
+  instituteName: string
 }) {
   const nowYM = appYearMonth(new Date())
   const [sel, setSel] = useState({ month: nowYM.month, year: nowYM.year })
@@ -112,6 +121,7 @@ export function FeesMonthView({
   // The list arrives pending-first; the first paid row is where the "Paid"
   // divider goes. -1 when everything is still pending.
   const firstPaidIdx = items.findIndex((i) => i.pendingThisMonth <= 0)
+  const monthLabel = `${MONTHS[sel.month - 1]} ${sel.year}`
 
   return (
     <div className="space-y-5">
@@ -252,7 +262,14 @@ export function FeesMonthView({
                   className={i > 0 ? "pt-2" : undefined}
                 />
               )}
-              <Row s={s} i={i} canRecord={canRecord} canWaive={canWaive} />
+              <Row
+                s={s}
+                i={i}
+                canRecord={canRecord}
+                canWaive={canWaive}
+                monthLabel={monthLabel}
+                instituteName={instituteName}
+              />
             </div>
           ))}
           <InfiniteSentinel
@@ -327,13 +344,47 @@ function Row({
   i,
   canRecord,
   canWaive,
+  monthLabel,
+  instituteName,
 }: {
   s: StudentFeeListItem
   i: number
   canRecord: boolean
   canWaive: boolean
+  monthLabel: string
+  instituteName: string
 }) {
   const router = useRouter()
+
+  // WhatsApp: a reminder when they still owe, a receipt confirmation when paid.
+  // Null (no button) when there's no parent number or nothing to send.
+  const waNumber = toWhatsAppNumber(s.contactNumber)
+  let waUrl: string | null = null
+  if (waNumber) {
+    if (s.pendingThisMonth > 0) {
+      waUrl = whatsappUrl(
+        waNumber,
+        feeReminderMessage({
+          studentName: s.fullName,
+          pending: s.pendingThisMonth,
+          monthLabel,
+          institutionName: instituteName,
+        })
+      )
+    } else if (s.lastReceipt) {
+      waUrl = whatsappUrl(
+        waNumber,
+        feeReceivedMessage({
+          studentName: s.fullName,
+          amount: s.lastReceipt.amount,
+          receiptNo: s.lastReceipt.receiptNo,
+          date: formatDateLong(s.lastReceipt.paidAt),
+          institutionName: instituteName,
+        })
+      )
+    }
+  }
+
   return (
     <div className="bg-card flex items-center gap-3 rounded-2xl border p-3">
       <span
@@ -385,21 +436,39 @@ function Row({
             {formatCurrency(s.paidThisMonth)}
           </span>
         )}
-        {/* Waiving is done from the student's fee detail page, where it clears
-            dues across all months oldest-first. The month view only records
-            payments (the record dialog can still waive remaining dues). */}
-        {canRecord && s.pendingThisMonth > 0 && (
+        {/* WhatsApp (reminder/confirmation) + Record. Waiving is done from the
+            student's fee detail page, where it clears dues across all months
+            oldest-first; the month view only records payments. */}
+        {(waUrl || (canRecord && s.pendingThisMonth > 0)) && (
           <div className="flex items-center gap-1">
-            <RecordPaymentButton
-              studentId={s.studentId}
-              studentName={s.fullName}
-              monthlyFee={s.monthlyFee}
-              remainingDue={s.pendingThisMonth}
-              canWaive={canWaive}
-              label="Record"
-              variant="outline"
-              size="sm"
-            />
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Send on WhatsApp"
+                title={
+                  s.pendingThisMonth > 0
+                    ? "Send fee reminder on WhatsApp"
+                    : "Send receipt on WhatsApp"
+                }
+                className="inline-flex size-8 items-center justify-center rounded-md text-[#25D366] transition-colors hover:bg-[#25D366]/10"
+              >
+                <WhatsAppGlyph className="size-4" />
+              </a>
+            )}
+            {canRecord && s.pendingThisMonth > 0 && (
+              <RecordPaymentButton
+                studentId={s.studentId}
+                studentName={s.fullName}
+                monthlyFee={s.monthlyFee}
+                remainingDue={s.pendingThisMonth}
+                canWaive={canWaive}
+                label="Record"
+                variant="outline"
+                size="sm"
+              />
+            )}
           </div>
         )}
       </div>

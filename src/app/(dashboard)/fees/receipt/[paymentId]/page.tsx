@@ -9,6 +9,7 @@ import { getReceipt } from "@/features/fees/service"
 import { METHOD_LABELS } from "@/features/fees/schema"
 import { BackLink } from "@/components/shared/back-link"
 import { PrintButton } from "@/features/fees/components/print-button"
+import { WhatsAppReceiptButton } from "@/features/fees/components/whatsapp-receipt-button"
 
 export const metadata: Metadata = { title: "Receipt" }
 
@@ -55,7 +56,10 @@ export default async function ReceiptPage({
     <div className="mx-auto max-w-lg space-y-5">
       <div className="flex items-center justify-between print:hidden">
         <BackLink href="/fees" label="Fees" />
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          <WhatsAppReceiptButton receipt={receipt} />
+          <PrintButton />
+        </div>
       </div>
 
       <div className="bg-card rounded-2xl border p-6 print:rounded-none print:border-0 print:p-0">
