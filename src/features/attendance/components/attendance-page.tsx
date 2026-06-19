@@ -88,7 +88,8 @@ export function AttendancePage({ canMark }: Props) {
 
           {tab === "mark" && (
             <div className="w-36 shrink-0">
-              <DatePicker value={date} onChange={setDate} />
+              {/* Can't take attendance for a day that hasn't happened — cap at today. */}
+              <DatePicker value={date} onChange={setDate} max={todayStr()} />
             </div>
           )}
 

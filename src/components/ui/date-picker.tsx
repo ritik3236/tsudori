@@ -20,6 +20,9 @@ type DatePickerProps = {
   value?: string
   onChange?: (value: string) => void
   placeholder?: string
+  /** Latest selectable date ("yyyy-MM-dd"); later days are disabled and months
+   *  past it can't be navigated to. Used to block future dates (e.g. attendance). */
+  max?: string
 } & Pick<
   React.ComponentProps<"button">,
   "id" | "disabled" | "aria-invalid" | "aria-describedby"
@@ -35,10 +38,12 @@ export function DatePicker({
   value,
   onChange,
   placeholder = "Pick a date",
+  max,
   ...triggerProps
 }: DatePickerProps) {
   const [open, setOpen] = React.useState(false)
   const selected = toDate(value)
+  const maxDate = toDate(max)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -63,6 +68,8 @@ export function DatePicker({
           mode="single"
           selected={selected}
           defaultMonth={selected}
+          endMonth={maxDate}
+          disabled={maxDate ? { after: maxDate } : undefined}
           onSelect={(date) => {
             if (date) onChange?.(format(date, "yyyy-MM-dd"))
             setOpen(false)
