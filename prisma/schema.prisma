@@ -45,7 +45,8 @@ model User {
   markedAttendance Attendance[] @relation("AttendanceMarkedBy")
   recordedPayments FeePayment[] @relation("PaymentRecordedBy")
   grantedWaivers   FeeWaiver[]  @relation("WaiverBy")
-  notes            Note[]       @relation("NoteAuthor")
+  notes            Note[]          @relation("NoteAuthor")
+  noteComments     NoteComment[]   @relation("NoteCommentAuthor")
   tickets          Ticket[]        @relation("TicketRequester")
   ticketComments   TicketComment[] @relation("TicketCommentAuthor")
 
@@ -395,10 +396,29 @@ model Note {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
-  author    User?     @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  institute Institute     @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  author    User?         @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  comments  NoteComment[]
 
   @@index([instituteId, createdAt])
+  @@schema("public")
+}
+
+/// A flat reply on a shared note. The note board is internal to the institute,
+/// so there's no staff/requester distinction (unlike TicketComment) — every
+/// member's reply is equal.
+model NoteComment {
+  id        String   @id @default(cuid())
+  noteId    String
+  authorId  String?  @db.Uuid
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  note   Note  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  author User? @relation("NoteCommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([noteId, createdAt])
   @@schema("public")
 }
 

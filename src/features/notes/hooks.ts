@@ -5,7 +5,12 @@ import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
 import { noteKeys, notesApi } from "@/features/notes/api"
-import type { NoteCreateInput, NoteUpdateInput } from "@/features/notes/schema"
+import type { NoteItem } from "@/features/notes/types"
+import type {
+  NoteCommentCreateInput,
+  NoteCreateInput,
+  NoteUpdateInput,
+} from "@/features/notes/schema"
 
 export { noteKeys }
 
@@ -53,5 +58,20 @@ export function useDeleteNote() {
       toast.success("Note deleted.")
     },
     onError: (e) => reportError(e, "Couldn't delete the note."),
+  })
+}
+
+export function useAddNoteComment(noteId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: NoteCommentCreateInput) => notesApi.addComment(noteId, data),
+    onSuccess: (updated) => {
+      // Replace just this note in the list so the thread updates in place — a
+      // full refetch would reorder the board and collapse the open thread.
+      qc.setQueryData<NoteItem[]>(noteKeys.lists(), (old) =>
+        old?.map((n) => (n.id === updated.id ? updated : n))
+      )
+    },
+    onError: (e) => reportError(e, "Couldn't post the reply."),
   })
 }

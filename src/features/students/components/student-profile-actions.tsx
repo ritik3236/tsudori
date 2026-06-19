@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, Pencil } from "lucide-react"
+import { Archive, HandCoins, Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -12,6 +12,7 @@ import { useArchiveStudent } from "@/features/students/hooks"
 type Props = {
   studentId: string
   studentName: string
+  canViewFees: boolean
   canEdit: boolean
   canArchive: boolean
   isArchived: boolean
@@ -20,6 +21,7 @@ type Props = {
 export function StudentProfileActions({
   studentId,
   studentName,
+  canViewFees,
   canEdit,
   canArchive,
   isArchived,
@@ -30,6 +32,17 @@ export function StudentProfileActions({
 
   return (
     <div className="flex w-full items-center gap-2 sm:w-auto">
+      {canViewFees && (
+        <Button
+          variant="outline"
+          className="flex-1 sm:flex-none"
+          render={
+            <Link href={`/fees/${studentId}`}>
+              <HandCoins className="size-4" /> View fees
+            </Link>
+          }
+        />
+      )}
       {canEdit && (
         <Button
           variant="outline"

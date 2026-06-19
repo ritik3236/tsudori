@@ -16,11 +16,17 @@ import { Badge } from "@/components/ui/badge"
 
 type StudentProfileProps = {
   student: StudentDetail
+  canViewFees: boolean
   canEdit: boolean
   canArchive: boolean
 }
 
-export function StudentProfile({ student, canEdit, canArchive }: StudentProfileProps) {
+export function StudentProfile({
+  student,
+  canViewFees,
+  canEdit,
+  canArchive,
+}: StudentProfileProps) {
   const isArchived = student.archivedAt !== null
 
   return (
@@ -49,6 +55,7 @@ export function StudentProfile({ student, canEdit, canArchive }: StudentProfileP
         <StudentProfileActions
           studentId={student.id}
           studentName={student.fullName}
+          canViewFees={canViewFees}
           canEdit={canEdit}
           canArchive={canArchive}
           isArchived={isArchived}

@@ -40,10 +40,12 @@ export function MemberRowActions({
   const remove = useRemoveMember()
   const unban = useUnbanMember(member.userId)
 
-  const canChangeRole = canManageMembers && !isSelf
+  // The platform super admin can't be demoted or removed by other admins —
+  // mirror the server guard so those actions never appear on their row.
+  const canChangeRole = canManageMembers && !isSelf && !member.isSuperAdmin
   const canResetPassword = canManageIdentities
   const canBan = canManageIdentities && !isSelf
-  const canRemove = canManageMembers && !isSelf
+  const canRemove = canManageMembers && !isSelf && !member.isSuperAdmin
 
   // Nothing to offer (e.g. own row without identity powers) — render no menu.
   if (!canChangeRole && !canResetPassword && !canBan && !canRemove) return null

@@ -1,14 +1,28 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy, MessageSquarePlus, Pencil, Trash2 } from "lucide-react"
+import {
+  Check,
+  Copy,
+  MessageSquare,
+  MessageSquarePlus,
+  Pencil,
+  Send,
+  Trash2,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { AVATAR_TINTS as AVATAR } from "@/lib/constants"
 import { getInitials } from "@/lib/format"
 import { formatRelative } from "@/lib/date-helper"
-import { useCreateNote, useDeleteNote, useNotes, useUpdateNote } from "@/features/notes/hooks"
+import {
+  useAddNoteComment,
+  useCreateNote,
+  useDeleteNote,
+  useNotes,
+  useUpdateNote,
+} from "@/features/notes/hooks"
 import {
   NOTE_PRIORITIES,
   PRIORITY_LABELS,
@@ -209,6 +223,7 @@ export function NotesBoard() {
 function NoteCard({ note }: { note: NoteItem }) {
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showReplies, setShowReplies] = useState(false)
   const [draft, setDraft] = useState(note.body)
   const [draftPriority, setDraftPriority] = useState<NotePriorityValue>(note.priority)
   const update = useUpdateNote(note.id)
@@ -216,6 +231,7 @@ function NoteCard({ note }: { note: NoteItem }) {
 
   const name = note.authorName ?? "Unknown"
   const edited = note.updatedAt !== note.createdAt
+  const replyCount = note.comments.length
 
   const save = () => {
     const next = draft.trim()
@@ -294,49 +310,138 @@ function NoteCard({ note }: { note: NoteItem }) {
       </div>
 
       {!editing && (
-        <div className="mt-2 flex items-center justify-end gap-1">
-          {confirmDelete ? (
-            <>
-              <span className="text-muted-foreground mr-1 text-xs">Delete this note?</span>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setConfirmDelete(false)}
-                disabled={remove.isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                size="xs"
-                onClick={() => remove.mutate(note.id)}
-                disabled={remove.isPending}
-              >
-                {remove.isPending ? "Deleting…" : "Delete"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <CopyNoteButton body={note.body} />
-              {note.canEdit && (
-                <>
-                  <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
-                    <Pencil className="size-3" /> Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => setConfirmDelete(true)}
-                  >
-                    <Trash2 className="size-3" /> Delete
-                  </Button>
-                </>
-              )}
-            </>
-          )}
+        <div className="mt-2 flex items-center justify-between gap-1">
+          <Button
+            variant="ghost"
+            size="xs"
+            className={cn("text-muted-foreground", showReplies && "text-foreground")}
+            onClick={() => setShowReplies((v) => !v)}
+          >
+            <MessageSquare className="size-3" />
+            {replyCount > 0
+              ? `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`
+              : "Reply"}
+          </Button>
+          <div className="flex items-center gap-1">
+            {confirmDelete ? (
+              <>
+                <span className="text-muted-foreground mr-1 text-xs">
+                  Delete this note?
+                </span>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={remove.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="xs"
+                  onClick={() => remove.mutate(note.id)}
+                  disabled={remove.isPending}
+                >
+                  {remove.isPending ? "Deleting…" : "Delete"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <CopyNoteButton body={note.body} />
+                {note.canEdit && (
+                  <>
+                    <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
+                      <Pencil className="size-3" /> Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      <Trash2 className="size-3" /> Delete
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
+
+      {!editing && showReplies && (
+        <div className="mt-3 space-y-3 border-t pt-3">
+          {replyCount > 0 && (
+            <div className="space-y-3">
+              {note.comments.map((c) => (
+                <CommentRow key={c.id} comment={c} />
+              ))}
+            </div>
+          )}
+          <ReplyComposer noteId={note.id} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A single reply — lighter than a note card (smaller avatar, tighter type). */
+function CommentRow({ comment }: { comment: NoteItem["comments"][number] }) {
+  const name = comment.authorName ?? "Unknown"
+  return (
+    <div className="flex items-start gap-2">
+      <span
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold",
+          avatarFor(name)
+        )}
+      >
+        {getInitials(name)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="truncate text-xs font-medium">{name}</span>
+          <span className="text-muted-foreground shrink-0 text-[11px]">
+            {formatRelative(comment.createdAt)}
+          </span>
+        </div>
+        <p className="mt-0.5 text-sm break-words whitespace-pre-wrap">{comment.body}</p>
+      </div>
+    </div>
+  )
+}
+
+/** Compact reply box. ⌘/Ctrl+Enter sends. */
+function ReplyComposer({ noteId }: { noteId: string }) {
+  const [text, setText] = useState("")
+  const add = useAddNoteComment(noteId)
+  const body = text.trim()
+
+  const submit = () => {
+    if (!body) return
+    add.mutate({ body }, { onSuccess: () => setText("") })
+  }
+
+  return (
+    <div className="flex items-end gap-2">
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={1}
+        placeholder="Write a reply…"
+        className="min-h-9 resize-none py-1.5 text-sm"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit()
+        }}
+      />
+      <Button
+        size="sm"
+        onClick={submit}
+        disabled={!body || add.isPending}
+        aria-label="Send reply"
+      >
+        <Send className="size-4" />
+      </Button>
     </div>
   )
 }

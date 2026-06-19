@@ -36,7 +36,7 @@ export const getClass = cache(
 export async function listClasses(instituteId: string): Promise<ClassListItem[]> {
   const rows = await prisma.class.findMany({
     where: { instituteId },
-    orderBy: [{ status: "asc" }, { name: "asc" }],
+    orderBy: { name: "asc" },
     include: { _count: { select: { students: { where: { archivedAt: null } } } } },
   })
   return rows.map(toListItem)

@@ -34,6 +34,7 @@ export default async function StudentProfilePage({
       <BackLink href="/students" label="Students" />
       <StudentProfile
         student={student}
+        canViewFees={can(ctx, PERMISSIONS.FEE_READ)}
         canEdit={can(ctx, PERMISSIONS.STUDENT_UPDATE)}
         canArchive={can(ctx, PERMISSIONS.STUDENT_ARCHIVE)}
       />

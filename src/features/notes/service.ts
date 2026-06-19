@@ -5,17 +5,30 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { ForbiddenError, NotFoundError } from "@/lib/errors"
 import type { NoteItem } from "@/features/notes/types"
-import type { NoteCreateInput, NoteUpdateInput } from "@/features/notes/schema"
+import type {
+  NoteCommentCreateInput,
+  NoteCreateInput,
+  NoteUpdateInput,
+} from "@/features/notes/schema"
 
 // The note board is shared across the institute: every member reads and posts the
-// same feed. Edit/delete is limited to the author or an institute admin. Every
-// function is scoped by instituteId — the tenant boundary.
+// same feed. Edit/delete is limited to the author or an institute admin. Replies
+// are open to every member. Every function is scoped by instituteId — the tenant
+// boundary.
 
-type NoteWithAuthor = Prisma.NoteGetPayload<{
-  include: { author: { select: { name: true } } }
-}>
+// Author name + the reply thread (oldest first) travel with every note so the
+// board can render threads inline without a second round trip.
+const NOTE_INCLUDE = {
+  author: { select: { name: true } },
+  comments: {
+    orderBy: { createdAt: "asc" },
+    include: { author: { select: { name: true } } },
+  },
+} satisfies Prisma.NoteInclude
 
-function toItem(n: NoteWithAuthor, viewerId: string, isAdmin: boolean): NoteItem {
+type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof NOTE_INCLUDE }>
+
+function toItem(n: NoteWithRelations, viewerId: string, isAdmin: boolean): NoteItem {
   return {
     id: n.id,
     body: n.body,
@@ -25,6 +38,13 @@ function toItem(n: NoteWithAuthor, viewerId: string, isAdmin: boolean): NoteItem
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
     canEdit: isAdmin || n.authorId === viewerId,
+    comments: n.comments.map((c) => ({
+      id: c.id,
+      body: c.body,
+      authorId: c.authorId,
+      authorName: c.author?.name ?? null,
+      createdAt: c.createdAt.toISOString(),
+    })),
   }
 }
 
@@ -38,7 +58,7 @@ export async function listNotes(
     // Highest priority floats to the top (enum order: LOW < NORMAL < HIGH), then
     // newest first within a priority.
     orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
-    include: { author: { select: { name: true } } },
+    include: NOTE_INCLUDE,
   })
   return rows.map((n) => toItem(n, viewerId, isAdmin))
 }
@@ -50,7 +70,7 @@ export async function createNote(
 ): Promise<NoteItem> {
   const note = await prisma.note.create({
     data: { instituteId, authorId, body: input.body, priority: input.priority },
-    include: { author: { select: { name: true } } },
+    include: NOTE_INCLUDE,
   })
   return toItem(note, authorId, true)
 }
@@ -69,7 +89,7 @@ export async function updateNote(
   const note = await prisma.note.update({
     where: { id },
     data: { body: input.body, priority: input.priority },
-    include: { author: { select: { name: true } } },
+    include: NOTE_INCLUDE,
   })
   return toItem(note, viewerId, isAdmin)
 }
@@ -85,4 +105,33 @@ export async function deleteNote(
   if (!isAdmin && existing.authorId !== viewerId) throw new ForbiddenError()
 
   await prisma.note.delete({ where: { id } })
+}
+
+/**
+ * Posts a reply on a note. Open to every institute member (the board is shared),
+ * so the only gate is that the note belongs to the tenant. Returns the refreshed
+ * note (with the new reply) so the client can seed its cache.
+ */
+export async function addNoteComment(
+  instituteId: string,
+  authorId: string,
+  isAdmin: boolean,
+  noteId: string,
+  input: NoteCommentCreateInput
+): Promise<NoteItem> {
+  const note = await prisma.note.findFirst({
+    where: { id: noteId, instituteId },
+    select: { id: true },
+  })
+  if (!note) throw new NotFoundError("Note not found.")
+
+  await prisma.noteComment.create({
+    data: { noteId, authorId, body: input.body },
+  })
+
+  const refreshed = await prisma.note.findUniqueOrThrow({
+    where: { id: noteId },
+    include: NOTE_INCLUDE,
+  })
+  return toItem(refreshed, authorId, isAdmin)
 }

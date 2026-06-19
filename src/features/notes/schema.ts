@@ -21,8 +21,14 @@ export const noteCreateSchema = z.object({
 
 export const noteUpdateSchema = noteCreateSchema
 
+// A reply on a note — body only; author/timestamps come from the server.
+export const noteCommentCreateSchema = z.object({
+  body: z.string().trim().min(1, "Write a reply first.").max(5000),
+})
+
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>
 export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>
+export type NoteCommentCreateInput = z.infer<typeof noteCommentCreateSchema>
 
 // ─── Client form model ────────────────────────────────────────────────────────
 

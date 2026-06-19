@@ -3,7 +3,7 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
-import { NotFoundError, ValidationError } from "@/lib/errors"
+import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors"
 import type { MemberListItem, RoleOption } from "@/features/members/types"
 
 // Like the other services, every function takes instituteId as its first
@@ -75,6 +75,21 @@ export async function assertMemberInInstitute(
   }
 }
 
+/**
+ * Protects the platform super admin (Neon Auth role === "admin") from being
+ * demoted or removed by institute admins. The super admin's membership is
+ * immutable to everyone else — there is no actor who may change it.
+ */
+async function assertNotSuperAdmin(userId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  })
+  if (user?.role === "admin") {
+    throw new ForbiddenError("The super admin can't be changed by other admins.")
+  }
+}
+
 /** Validates that a role belongs to this institute before it can be assigned. */
 export async function assertRoleInInstitute(
   instituteId: string,
@@ -129,6 +144,7 @@ export async function updateMemberRole(
   userId: string,
   roleId: string
 ): Promise<MemberListItem> {
+  await assertNotSuperAdmin(userId)
   await assertRoleInInstitute(instituteId, roleId)
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
@@ -150,6 +166,7 @@ export async function removeMember(
   instituteId: string,
   userId: string
 ): Promise<void> {
+  await assertNotSuperAdmin(userId)
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
     select: { id: true },
