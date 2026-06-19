@@ -153,3 +153,12 @@
     @apply font-sans;
   }
 }
+
+/* Tailwind v4 preflight drops the pointer cursor on buttons. Unlayered (beats all
+   cascade layers incl. utilities) so every interactive control shows the pointer,
+   except disabled ones (which keep their default / not-allowed cursor). */
+a,
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
