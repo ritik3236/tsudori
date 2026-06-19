@@ -89,6 +89,48 @@ function PrioritySelect({
   )
 }
 
+/**
+ * Priority shown as a coloured chip in the note header; for notes the viewer can
+ * edit it's a dropdown that saves the new priority immediately (no edit mode).
+ */
+function InlinePriority({
+  note,
+  update,
+}: {
+  note: NoteItem
+  update: ReturnType<typeof useUpdateNote>
+}) {
+  return (
+    <Select
+      value={note.priority}
+      onValueChange={(v) => {
+        if (v !== note.priority) {
+          update.mutate({ body: note.body, priority: v as NotePriorityValue })
+        }
+      }}
+      disabled={update.isPending}
+    >
+      <SelectTrigger
+        aria-label="Change priority"
+        className={cn(
+          // Force chip dimensions over the trigger's button-sized data-size variants.
+          "h-auto! w-auto gap-0.5 rounded! border-0! px-1.5! py-0.5! text-[10px]! font-medium tracking-wide uppercase shadow-none [&>svg]:size-2.5 [&>svg]:text-current [&>svg]:opacity-60",
+          PRIORITY_BADGE[note.priority] ?? "bg-muted text-muted-foreground"
+        )}
+      >
+        <SelectValue>{(v) => PRIORITY_LABELS[v as NotePriorityValue]}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {NOTE_PRIORITIES.map((p) => (
+          <SelectItem key={p} value={p}>
+            {PRIORITY_LABELS[p]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 export function NotesBoard() {
   const { data: notes, isLoading } = useNotes()
   const create = useCreateNote()
@@ -202,7 +244,12 @@ function NoteCard({ note }: { note: NoteItem }) {
               {formatRelative(note.createdAt)}
               {edited ? " · edited" : ""}
             </span>
-            {!editing && <PriorityBadge priority={note.priority} />}
+            {!editing &&
+              (note.canEdit ? (
+                <InlinePriority note={note} update={update} />
+              ) : (
+                <PriorityBadge priority={note.priority} />
+              ))}
           </div>
 
           {editing ? (
@@ -253,7 +300,7 @@ function NoteCard({ note }: { note: NoteItem }) {
               <span className="text-muted-foreground mr-1 text-xs">Delete this note?</span>
               <Button
                 variant="ghost"
-                size="sm"
+                size="xs"
                 onClick={() => setConfirmDelete(false)}
                 disabled={remove.isPending}
               >
@@ -261,7 +308,7 @@ function NoteCard({ note }: { note: NoteItem }) {
               </Button>
               <Button
                 variant="destructive"
-                size="sm"
+                size="xs"
                 onClick={() => remove.mutate(note.id)}
                 disabled={remove.isPending}
               >
@@ -273,16 +320,16 @@ function NoteCard({ note }: { note: NoteItem }) {
               <CopyNoteButton body={note.body} />
               {note.canEdit && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-                    <Pencil className="size-3.5" /> Edit
+                  <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
+                    <Pencil className="size-3" /> Edit
                   </Button>
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => setConfirmDelete(true)}
                   >
-                    <Trash2 className="size-3.5" /> Delete
+                    <Trash2 className="size-3" /> Delete
                   </Button>
                 </>
               )}
@@ -324,18 +371,18 @@ function CopyNoteButton({ body }: { body: string }) {
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="xs"
       className="text-muted-foreground"
       onClick={copy}
       aria-label="Copy note"
     >
       {copied ? (
         <>
-          <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" /> Copied
+          <Check className="size-3 text-emerald-600 dark:text-emerald-400" /> Copied
         </>
       ) : (
         <>
-          <Copy className="size-3.5" /> Copy
+          <Copy className="size-3" /> Copy
         </>
       )}
     </Button>
