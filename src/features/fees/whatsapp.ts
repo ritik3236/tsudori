@@ -28,8 +28,6 @@ export function feeReceivedMessage(p: {
   institutionName: string
 }): string {
   return [
-    "Fee Received Confirmation",
-    "",
     "Dear Parent,",
     "",
     `We have received the fee payment for ${p.studentName}.`,
@@ -53,8 +51,6 @@ export function feeReminderMessage(p: {
   institutionName: string
 }): string {
   return [
-    "Fee Reminder",
-    "",
     "Dear Parent,",
     "",
     `This is a gentle reminder that the fee for ${p.studentName} is pending.`,
