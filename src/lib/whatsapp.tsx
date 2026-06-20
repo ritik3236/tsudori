@@ -24,46 +24,81 @@ export function whatsappUrl(number: string, message: string): string {
 
 // ─── Message templates ────────────────────────────────────────────────────────
 
-/** Fee received confirmation — sent against a specific receipt/payment. */
+/** Fee received confirmation — sent against a payment, optionally noting a
+ *  concession (waiver) applied to the same month. */
 export function feeReceivedMessage(p: {
   studentName: string
   amount: number
+  waived?: number
   receiptNo: number
   date: string // pre-formatted, e.g. "19 Jun 2026"
   institutionName: string
 }): string {
-  return [
+  const lines = [
     "Dear Parent,",
     "",
     `We have received the fee payment for ${p.studentName}.`,
     "",
-    `Amount: ${inr(p.amount)}`,
+    `Amount Paid: ${inr(p.amount)}`,
+  ]
+  if (p.waived && p.waived > 0) lines.push(`Concession: ${inr(p.waived)}`)
+  lines.push(
     `Receipt No: ${p.receiptNo}`,
     `Date: ${p.date}`,
     "",
     "Thank you for your payment.",
     "",
     "Regards,",
-    p.institutionName,
-  ].join("\n")
+    p.institutionName
+  )
+  return lines.join("\n")
 }
 
-/** Fee reminder — sent to parents who still owe for the month. */
+/** Fee reminder — sent to parents who still owe for the month, noting any
+ *  concession already applied. */
 export function feeReminderMessage(p: {
   studentName: string
   pending: number
+  waived?: number
+  monthLabel: string // e.g. "May 2026"
+  institutionName: string
+}): string {
+  const lines = [
+    "Dear Parent,",
+    "",
+    `This is a gentle reminder that the fee for ${p.studentName} is pending.`,
+    "",
+    `Amount Due: ${inr(p.pending)}`,
+  ]
+  if (p.waived && p.waived > 0) lines.push(`Concession Applied: ${inr(p.waived)}`)
+  lines.push(
+    `Month: ${p.monthLabel}`,
+    "",
+    "Kindly clear the dues at your earliest convenience.",
+    "",
+    "Regards,",
+    p.institutionName
+  )
+  return lines.join("\n")
+}
+
+/** Fee concession confirmation — sent when the month is settled by a waiver
+ *  alone (no cash due, so there's no receipt). */
+export function feeWaivedMessage(p: {
+  studentName: string
+  waived: number
   monthLabel: string // e.g. "May 2026"
   institutionName: string
 }): string {
   return [
     "Dear Parent,",
     "",
-    `This is a gentle reminder that the fee for ${p.studentName} is pending.`,
+    `A fee concession has been applied for ${p.studentName}.`,
     "",
-    `Amount Due: ${inr(p.pending)}`,
+    `Concession: ${inr(p.waived)}`,
     `Month: ${p.monthLabel}`,
     "",
-    "Kindly clear the dues at your earliest convenience.",
+    "No payment is required for this month.",
     "",
     "Regards,",
     p.institutionName,

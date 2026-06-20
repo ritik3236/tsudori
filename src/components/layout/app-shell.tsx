@@ -86,9 +86,9 @@ export function AppShell({ instituteName, logoUrl, permissions, isAdmin, childre
           </div>
         </header>
 
-        {/* Subtle tinted page bg so white cards separate (they blend on pure white).
-            Bottom padding clears the fixed bottom nav + home indicator. */}
-        <main className="flex-1 bg-[#f5f5f5] px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8 dark:bg-transparent">
+        {/* White page bg — cards separate via their borders. Bottom padding
+            clears the fixed bottom nav + home indicator. */}
+        <main className="flex-1 bg-background px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8">
           {children}
         </main>
       </div>

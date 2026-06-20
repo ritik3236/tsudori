@@ -882,12 +882,14 @@ export async function feeMonthSummary(
   let expected = 0
   let collected = 0
   let outstanding = 0
+  let waived = 0
   let paidCount = 0
   for (const r of rows) {
     const netDue = Math.max(0, r.monthlyFee - r.waivedThisMonth)
     expected += netDue
     collected += Math.min(r.paidThisMonth, netDue)
     outstanding += r.pendingThisMonth
+    waived += r.waivedThisMonth
     if (r.pendingThisMonth <= 0) paidCount += 1
   }
 
@@ -895,6 +897,7 @@ export async function feeMonthSummary(
     collectedThisMonth: collected,
     expectedThisMonth: expected,
     pendingThisMonth: outstanding,
+    waivedThisMonth: waived,
     paidCount,
     pendingCount: rows.length - paidCount,
     totalStudents: rows.length,

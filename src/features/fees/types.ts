@@ -103,6 +103,8 @@ export type FeeSummary = {
   collectedThisMonth: number
   expectedThisMonth: number
   pendingThisMonth: number
+  /** Total concession applied across the month (for the "Settled" subtotal). */
+  waivedThisMonth: number
   paidCount: number
   pendingCount: number
   totalStudents: number
