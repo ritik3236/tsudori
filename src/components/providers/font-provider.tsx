@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react"
 
 import { FONT_CLASS_MAP, FONT_VALUES } from "@/lib/fonts"
+import { saveMyAppearance } from "@/features/appearance/actions"
 
 // Font is a second, independent axis from theme — next-themes only manages one,
 // so this is a small custom provider: it persists the choice and toggles the
@@ -25,13 +26,21 @@ function applyFontClass(font: string) {
   if (cls) el.classList.add(cls)
 }
 
-export function FontProvider({ children }: { children: React.ReactNode }) {
+export function FontProvider({
+  children,
+  initialFont = "geist",
+}: {
+  children: React.ReactNode
+  // Server-resolved effective font; used when the device has no saved choice.
+  initialFont?: string
+}) {
   // Lazy init from storage on the client so the active state matches the class
-  // the inline script already applied — avoids a font flash on mount.
+  // the inline script already applied — avoids a font flash on mount. Falls back
+  // to the server-resolved font (so a fresh device shows the user/institute pick).
   const [font, setFontState] = useState<string>(() => {
-    if (typeof window === "undefined") return "geist"
+    if (typeof window === "undefined") return initialFont
     const stored = window.localStorage.getItem("font")
-    return stored && FONT_VALUES.includes(stored) ? stored : "geist"
+    return stored && FONT_VALUES.includes(stored) ? stored : initialFont
   })
 
   useEffect(() => {
@@ -45,6 +54,8 @@ export function FontProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // private mode / storage disabled — the class still applies for this session
     }
+    // Persist cross-device; fire-and-forget (the local change already applied).
+    void saveMyAppearance({ font: f }).catch(() => {})
   }
 
   return <FontContext.Provider value={{ font, setFont }}>{children}</FontContext.Provider>

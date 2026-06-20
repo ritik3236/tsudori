@@ -14,7 +14,10 @@ import { FontProvider } from "@/components/providers/font-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
+import { cn } from "@/lib/utils"
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants"
+import { FONT_CLASS_MAP } from "@/lib/fonts"
+import { resolveEffectiveAppearance } from "@/features/appearance/resolve"
 import "./globals.css"
 
 // Geist is the default; the rest are optional picker fonts — not preloaded, so
@@ -64,27 +67,32 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Server-resolve the effective theme/font (user → institute → app default) so a
+  // fresh device paints the right look on first load, before any client JS runs.
+  const { theme, font } = await resolveEffectiveAppearance()
+
   return (
     <html
       lang="en"
-      className={`${fontVars} h-full antialiased`}
+      className={cn(fontVars, FONT_CLASS_MAP[font], "h-full antialiased")}
       suppressHydrationWarning
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        {/* Apply the saved font class before paint so there's no font flash. */}
+        {/* A returning device's saved font overrides the server-rendered class;
+            a fresh device keeps the server one — no flash either way. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{var f=localStorage.getItem('font'),m={inter:'font-inter',manrope:'font-manrope',jakarta:'font-jakarta',plex:'font-plex',editorial:'font-editorial'};if(f&&m[f])document.documentElement.classList.add(m[f])}catch(e){}",
+              "try{var f=localStorage.getItem('font'),m={geist:'',inter:'font-inter',manrope:'font-manrope',jakarta:'font-jakarta',plex:'font-plex',editorial:'font-editorial'};if(f&&(f in m)){var c=document.documentElement.classList;Object.keys(m).forEach(function(k){if(m[k])c.remove(m[k])});if(m[f])c.add(m[f])}}catch(e){}",
           }}
         />
-        <ThemeProvider>
-          <FontProvider>
+        <ThemeProvider defaultTheme={theme}>
+          <FontProvider initialFont={font}>
             <AuthUIProvider className="flex flex-1 flex-col">
               <QueryProvider>{children}</QueryProvider>
               <Toaster richColors position="top-right" />

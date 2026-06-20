@@ -67,6 +67,13 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     permission: PERMISSIONS.INSTITUTE_READ,
   },
   {
+    label: "Appearance",
+    description: "Default theme and font new members inherit.",
+    href: "/admin/settings/appearance",
+    icon: Palette,
+    permission: PERMISSIONS.INSTITUTE_MANAGE,
+  },
+  {
     label: "Fees configuration",
     description: "Default fees, payment methods, and receipt numbering.",
     href: "/admin/settings/fees",

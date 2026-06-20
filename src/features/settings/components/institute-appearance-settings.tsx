@@ -1,50 +1,56 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useTheme } from "next-themes"
+import { useState, useTransition } from "react"
 import { Check } from "lucide-react"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { THEMES } from "@/lib/themes"
 import { FONTS } from "@/lib/fonts"
-import { useFont } from "@/components/providers/font-provider"
-import { saveMyAppearance } from "@/features/appearance/actions"
+import { saveInstituteAppearanceAction } from "@/features/appearance/actions"
 
-// Theme + font pickers for the Settings → Appearance page. The theme also lives
-// as a quick icon in the nav; this is the fuller "main" home. Changes apply
-// instantly (localStorage) and persist to your profile, so they follow you across
-// devices; a brand-new device inherits the institute default until you choose.
-export function AppearanceSettings() {
-  const { theme, setTheme } = useTheme()
-  const { font, setFont } = useFont()
+// Admin picker for the institute's DEFAULT theme/font — what members who haven't
+// chosen their own inherit. Unlike the personal picker, selecting here does NOT
+// change the admin's own live view; it just saves the house default.
+export function InstituteAppearanceSettings({
+  current,
+}: {
+  current: { theme: string | null; font: string | null }
+}) {
+  const [theme, setTheme] = useState<string | null>(current.theme)
+  const [font, setFont] = useState<string | null>(current.font)
+  const [, startTransition] = useTransition()
 
-  // theme/font resolve only on the client; gate the active highlight on mount to
-  // avoid a hydration mismatch on the ring classes (SSR + first render show none).
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time mount flag
-    setMounted(true)
-  }, [])
+  function save(input: { theme?: string; font?: string }, label: string) {
+    startTransition(async () => {
+      try {
+        await saveInstituteAppearanceAction(input)
+        toast.success(`Institute default ${label} saved.`)
+      } catch {
+        toast.error("Couldn't save the institute default.")
+      }
+    })
+  }
 
   return (
     <div className="space-y-8">
       <section className="space-y-3">
         <div className="space-y-0.5">
-          <h2 className="text-sm font-medium">Theme</h2>
+          <h2 className="text-sm font-medium">Default theme</h2>
           <p className="text-muted-foreground text-sm">
-            Colour palette for the app on this device.
+            Members without their own theme see this.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {THEMES.map((t) => {
-            const active = mounted && theme === t.value
+            const active = theme === t.value
             return (
               <button
                 key={t.value}
                 type="button"
                 onClick={() => {
                   setTheme(t.value)
-                  void saveMyAppearance({ theme: t.value }).catch(() => {})
+                  save({ theme: t.value }, "theme")
                 }}
                 className={cn(
                   "bg-card flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors hover:bg-muted/50",
@@ -67,19 +73,22 @@ export function AppearanceSettings() {
 
       <section className="space-y-3">
         <div className="space-y-0.5">
-          <h2 className="text-sm font-medium">Font</h2>
+          <h2 className="text-sm font-medium">Default font</h2>
           <p className="text-muted-foreground text-sm">
-            Typeface for the app on this device.
+            Members without their own font see this.
           </p>
         </div>
         <div className="grid gap-2.5 sm:grid-cols-2">
           {FONTS.map((f) => {
-            const active = mounted && font === f.value
+            const active = font === f.value
             return (
               <button
                 key={f.value}
                 type="button"
-                onClick={() => setFont(f.value)}
+                onClick={() => {
+                  setFont(f.value)
+                  save({ font: f.value }, "font")
+                }}
                 className={cn(
                   "bg-card flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-muted/50",
                   active && "border-primary ring-primary ring-2"
