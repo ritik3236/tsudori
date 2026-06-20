@@ -35,3 +35,8 @@ export const THEME_CLASS_MAP: Record<string, string> = {
   forest: "theme-forest",
   minimal: "theme-minimal",
 }
+
+// Themes with a dark background. Used to map our themes to light/dark for libs
+// that only understand those two (e.g. sonner). Keep in sync with the `dark`
+// custom-variant in globals.css.
+export const DARK_THEME_VALUES = ["dark", "ocean"]

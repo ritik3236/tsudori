@@ -10,6 +10,8 @@ import {
   Loader2Icon,
 } from "lucide-react"
 
+import { DARK_THEME_VALUES } from "@/lib/themes"
+
 // The Neon Auth UI provider mounts its own bare sonner <Toaster/> that can't be
 // disabled via props, and sonner renders every toast in ALL mounted toasters —
 // so toasts appeared twice. Our Toaster carries the `toaster` class; this rule
@@ -20,7 +22,14 @@ const SUPPRESS_DUPLICATE_TOASTER =
   "ol[data-sonner-toaster]:not(.toaster){display:none !important}"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { theme } = useTheme()
+
+  // sonner only understands light/dark/system; map our custom themes to one of
+  // those so its base styles (incl. the toast background) actually apply. A raw
+  // value like "ocean" matches no [data-theme] rule, leaving the toast with no
+  // background — i.e. transparent. Dark-surface themes → dark, the rest → light.
+  const sonnerTheme: ToasterProps["theme"] =
+    theme && DARK_THEME_VALUES.includes(theme) ? "dark" : "light"
 
   return (
     <>
@@ -28,7 +37,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
         {SUPPRESS_DUPLICATE_TOASTER}
       </style>
       <Sonner
-        theme={theme as ToasterProps["theme"]}
+        theme={sonnerTheme}
+        closeButton
         className="toaster group"
         icons={{
           success: <CircleCheckIcon className="size-4" />,
@@ -43,6 +53,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "--normal-text": "var(--popover-foreground)",
             "--normal-border": "var(--border)",
             "--border-radius": "var(--radius)",
+            // Close button to the top-right corner (toasts sit top-right) via
+            // sonner's own vars — its high-specificity selector ignores plain
+            // utility classes, so this is the override that actually applies.
+            "--toast-close-button-start": "unset",
+            "--toast-close-button-end": "0",
+            "--toast-close-button-transform": "translate(35%, -35%)",
           } as React.CSSProperties
         }
         toastOptions={{
