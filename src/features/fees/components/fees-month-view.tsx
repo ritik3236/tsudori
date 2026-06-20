@@ -357,7 +357,7 @@ function Row({
   const router = useRouter()
 
   // WhatsApp: a reminder when they still owe, a receipt confirmation when paid.
-  // Null (no button) when there's no parent number or nothing to send.
+  // Null (nothing to send) when there's a number but no dues and no receipt yet.
   const waNumber = toWhatsAppNumber(s.contactNumber)
   let waUrl: string | null = null
   if (waNumber) {
@@ -384,6 +384,22 @@ function Row({
       )
     }
   }
+
+  // No number → disabled "No contact number" icon so the gap is explained, not
+  // a silent blank. With a number + something to send → active link. With a
+  // number but nothing to send (paid, no receipt) → no icon.
+  const waIcon = !waNumber ? (
+    <WhatsAppIconLink href={null} />
+  ) : waUrl ? (
+    <WhatsAppIconLink
+      href={waUrl}
+      title={
+        s.pendingThisMonth > 0
+          ? "Send fee reminder on WhatsApp"
+          : "Send receipt on WhatsApp"
+      }
+    />
+  ) : null
 
   return (
     <div className="bg-card flex items-center gap-3 rounded-2xl border p-3">
@@ -439,18 +455,9 @@ function Row({
         {/* WhatsApp (reminder/confirmation) + Record. Waiving is done from the
             student's fee detail page, where it clears dues across all months
             oldest-first; the month view only records payments. */}
-        {(waUrl || (canRecord && s.pendingThisMonth > 0)) && (
+        {(waIcon || (canRecord && s.pendingThisMonth > 0)) && (
           <div className="flex items-center gap-1">
-            {waUrl && (
-              <WhatsAppIconLink
-                href={waUrl}
-                title={
-                  s.pendingThisMonth > 0
-                    ? "Send fee reminder on WhatsApp"
-                    : "Send receipt on WhatsApp"
-                }
-              />
-            )}
+            {waIcon}
             {canRecord && s.pendingThisMonth > 0 && (
               <RecordPaymentButton
                 studentId={s.studentId}

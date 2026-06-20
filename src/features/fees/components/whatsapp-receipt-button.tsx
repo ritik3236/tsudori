@@ -20,7 +20,7 @@ export function WhatsAppReceiptButton({ receipt }: { receipt: ReceiptData }) {
           buttonVariants({ variant: "outline" }),
           "cursor-not-allowed opacity-50"
         )}
-        title="No parent phone number on file"
+        title="No contact number"
         aria-disabled="true"
       >
         <WhatsAppGlyph className="size-4" /> WhatsApp

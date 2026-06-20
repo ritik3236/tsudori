@@ -140,8 +140,11 @@ export function AttendanceDayView({ classId, date, canMark, instituteName }: Pro
       {/* Student rows */}
       <div className="bg-card divide-y overflow-hidden rounded-xl border">
         {students.map((s) => {
-          // WhatsApp the parent when the student is absent / on leave (and has a number).
+          // WhatsApp the parent when the student is absent / on leave. With a
+          // number the icon links to chat; without one it shows greyed-out with
+          // a "No contact number" tooltip so the gap is explained, not blank.
           const number = toWhatsAppNumber(s.contactNumber)
+          const notifiable = s.status === "ABSENT" || s.status === "LEAVE"
           const notifyUrl =
             number && (s.status === "ABSENT" || s.status === "LEAVE")
               ? whatsappUrl(
@@ -162,7 +165,7 @@ export function AttendanceDayView({ classId, date, canMark, instituteName }: Pro
               <p className="min-w-0 flex-1 truncate text-sm font-medium">
                 {s.studentName}
               </p>
-              {notifyUrl && (
+              {notifiable && (
                 <WhatsAppIconLink href={notifyUrl} title="Notify parent on WhatsApp" />
               )}
               <AttendanceStatusToggle

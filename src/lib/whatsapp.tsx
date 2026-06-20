@@ -101,16 +101,38 @@ export function WhatsAppGlyph({ className }: { className?: string }) {
   )
 }
 
-/** Compact green icon link to a wa.me URL — fee list rows, attendance rows, etc. */
+/**
+ * Compact green icon link to a wa.me URL — fee list rows, attendance rows, etc.
+ * Pass `href={null}` to render the icon greyed-out and disabled (e.g. when the
+ * parent has no phone number); `disabledTitle` explains why on hover.
+ */
 export function WhatsAppIconLink({
   href,
   title,
+  disabledTitle = "No contact number",
   className,
 }: {
-  href: string
+  href: string | null
   title?: string
+  disabledTitle?: string
   className?: string
 }) {
+  if (!href) {
+    return (
+      <span
+        aria-label={disabledTitle}
+        aria-disabled="true"
+        title={disabledTitle}
+        className={cn(
+          "bg-muted text-muted-foreground/40 inline-flex size-8 shrink-0 cursor-not-allowed items-center justify-center rounded-md",
+          className
+        )}
+      >
+        <WhatsAppGlyph className="size-4" />
+      </span>
+    )
+  }
+
   return (
     <a
       href={href}
@@ -119,7 +141,7 @@ export function WhatsAppIconLink({
       aria-label="Send on WhatsApp"
       title={title}
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-[#25D366] transition-colors hover:bg-[#25D366]/10",
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-[#25D366]/10 text-[#25D366] transition-colors hover:bg-[#25D366]/20",
         className
       )}
     >
