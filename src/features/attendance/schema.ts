@@ -38,5 +38,3 @@ export const reportQuerySchema = z.object({
 
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>
 export type BulkMarkInput = z.infer<typeof bulkMarkSchema>
-export type DayQuery = z.infer<typeof dayQuerySchema>
-export type ReportQuery = z.infer<typeof reportQuerySchema>

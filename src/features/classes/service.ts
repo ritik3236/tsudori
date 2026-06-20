@@ -8,17 +8,6 @@ import { ConflictError, NotFoundError } from "@/lib/errors"
 import type { ClassListItem } from "@/features/classes/types"
 import type { ClassCreateInput, ClassUpdateInput } from "@/features/classes/schema"
 
-// Kept for the student-form class select — lightweight, active-only.
-export async function listClassOptions(
-  instituteId: string
-): Promise<{ id: string; name: string }[]> {
-  return prisma.class.findMany({
-    where: { instituteId, status: "ACTIVE" },
-    orderBy: { name: "asc" },
-    select: { id: true, name: true },
-  })
-}
-
 // cache()-wrapped: the class detail route calls this in both generateMetadata
 // AND the page body. Without memoization that's two identical queries per
 // request; cache() collapses them to one.

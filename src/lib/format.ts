@@ -26,11 +26,6 @@ export function formatCurrency(
   }).format(amount)
 }
 
-export function formatNumber(value: Numeric, locale = DEFAULT_LOCALE): string {
-  const n = toNumber(value)
-  return Number.isNaN(n) ? "—" : new Intl.NumberFormat(locale).format(n)
-}
-
 export function getInitials(name: string): string {
   return name
     .trim()
@@ -44,6 +39,5 @@ export function getInitials(name: string): string {
 export {
   formatDateShort,
   formatDateLong,
-  formatDateTime,
   toDateInputValue,
 } from "@/lib/date-helper"

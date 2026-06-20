@@ -13,14 +13,6 @@ function reportError(error: unknown, fallback: string) {
   toast.error(error instanceof ApiError ? error.message : fallback)
 }
 
-export function useClass(id: string) {
-  return useQuery({
-    queryKey: classKeys.detail(id),
-    queryFn: () => classesApi.get(id),
-    enabled: Boolean(id),
-  })
-}
-
 export function useClasses() {
   return useQuery({
     queryKey: classKeys.lists(),

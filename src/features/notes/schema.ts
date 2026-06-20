@@ -29,12 +29,3 @@ export const noteCommentCreateSchema = z.object({
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>
 export type NoteUpdateInput = z.infer<typeof noteUpdateSchema>
 export type NoteCommentCreateInput = z.infer<typeof noteCommentCreateSchema>
-
-// ─── Client form model ────────────────────────────────────────────────────────
-
-export const noteFormSchema = z.object({
-  body: z.string().trim().min(1, "Write something first.").max(5000),
-  priority: z.enum(NOTE_PRIORITIES),
-})
-
-export type NoteFormValues = z.infer<typeof noteFormSchema>

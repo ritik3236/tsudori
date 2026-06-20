@@ -23,7 +23,6 @@ export const acceptInviteSchema = z.object({
     .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters.`)
     .max(MAX_PASSWORD_LENGTH, "That password is too long."),
 })
-export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>
 
 // Client form model (adds confirm-password).
 export const acceptInviteFormSchema = z
