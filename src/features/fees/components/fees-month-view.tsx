@@ -177,7 +177,7 @@ export function FeesMonthView({
               className={cn(
                 "shrink-0 rounded-lg border px-2.5 py-1 text-left leading-tight transition-colors",
                 active
-                  ? "border-violet-500 bg-violet-500 text-white"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "bg-card hover:bg-muted/50 text-foreground"
               )}
             >

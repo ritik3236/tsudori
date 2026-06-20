@@ -3,7 +3,17 @@
 @import "shadcn/tailwind.css";
 @import "@neondatabase/auth-ui/tailwind";
 
-@custom-variant dark (&:is(.dark *));
+/* next-themes applies the theme class dynamically, so these names never appear
+   where Tailwind's scanner can see them — without this safelist, Lightning CSS
+   prunes the `.theme-*` token rules further down (the same gotcha noted in
+   sonner.tsx). Keep this list in sync with THEME_CLASS_MAP. */
+@source inline("theme-ocean theme-arctic theme-rose theme-golden theme-forest theme-minimal");
+@source inline("font-inter font-manrope font-jakarta font-plex font-editorial");
+
+/* `dark:` utilities apply under the dark base theme AND the dark tinted theme
+   (Ocean) — so inline dark-mode colours (e.g. text-emerald-400) and the fee
+   status colours stay legible on that dark surface. */
+@custom-variant dark (&:is(.dark *, .theme-ocean *));
 
 /* Soft-UI elevation: a diffuse, lavender-tinted shadow that lifts cards off the
    page (claymorphism) instead of a hard 1px border. In dark mode shadows are
@@ -34,7 +44,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -106,6 +116,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Fonts — Geist is the default sans + heading. Picker `.font-*` classes remap
+     these to other next/font variables; --font-mono stays Geist Mono. */
+  --font-sans: var(--font-geist);
+  --font-heading: var(--font-geist);
 }
 
 .dark {
@@ -142,6 +157,215 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ─── Tinted themes ───────────────────────────────────────────────────────────
+   Full palettes from the theme picker. Each overrides the whole token set so
+   surfaces, text, primary/accent and borders all shift together. Ocean is dark
+   (see the `dark` custom-variant above); the rest are light. */
+
+.theme-ocean {
+  color-scheme: dark;
+  --background: #14202e;
+  --foreground: #eef6f5;
+  --card: #1d2c3d;
+  --card-foreground: #eef6f5;
+  --popover: #1d2c3d;
+  --popover-foreground: #eef6f5;
+  --primary: #2fa1a1;
+  --primary-foreground: #052020;
+  --secondary: #26384b;
+  --secondary-foreground: #eef6f5;
+  --muted: #233547;
+  --muted-foreground: #9bb3bd;
+  --accent: #2a4256;
+  --accent-foreground: #d7eeee;
+  --destructive: #e5707a;
+  --border: rgba(168, 218, 220, 0.15);
+  --input: rgba(168, 218, 220, 0.2);
+  --ring: #2fa1a1;
+  --sidebar: #111c28;
+  --sidebar-foreground: #eef6f5;
+  --sidebar-primary: #2fa1a1;
+  --sidebar-primary-foreground: #052020;
+  --sidebar-accent: #233547;
+  --sidebar-accent-foreground: #d7eeee;
+  --sidebar-border: rgba(168, 218, 220, 0.12);
+  --sidebar-ring: #2fa1a1;
+}
+
+.theme-arctic {
+  color-scheme: light;
+  --background: #f3f8fd;
+  --foreground: #1b2a3a;
+  --card: #ffffff;
+  --card-foreground: #1b2a3a;
+  --popover: #ffffff;
+  --popover-foreground: #1b2a3a;
+  --primary: #3f6aa3;
+  --primary-foreground: #f7fbff;
+  --secondary: #e3eef9;
+  --secondary-foreground: #1b2a3a;
+  --muted: #e8f1fa;
+  --muted-foreground: #5b7387;
+  --accent: #dceaf8;
+  --accent-foreground: #1b2a3a;
+  --destructive: #c2384c;
+  --border: #d2e0f0;
+  --input: #d2e0f0;
+  --ring: #3f6aa3;
+  --sidebar: #eaf3fc;
+  --sidebar-foreground: #1b2a3a;
+  --sidebar-primary: #3f6aa3;
+  --sidebar-primary-foreground: #f7fbff;
+  --sidebar-accent: #dceaf8;
+  --sidebar-accent-foreground: #1b2a3a;
+  --sidebar-border: #d2e0f0;
+  --sidebar-ring: #3f6aa3;
+}
+
+.theme-rose {
+  color-scheme: light;
+  --background: #f7ede5;
+  --foreground: #45202f;
+  --card: #fffbf7;
+  --card-foreground: #45202f;
+  --popover: #fffbf7;
+  --popover-foreground: #45202f;
+  --primary: #5d2e46;
+  --primary-foreground: #faf0ea;
+  --secondary: #efdcd0;
+  --secondary-foreground: #45202f;
+  --muted: #f0e0d5;
+  --muted-foreground: #8a6a70;
+  --accent: #e7cdbf;
+  --accent-foreground: #45202f;
+  --destructive: #c14444;
+  --border: #e3cbbd;
+  --input: #e3cbbd;
+  --ring: #b87d6d;
+  --sidebar: #f2e2d8;
+  --sidebar-foreground: #45202f;
+  --sidebar-primary: #5d2e46;
+  --sidebar-primary-foreground: #faf0ea;
+  --sidebar-accent: #e7cdbf;
+  --sidebar-accent-foreground: #45202f;
+  --sidebar-border: #e3cbbd;
+  --sidebar-ring: #b87d6d;
+}
+
+.theme-golden {
+  color-scheme: light;
+  --background: #f7efe1;
+  --foreground: #41372f;
+  --card: #fffbf2;
+  --card-foreground: #41372f;
+  --popover: #fffbf2;
+  --popover-foreground: #41372f;
+  --primary: #bd7a18;
+  --primary-foreground: #fff8ec;
+  --secondary: #efe1cc;
+  --secondary-foreground: #41372f;
+  --muted: #f0e4d2;
+  --muted-foreground: #8a7763;
+  --accent: #ecd9bd;
+  --accent-foreground: #41372f;
+  --destructive: #b5483f;
+  --border: #e6d6bf;
+  --input: #e6d6bf;
+  --ring: #c1666b;
+  --sidebar: #f2e7d5;
+  --sidebar-foreground: #41372f;
+  --sidebar-primary: #bd7a18;
+  --sidebar-primary-foreground: #fff8ec;
+  --sidebar-accent: #ecd9bd;
+  --sidebar-accent-foreground: #41372f;
+  --sidebar-border: #e6d6bf;
+  --sidebar-ring: #c1666b;
+}
+
+.theme-forest {
+  color-scheme: light;
+  --background: #f5f6ef;
+  --foreground: #243a22;
+  --card: #fffffb;
+  --card-foreground: #243a22;
+  --popover: #fffffb;
+  --popover-foreground: #243a22;
+  --primary: #2f5e34;
+  --primary-foreground: #f1f6ec;
+  --secondary: #e6ebdc;
+  --secondary-foreground: #243a22;
+  --muted: #e9eede;
+  --muted-foreground: #5f6f54;
+  --accent: #dde6cd;
+  --accent-foreground: #243a22;
+  --destructive: #b5483f;
+  --border: #dbe2cd;
+  --input: #dbe2cd;
+  --ring: #2f5e34;
+  --sidebar: #eef1e6;
+  --sidebar-foreground: #243a22;
+  --sidebar-primary: #2f5e34;
+  --sidebar-primary-foreground: #f1f6ec;
+  --sidebar-accent: #dde6cd;
+  --sidebar-accent-foreground: #243a22;
+  --sidebar-border: #dbe2cd;
+  --sidebar-ring: #2f5e34;
+}
+
+.theme-minimal {
+  color-scheme: light;
+  --background: #f6f7f8;
+  --foreground: #2a343b;
+  --card: #ffffff;
+  --card-foreground: #2a343b;
+  --popover: #ffffff;
+  --popover-foreground: #2a343b;
+  --primary: #36454f;
+  --primary-foreground: #f6f7f8;
+  --secondary: #e9ecee;
+  --secondary-foreground: #2a343b;
+  --muted: #edeff1;
+  --muted-foreground: #647079;
+  --accent: #e4e8ea;
+  --accent-foreground: #2a343b;
+  --destructive: #c2384c;
+  --border: #dde1e4;
+  --input: #dde1e4;
+  --ring: #708090;
+  --sidebar: #eef0f2;
+  --sidebar-foreground: #2a343b;
+  --sidebar-primary: #36454f;
+  --sidebar-primary-foreground: #f6f7f8;
+  --sidebar-accent: #e4e8ea;
+  --sidebar-accent-foreground: #2a343b;
+  --sidebar-border: #dde1e4;
+  --sidebar-ring: #708090;
+}
+
+/* ─── Font themes ─────────────────────────────────────────────────────────────
+   Each remaps --font-sans (and --font-heading) to a next/font variable applied
+   on <html>. Editorial pairs a serif heading with a sans body. Geist = default. */
+.font-inter {
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-inter);
+}
+.font-manrope {
+  --font-sans: var(--font-manrope);
+  --font-heading: var(--font-manrope);
+}
+.font-jakarta {
+  --font-sans: var(--font-jakarta);
+  --font-heading: var(--font-jakarta);
+}
+.font-plex {
+  --font-sans: var(--font-plex);
+  --font-heading: var(--font-plex);
+}
+.font-editorial {
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-fraunces);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -151,6 +375,10 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Real headings follow --font-heading (= --font-sans except for Editorial). */
+  :is(h1, h2, h3, h4) {
+    font-family: var(--font-heading);
   }
 }
 

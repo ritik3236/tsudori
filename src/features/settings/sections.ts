@@ -2,6 +2,7 @@ import {
   Bell,
   CircleUser,
   IndianRupee,
+  Palette,
   ShieldCheck,
   SlidersHorizontal,
   University,
@@ -30,6 +31,12 @@ export const PERSONAL_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Your name and password.",
     href: "/settings/profile",
     icon: CircleUser,
+  },
+  {
+    label: "Appearance",
+    description: "Theme and font for this device.",
+    href: "/settings/appearance",
+    icon: Palette,
   },
 ]
 
