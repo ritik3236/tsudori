@@ -5,10 +5,10 @@ import {
   Receipt,
 } from "lucide-react"
 
-import { formatCurrency, formatDateLong, getInitials } from "@/lib/format"
+import { formatCurrency, formatDateLong } from "@/lib/format"
 import type { StudentDetail } from "@/features/students/types"
 import { StudentProfileActions } from "@/features/students/components/student-profile-actions"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { StudentPhoto } from "@/features/students/components/student-photo"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -33,11 +33,12 @@ export function StudentProfile({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <Avatar className="size-14">
-            <AvatarFallback className="text-lg">
-              {getInitials(student.fullName)}
-            </AvatarFallback>
-          </Avatar>
+          <StudentPhoto
+            studentId={student.id}
+            fullName={student.fullName}
+            photoUrl={student.photoUrl}
+            canEdit={canEdit}
+          />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">

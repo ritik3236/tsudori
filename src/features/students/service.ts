@@ -132,6 +132,7 @@ export async function getStudent(
     ...toListItem(student),
     email: student.email,
     notes: student.notes,
+    photoUrl: student.photoUrl,
     archivedAt: student.archivedAt?.toISOString() ?? null,
     createdAt: student.createdAt.toISOString(),
     fees: {

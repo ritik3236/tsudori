@@ -20,6 +20,8 @@ export type StudentListItem = {
 export type StudentDetail = StudentListItem & {
   email: string | null
   notes: string | null
+  /** Profile photo (Blob URL), or null to show initials. */
+  photoUrl: string | null
   archivedAt: string | null
   createdAt: string
   fees: {

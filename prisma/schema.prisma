@@ -273,6 +273,8 @@ model Student {
   guardianName  String?
   contactNumber String?
   email         String?
+  /// Profile photo — a Vercel Blob URL (a small resized webp). Null → initials.
+  photoUrl      String?
   admissionDate DateTime      @db.Timestamptz(3)
   monthlyFee    Decimal       @db.Decimal(10, 2)
   status        StudentStatus @default(ACTIVE)
