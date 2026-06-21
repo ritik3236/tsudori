@@ -26,6 +26,14 @@ export function formatCurrency(
   }).format(amount)
 }
 
+/**
+ * "Class 10/A" — a class with its section. Section is required for new classes;
+ * the param stays null-safe for any legacy/transitional caller.
+ */
+export function formatClassName(name: string, section?: string | null): string {
+  return section ? `${name}/${section}` : name
+}
+
 export function getInitials(name: string): string {
   return name
     .trim()

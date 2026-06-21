@@ -8,7 +8,7 @@ import type { StudentStatus } from "@prisma/client"
 
 import { FILTER_ALL as ALL } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { formatCurrency } from "@/lib/format"
+import { formatClassName, formatCurrency } from "@/lib/format"
 import { STUDENT_STATUSES } from "@/features/students/schema"
 import { useClassOptions, useStudents } from "@/features/students/hooks"
 import {
@@ -58,6 +58,43 @@ function initials(name: string) {
   const first = parts[0]?.[0] ?? ""
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : ""
   return (first + last).toUpperCase() || "?"
+}
+
+// Profile photo with an initials fallback (no photo OR a broken URL). A plain
+// <img> — not the Avatar primitive — so a cached blob image always paints.
+function StudentAvatar({
+  photoUrl,
+  seed,
+  name,
+}: {
+  photoUrl: string | null
+  seed: string
+  name: string
+}) {
+  const [broken, setBroken] = useState(false)
+  if (photoUrl && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={photoUrl}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="size-9 shrink-0 rounded-full border object-cover"
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  return (
+    <span
+      className={cn(
+        "flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+        avatarTone(seed)
+      )}
+    >
+      {initials(name)}
+    </span>
+  )
 }
 
 type StudentsTableProps = {
@@ -149,7 +186,10 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                   {(v: string) =>
                     v === ALL
                       ? "All classes"
-                      : (classes?.find((c) => c.id === v)?.name ?? "Class")
+                      : (() => {
+                          const c = classes?.find((c) => c.id === v)
+                          return c ? formatClassName(c.name, c.section) : "Class"
+                        })()
                   }
                 </SelectValue>
               </SelectTrigger>
@@ -157,7 +197,7 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                 <SelectItem value={ALL}>All classes</SelectItem>
                 {(classes ?? []).map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name}
+                    {formatClassName(c.name, c.section)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -191,14 +231,7 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                   onMouseEnter={() => prefetchProfile(s.id)}
                   onFocus={() => prefetchProfile(s.id)}
                 >
-                  <span
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                      avatarTone(s.id)
-                    )}
-                  >
-                    {initials(s.fullName)}
-                  </span>
+                  <StudentAvatar photoUrl={s.photoUrl} seed={s.id} name={s.fullName} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium hover:underline">
@@ -215,7 +248,9 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                     <div className="text-muted-foreground truncate text-xs">
                       ID {s.serialNo}
                       {/* Class is redundant when the list is already scoped to one. */}
-                      {!lockedClassId && s.className ? ` · ${s.className}` : ""}
+                      {!lockedClassId && s.className
+                        ? ` · ${formatClassName(s.className, s.classSection)}`
+                        : ""}
                       {s.guardianName ? ` · ${s.guardianName}` : ""}
                       {s.contactNumber ? ` · ${s.contactNumber}` : ""}
                     </div>

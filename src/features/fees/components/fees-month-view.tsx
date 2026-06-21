@@ -7,7 +7,7 @@ import { Receipt, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { FILTER_ALL as ALL, MONTHS_SHORT as MONTHS } from "@/lib/constants"
-import { formatCurrency, formatDateLong } from "@/lib/format"
+import { formatClassName, formatCurrency, formatDateLong } from "@/lib/format"
 import { appYearMonth, appMonthStartUtc, nowDate } from "@/lib/date-helper"
 import {
   useFeeMonthSummary,
@@ -230,7 +230,12 @@ export function FeesMonthView({
             <SelectTrigger className="w-full data-[size=default]:h-8">
               <SelectValue placeholder="Class">
                 {(v: string) =>
-                  v === ALL ? "All classes" : (classes?.find((c) => c.id === v)?.name ?? "Class")
+                  v === ALL
+                    ? "All classes"
+                    : (() => {
+                        const c = classes?.find((c) => c.id === v)
+                        return c ? formatClassName(c.name, c.section) : "Class"
+                      })()
                 }
               </SelectValue>
             </SelectTrigger>
@@ -238,7 +243,7 @@ export function FeesMonthView({
               <SelectItem value={ALL}>All classes</SelectItem>
               {(classes ?? []).map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.name}
+                  {formatClassName(c.name, c.section)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -510,7 +515,8 @@ function Row({
           {s.fullName}
         </div>
         <div className="text-muted-foreground truncate text-xs">
-          {s.className ?? "No class"} · {STATUS_LABEL[s.status]}
+          {s.className ? formatClassName(s.className, s.classSection) : "No class"} ·{" "}
+          {STATUS_LABEL[s.status]}
           {/* Show the concession alongside the status, except when fully waived —
               there the amount column already reads "₹X waived", so it'd repeat. */}
           {s.waivedThisMonth > 0 && s.status !== "WAIVED" && (

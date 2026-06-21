@@ -4,7 +4,7 @@ import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { ALL_CLASSES } from "@/lib/constants"
-import { toDateInputValue } from "@/lib/format"
+import { formatClassName, toDateInputValue } from "@/lib/format"
 import { formatMonthLabel, nowDate, shiftMonthStr } from "@/lib/date-helper"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -48,9 +48,11 @@ export function AttendancePage({ canMark, instituteName }: Props) {
   const activeClasses = classes?.filter((c) => c.status === "ACTIVE") ?? []
   const isAll = classId === ALL_CLASSES
 
-  const selectedName = isAll
-    ? "All classes"
-    : (activeClasses.find((c) => c.id === classId)?.name ?? "All classes")
+  const selectedClass = activeClasses.find((c) => c.id === classId)
+  const selectedName =
+    isAll || !selectedClass
+      ? "All classes"
+      : formatClassName(selectedClass.name, selectedClass.section)
 
   return (
     <Tabs
@@ -74,8 +76,7 @@ export function AttendancePage({ canMark, instituteName }: Props) {
                 <SelectItem value={ALL_CLASSES}>All classes</SelectItem>
                 {activeClasses.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.section ? ` / ${c.section}` : ""}
+                    {formatClassName(c.name, c.section)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -134,7 +135,7 @@ export function AttendancePage({ canMark, instituteName }: Props) {
                 {activeClasses.map((c) => (
                   <div key={c.id}>
                     <p className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
-                      {c.name}{c.section ? ` / ${c.section}` : ""}
+                      {formatClassName(c.name, c.section)}
                     </p>
                     <AttendanceReport classId={c.id} month={month} />
                   </div>

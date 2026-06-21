@@ -12,6 +12,7 @@ import {
   type Permission,
   type RoleKey,
 } from "../src/lib/rbac"
+import { normalizeClassKey } from "../src/features/classes/schema"
 
 loadEnv()
 
@@ -113,9 +114,16 @@ async function seedDemoData(instituteId: string) {
 
   const classByName = new Map<string, string>()
   for (const c of DEMO_CLASSES) {
+    const nameKey = normalizeClassKey(c.name, c.section)
     const cls = await prisma.class.upsert({
-      where: { instituteId_name: { instituteId, name: c.name } },
-      create: { instituteId, name: c.name, section: c.section, defaultMonthlyFee: c.defaultMonthlyFee },
+      where: { instituteId_nameKey: { instituteId, nameKey } },
+      create: {
+        instituteId,
+        name: c.name,
+        section: c.section,
+        nameKey,
+        defaultMonthlyFee: c.defaultMonthlyFee,
+      },
       update: {},
     })
     classByName.set(c.name, cls.id)

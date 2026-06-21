@@ -8,7 +8,7 @@ import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 import { MONTHS_SHORT as MONTHS } from "@/lib/constants"
-import { formatCurrency, formatDateLong } from "@/lib/format"
+import { formatClassName, formatCurrency, formatDateLong } from "@/lib/format"
 import { appYearMonth, nowDate } from "@/lib/date-helper"
 import { getStudentFee } from "@/features/fees/service"
 import { METHOD_LABELS } from "@/features/fees/schema"
@@ -138,7 +138,7 @@ export default async function StudentFeesPage({
           </div>
           <p className="text-muted-foreground text-sm">
             ID {fee.serialNo}
-            {fee.className ? ` · ${fee.className}` : ""}
+            {fee.className ? ` · ${formatClassName(fee.className, fee.classSection)}` : ""}
             {fee.guardianName ? ` · ${fee.guardianName}` : ""}
             {` · `}
             <span className="text-foreground font-medium">

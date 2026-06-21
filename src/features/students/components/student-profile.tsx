@@ -5,7 +5,7 @@ import {
   Receipt,
 } from "lucide-react"
 
-import { formatCurrency, formatDateLong } from "@/lib/format"
+import { formatClassName, formatCurrency, formatDateLong } from "@/lib/format"
 import type { StudentDetail } from "@/features/students/types"
 import { StudentProfileActions } from "@/features/students/components/student-profile-actions"
 import { StudentPhoto } from "@/features/students/components/student-photo"
@@ -49,7 +49,9 @@ export function StudentProfile({
             </div>
             <p className="text-muted-foreground text-sm">
               ID {student.serialNo}
-              {student.className ? ` · ${student.className}` : ""}
+              {student.className
+                ? ` · ${formatClassName(student.className, student.classSection)}`
+                : ""}
             </p>
           </div>
         </div>
@@ -71,7 +73,14 @@ export function StudentProfile({
           <CardContent>
             <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
               <Detail label="Roll number" value={student.rollNumber} />
-              <Detail label="Class" value={student.className} />
+              <Detail
+                label="Class"
+                value={
+                  student.className
+                    ? formatClassName(student.className, student.classSection)
+                    : null
+                }
+              />
               <Detail label="Parent / Guardian" value={student.guardianName} />
               <Detail label="Contact number" value={student.contactNumber} />
               <Detail label="Email" value={student.email} />

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation"
 import { getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
-import { formatCurrency, formatDateLong } from "@/lib/format"
+import { formatClassName, formatCurrency, formatDateLong } from "@/lib/format"
 import { getReceipt } from "@/features/fees/service"
 import { METHOD_LABELS } from "@/features/fees/schema"
 import { BackLink } from "@/components/shared/back-link"
@@ -82,7 +82,14 @@ export default async function ReceiptPage({
             label="Student"
             value={`${receipt.student.fullName} (ID ${receipt.student.serialNo})`}
           />
-          <Row label="Class" value={receipt.student.className ?? "—"} />
+          <Row
+            label="Class"
+            value={
+              receipt.student.className
+                ? formatClassName(receipt.student.className, receipt.student.classSection)
+                : "—"
+            }
+          />
           <Row label="Date" value={formatDateLong(receipt.paidAt)} />
           <Row label="Method" value={METHOD_LABELS[receipt.method]} />
           {receipt.periodMonth && (

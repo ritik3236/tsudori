@@ -61,7 +61,7 @@ export async function listStudents(
     prisma.student.count({ where }),
     prisma.student.findMany({
       where,
-      include: { class: { select: { name: true } } },
+      include: { class: { select: { name: true, section: true } } },
       orderBy: { fullName: "asc" },
       // Fetch one extra row to signal "there's more" without a second query.
       skip: query.offset,
@@ -87,7 +87,7 @@ export async function getStudent(
 ): Promise<StudentDetail> {
   const student = await prisma.student.findFirst({
     where: { id, instituteId },
-    include: { class: { select: { name: true } } },
+    include: { class: { select: { name: true, section: true } } },
   })
   if (!student) throw new NotFoundError("Student not found.")
 
@@ -137,7 +137,6 @@ export async function getStudent(
     ...toListItem(student),
     email: student.email,
     notes: student.notes,
-    photoUrl: student.photoUrl,
     archivedAt: student.archivedAt?.toISOString() ?? null,
     createdAt: student.createdAt.toISOString(),
     fees: {
@@ -239,7 +238,7 @@ export async function archiveStudent(instituteId: string, id: string): Promise<v
   })
 }
 
-type StudentWithClass = Student & { class: { name: string } | null }
+type StudentWithClass = Student & { class: { name: string; section: string } | null }
 
 function toListItem(student: StudentWithClass): StudentListItem {
   return {
@@ -248,11 +247,13 @@ function toListItem(student: StudentWithClass): StudentListItem {
     rollNumber: student.rollNumber,
     fullName: student.fullName,
     className: student.class?.name ?? null,
+    classSection: student.class?.section ?? null,
     classId: student.classId,
     guardianName: student.guardianName,
     contactNumber: student.contactNumber,
     monthlyFee: Number(student.monthlyFee),
     status: student.status,
     admissionDate: student.admissionDate.toISOString(),
+    photoUrl: student.photoUrl,
   }
 }

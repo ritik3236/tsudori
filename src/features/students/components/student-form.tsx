@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { toDateInputValue } from "@/lib/format"
+import { formatClassName, toDateInputValue } from "@/lib/format"
 import { nowDate } from "@/lib/date-helper"
 import type { StudentStatus } from "@prisma/client"
 
@@ -158,8 +158,12 @@ export function StudentForm({
                           {(v: string) =>
                             v === NO_CLASS
                               ? "No class"
-                              : (classes?.find((c) => c.id === v)?.name ??
-                                "Select class")
+                              : (() => {
+                                  const c = classes?.find((c) => c.id === v)
+                                  return c
+                                    ? formatClassName(c.name, c.section)
+                                    : "Select class"
+                                })()
                           }
                         </SelectValue>
                       </SelectTrigger>
@@ -168,7 +172,7 @@ export function StudentForm({
                       <SelectItem value={NO_CLASS}>No class</SelectItem>
                       {classes?.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name}
+                          {formatClassName(c.name, c.section)}
                         </SelectItem>
                       ))}
                     </SelectContent>

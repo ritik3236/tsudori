@@ -9,6 +9,7 @@ export type StudentFeeListItem = {
   serialNo: number
   fullName: string
   className: string | null
+  classSection: string | null
   monthlyFee: number
   /** Paid towards the current fee month. */
   paidThisMonth: number
@@ -68,6 +69,7 @@ export type StudentFeeDetail = {
   serialNo: number
   fullName: string
   className: string | null
+  classSection: string | null
   guardianName: string | null
   contactNumber: string | null
   monthlyFee: number
@@ -123,6 +125,7 @@ export type ReceiptData = {
     fullName: string
     serialNo: number
     className: string | null
+    classSection: string | null
     /** Parent/guardian phone — used for the WhatsApp receipt link. */
     contactNumber: string | null
   }

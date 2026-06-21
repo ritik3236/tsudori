@@ -87,7 +87,7 @@ export function ClassForm({
             name="section"
             render={({ field }) => (
               <FormItem className="col-span-2 sm:col-span-1">
-                <FormLabel>Section (optional)</FormLabel>
+                <FormLabel>Section</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g. A" {...field} />
                 </FormControl>

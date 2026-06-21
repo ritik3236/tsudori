@@ -9,19 +9,20 @@ export type StudentListItem = {
   rollNumber: string | null
   fullName: string
   className: string | null
+  classSection: string | null
   classId: string | null
   guardianName: string | null
   contactNumber: string | null
   monthlyFee: number
   status: StudentStatus
   admissionDate: string
+  /** Profile photo (Blob URL), or null to show initials. */
+  photoUrl: string | null
 }
 
 export type StudentDetail = StudentListItem & {
   email: string | null
   notes: string | null
-  /** Profile photo (Blob URL), or null to show initials. */
-  photoUrl: string | null
   archivedAt: string | null
   createdAt: string
   fees: {

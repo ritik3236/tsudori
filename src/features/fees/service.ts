@@ -122,7 +122,7 @@ async function loadMonthFeeRows(
       fullName: true,
       monthlyFee: true,
       contactNumber: true,
-      class: { select: { name: true } },
+      class: { select: { name: true, section: true } },
     },
   })
 
@@ -154,6 +154,7 @@ async function loadMonthFeeRows(
       serialNo: s.serialNo,
       fullName: s.fullName,
       className: s.class?.name ?? null,
+      classSection: s.class?.section ?? null,
       monthlyFee,
       paidThisMonth: paid,
       waivedThisMonth: waived,
@@ -262,7 +263,7 @@ export async function getStudentFee(
       contactNumber: true,
       monthlyFee: true,
       admissionDate: true,
-      class: { select: { name: true } },
+      class: { select: { name: true, section: true } },
     },
   })
   if (!student) throw new NotFoundError("Student not found.")
@@ -370,6 +371,7 @@ export async function getStudentFee(
     serialNo: student.serialNo,
     fullName: student.fullName,
     className: student.class?.name ?? null,
+    classSection: student.class?.section ?? null,
     guardianName: student.guardianName,
     contactNumber: student.contactNumber,
     monthlyFee,
@@ -752,7 +754,7 @@ export async function getReceipt(
           fullName: true,
           serialNo: true,
           contactNumber: true,
-          class: { select: { name: true } },
+          class: { select: { name: true, section: true } },
         },
       },
       institute: {
@@ -779,6 +781,7 @@ export async function getReceipt(
       fullName: p.student.fullName,
       serialNo: p.student.serialNo,
       className: p.student.class?.name ?? null,
+      classSection: p.student.class?.section ?? null,
       contactNumber: p.student.contactNumber,
     },
     institute: {

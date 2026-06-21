@@ -240,7 +240,11 @@ model Class {
   id                String      @id @default(cuid())
   instituteId       String
   name              String
-  section           String?
+  section           String
+  // Normalized identity (lower-cased, whitespace-stripped "name|section") that
+  // makes uniqueness case- and space-insensitive: "Class 2"+"B" == "class2"+"b".
+  // Kept in sync by normalizeClassKey() in src/features/classes/schema.ts.
+  nameKey           String
   defaultMonthlyFee Decimal?    @db.Decimal(10, 2)
   status            ClassStatus @default(ACTIVE)
   createdAt         DateTime    @default(now())
@@ -249,7 +253,7 @@ model Class {
   institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
   students  Student[]
 
-  @@unique([instituteId, name])
+  @@unique([instituteId, nameKey])
   @@index([instituteId])
   @@schema("public")
 }
