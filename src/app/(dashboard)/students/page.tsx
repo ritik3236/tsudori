@@ -8,7 +8,6 @@ import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { studentKeys } from "@/features/students/api"
 import { listStudents } from "@/features/students/service"
-import { Fab } from "@/components/shared/fab"
 import { Button } from "@/components/ui/button"
 import { StudentsTable } from "@/features/students/components/students-table"
 
@@ -33,21 +32,20 @@ export default async function StudentsPage() {
   return (
     <HydrationBoundary state={dehydrate(qc)}>
       <div className="space-y-4">
-        {canCreate && (
-          <div className="hidden justify-end lg:flex">
-            <Button
-              render={
-                <Link href="/students/new">
-                  <Plus className="size-4" /> Add student
-                </Link>
-              }
-            />
-          </div>
-        )}
         <StudentsTable />
 
-        {/* Mobile primary action lives in the thumb zone */}
-        {canCreate && <Fab href="/students/new" label="Add student" icon={Plus} />}
+        {/* Primary action floats bottom-right (mobile + desktop), like "Add class". */}
+        {canCreate && (
+          <Button
+            size="sm"
+            className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
+            render={
+              <Link href="/students/new">
+                <Plus className="size-4" /> Add student
+              </Link>
+            }
+          />
+        )}
       </div>
     </HydrationBoundary>
   )

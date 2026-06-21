@@ -191,12 +191,17 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                     {initials(s.fullName)}
                   </span>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium hover:underline">
                         {s.fullName}
                       </span>
-                      {/* Active is the norm — only badge the exceptions to stay light. */}
-                      {s.status !== "ACTIVE" && <StatusBadge active={false} />}
+                      {/* Only badge the exception (inactive); active is the norm. */}
+                      {s.status !== "ACTIVE" && (
+                        <StatusBadge
+                          active={false}
+                          className="shrink-0 px-1.5 py-0 text-[10px]"
+                        />
+                      )}
                     </div>
                     <div className="text-muted-foreground truncate text-xs">
                       ID {s.serialNo}
