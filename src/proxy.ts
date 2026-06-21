@@ -13,17 +13,24 @@ import { auth } from "@/lib/auth/server"
 // spurious "logged out" error. API routes guard themselves (getTenantContext /
 // requirePermission → 401/403 JSON), so they must NOT be matched here.
 //
-// We also skip POST. The only POSTs hitting these page routes are SERVER ACTIONS,
-// which already authorize via getTenantContext/requireUser — and that reads the
-// CACHED session, so it works even when the Neon auth compute has autosuspended.
-// The proxy, by contrast, does a live upstream get-session for those POSTs and
-// bounces them to /auth/sign-in (a 307) on cold start, surfacing to users as
-// "Couldn't save". Letting action POSTs through (each self-guards — audited)
-// fixes that. Page GET navigations + OAuth callbacks still go through the proxy.
+// We also let SERVER ACTION POSTs through. They already authorize via
+// getTenantContext/requireUser — and that reads the CACHED session, so it works
+// even when the Neon auth compute has autosuspended. The proxy, by contrast,
+// does a live upstream get-session for those POSTs and bounces them to
+// /auth/sign-in (a 307) on cold start, surfacing to users as "Couldn't save".
+// Letting action POSTs through (each self-guards — audited) fixes that.
+//
+// We gate that skip on the `Next-Action` header so it applies ONLY to server
+// actions. An ordinary unauthenticated POST to a page route still goes through
+// the proxy and gets the standard 307 → sign-in, instead of falling through to
+// the RSC render and surfacing as a generic 500. Page GET navigations + OAuth
+// callbacks still go through the proxy as before.
 const authMiddleware = auth.middleware({ loginUrl: "/auth/sign-in" })
 
 export default function proxy(request: NextRequest) {
-  if (request.method === "POST") return NextResponse.next()
+  if (request.method === "POST" && request.headers.has("next-action")) {
+    return NextResponse.next()
+  }
   return authMiddleware(request)
 }
 

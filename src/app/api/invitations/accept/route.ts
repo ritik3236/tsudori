@@ -15,6 +15,21 @@ export const POST = route(async (req) => {
   // the invite to a different address.
   const email = await getInvitationEmail(token)
 
+  // If someone is already signed in, don't blindly sign up a new account and
+  // silently swap their session. If they're already the invited person, just
+  // link the membership (this also lets an existing user accept without the
+  // sign-up dead-end). If they're a different account, make them sign out first.
+  const { data: current } = await auth.getSession()
+  if (current?.user) {
+    if (current.user.email.toLowerCase() === email.toLowerCase()) {
+      await acceptInvitation(token, current.user.id)
+      return noContent()
+    }
+    throw new ConflictError(
+      "You're signed in as a different account. Sign out, then open the invite link again."
+    )
+  }
+
   const { data, error } = await auth.signUp.email({ email, name, password })
   if (error) {
     if (/exist/i.test(error.message || "")) {

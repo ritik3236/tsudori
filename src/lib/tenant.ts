@@ -155,6 +155,16 @@ async function maybeBootstrapAdmin(user: User): Promise<boolean> {
   const bootstrapEmail = process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase()
   if (!bootstrapEmail || user.email.toLowerCase() !== bootstrapEmail) return false
 
+  // Idempotency + anti-escalation: only ever bootstrap the FIRST super admin.
+  // Once any super admin exists, never auto-promote again — even for the
+  // configured email — so a stray account, or a BOOTSTRAP_ADMIN_EMAIL left set
+  // after setup, can't silently gain platform super-admin on first sign-in.
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { role: "admin" },
+    select: { id: true },
+  })
+  if (existingSuperAdmin) return false
+
   const institute = await prisma.institute.findFirst({
     orderBy: { createdAt: "asc" },
   })

@@ -1,10 +1,12 @@
 import { ok, parseJson, route } from "@/lib/api"
 import { auth } from "@/lib/auth/server"
+import { prisma } from "@/lib/prisma"
 import { AppError, ForbiddenError } from "@/lib/errors"
 import { getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { banMemberSchema } from "@/features/members/schema"
 import { assertMemberInInstitute, getMember } from "@/features/members/service"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 
 type RouteContext = { params: Promise<{ userId: string }> }
 
@@ -45,6 +47,14 @@ export const POST = route<RouteContext>(async (req, { params }) => {
   if (revokeError) throw toAppError(revokeError, "Couldn't revoke the member's sessions.")
 
   const member = await getMember(ctx.institute.id, userId)
+  await recordAudit(prisma, {
+    instituteId: ctx.institute.id,
+    actorId: ctx.user.id,
+    action: AUDIT_ACTIONS.MEMBER_BAN,
+    entityType: "Membership",
+    entityId: member.membershipId,
+    metadata: { userId, memberName: member.name, reason: reason || null },
+  })
   return ok(member)
 })
 
@@ -63,5 +73,13 @@ export const DELETE = route<RouteContext>(async (_req, { params }) => {
   if (error) throw toAppError(error, "Couldn't unban the member.")
 
   const member = await getMember(ctx.institute.id, userId)
+  await recordAudit(prisma, {
+    instituteId: ctx.institute.id,
+    actorId: ctx.user.id,
+    action: AUDIT_ACTIONS.MEMBER_UNBAN,
+    entityType: "Membership",
+    entityId: member.membershipId,
+    metadata: { userId, memberName: member.name },
+  })
   return ok(member)
 })

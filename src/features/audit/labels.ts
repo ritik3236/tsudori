@@ -8,6 +8,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "member.remove": "Removed a member",
   "member.restore": "Restored a member",
   "member.role_change": "Changed a member's role",
+  "member.ban": "Banned a member",
+  "member.unban": "Unbanned a member",
   "student.archive": "Archived a student",
   "student.restore": "Restored a student",
   "role.permissions_change": "Changed role permissions",

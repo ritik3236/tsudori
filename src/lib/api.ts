@@ -73,6 +73,14 @@ export async function parseJson<T extends z.ZodType>(
   req: Request,
   schema: T
 ): Promise<z.infer<T>> {
+  // Require an explicit JSON content-type. Our own client always sends it
+  // (src/lib/http.ts), so this only rejects forged cross-site "simple request"
+  // POSTs (text/plain / form-encoded bodies) that try to dodge the SameSite
+  // cookie — app-level CSRF defense-in-depth that doesn't depend on the auth
+  // cookie's SameSite attribute alone.
+  if (!(req.headers.get("content-type") ?? "").includes("application/json")) {
+    throw new ValidationError("Request body must be sent as application/json.")
+  }
   let raw: unknown
   try {
     raw = await req.json()
