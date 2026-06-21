@@ -5,9 +5,12 @@ import { put, del } from "@vercel/blob"
 // Vercel Blob storage. Paths are tenant-grouped under tsudori/<env>/<instituteId>/…
 // so a tenant's assets can be swept in one prefix on offboarding. `env` is `prod`
 // on production and `dev` everywhere else (local + preview), matching the two
-// folders in the store. Token is server-only (BLOB_READ_WRITE_TOKEN).
+// folders in the store. Token is server-only. The store is connected to Vercel
+// with a TSUDORI_ prefix (so prod/preview only expose TSUDORI_BLOB_READ_WRITE_TOKEN);
+// the unprefixed name is the local-dev fallback.
 const ENV_FOLDER = process.env.VERCEL_ENV === "production" ? "prod" : "dev"
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN
+const TOKEN =
+  process.env.TSUDORI_BLOB_READ_WRITE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN
 
 export function blobPath(...parts: string[]): string {
   return ["tsudori", ENV_FOLDER, ...parts].join("/")
