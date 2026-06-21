@@ -85,6 +85,21 @@ export function useRemoveMember() {
   })
 }
 
+export function useRestoreMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => membersApi.restore(userId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: memberKeys.lists() })
+      toast.success("Member restored.")
+    },
+    onError: (e) => {
+      invalidateOnNotFound(e, qc)
+      reportError(e, "Couldn't restore the member.")
+    },
+  })
+}
+
 export function useBanMember(userId: string) {
   const qc = useQueryClient()
   return useMutation({

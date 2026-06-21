@@ -161,7 +161,12 @@ export async function updateMemberRole(
   return toMemberListItem(updated)
 }
 
-/** Removes a member from the institute (deletes the membership; keeps the identity). */
+/**
+ * Soft-removes a member: suspends the membership instead of deleting it. Access
+ * is revoked immediately (getTenantContext only loads status:"ACTIVE" rows), but
+ * the row — and the identity — survive, so the person can be restored and their
+ * history keeps an author. They drop out of the active team list into "Removed".
+ */
 export async function removeMember(
   instituteId: string,
   userId: string
@@ -169,10 +174,35 @@ export async function removeMember(
   await assertNotSuperAdmin(userId)
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
-    select: { id: true },
+    select: { id: true, status: true },
   })
   if (!membership) {
     throw new NotFoundError("That user isn't a member of this institute.")
   }
-  await prisma.membership.delete({ where: { id: membership.id } })
+  if (membership.status === "SUSPENDED") return // already removed — idempotent
+  await prisma.membership.update({
+    where: { id: membership.id },
+    data: { status: "SUSPENDED" },
+  })
+}
+
+/** Restores a soft-removed (suspended) member back to ACTIVE, re-granting access. */
+export async function restoreMember(
+  instituteId: string,
+  userId: string
+): Promise<MemberListItem> {
+  const membership = await prisma.membership.findFirst({
+    where: { instituteId, userId },
+    include: MEMBER_INCLUDE,
+  })
+  if (!membership) {
+    throw new NotFoundError("That user isn't a member of this institute.")
+  }
+  if (membership.status === "ACTIVE") return toMemberListItem(membership) // already active — idempotent
+  const updated = await prisma.membership.update({
+    where: { id: membership.id },
+    data: { status: "ACTIVE" },
+    include: MEMBER_INCLUDE,
+  })
+  return toMemberListItem(updated)
 }

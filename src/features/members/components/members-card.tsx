@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import { UserPlus, Users } from "lucide-react"
+import type { MembershipStatus } from "@prisma/client"
 
+import { cn } from "@/lib/utils"
 import { formatDateShort, getInitials } from "@/lib/format"
 import { useMembers } from "@/features/members/hooks"
 import { AddMemberDialog } from "@/features/members/components/add-member-dialog"
@@ -40,9 +42,16 @@ export function MembersCard({
 }: MembersCardProps) {
   const { data: members, isLoading } = useMembers()
   const [addOpen, setAddOpen] = useState(false)
+  const [showRemoved, setShowRemoved] = useState(false)
 
   const showActions = canManageMembers || canManageIdentities
   const colSpan = showActions ? 5 : 4
+
+  // Removed members are suspended rows — hidden from the active roster, revealed
+  // by the toggle below so they can be restored.
+  const active = members?.filter((m) => m.status !== "SUSPENDED") ?? []
+  const removed = members?.filter((m) => m.status === "SUSPENDED") ?? []
+  const visible = showRemoved ? [...active, ...removed] : active
 
   const renderActions = (memberId: string) => {
     const member = members?.find((m) => m.membershipId === memberId)
@@ -94,9 +103,12 @@ export function MembersCard({
                   </TableCell>
                 </TableRow>
               ))
-            ) : members && members.length > 0 ? (
-              members.map((m) => (
-                <TableRow key={m.membershipId}>
+            ) : visible.length > 0 ? (
+              visible.map((m) => (
+                <TableRow
+                  key={m.membershipId}
+                  className={cn(m.status === "SUSPENDED" && "opacity-60")}
+                >
                   <TableCell>
                     <MemberIdentity name={m.name} email={m.email} />
                   </TableCell>
@@ -107,7 +119,7 @@ export function MembersCard({
                     {formatDateShort(m.joinedAt)}
                   </TableCell>
                   <TableCell>
-                    <MemberStatus banned={m.banned} banReason={m.banReason} active={m.status === "ACTIVE"} />
+                    <MemberStatus banned={m.banned} banReason={m.banReason} status={m.status} />
                   </TableCell>
                   {showActions && <TableCell>{renderActions(m.membershipId)}</TableCell>}
                 </TableRow>
@@ -134,20 +146,22 @@ export function MembersCard({
               <Skeleton className="mt-2 h-3 w-3/4" />
             </div>
           ))
-        ) : members && members.length > 0 ? (
-          members.map((m) => (
-            <div key={m.membershipId} className="bg-card relative rounded-xl border p-3.5">
+        ) : visible.length > 0 ? (
+          visible.map((m) => (
+            <div
+              key={m.membershipId}
+              className={cn(
+                "bg-card relative rounded-xl border p-3.5",
+                m.status === "SUSPENDED" && "opacity-60"
+              )}
+            >
               <div className={showActions ? "pr-9" : undefined}>
                 <MemberIdentity name={m.name} email={m.email} />
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-muted-foreground text-xs">{m.roleName}</span>
                   {m.isSuperAdmin && <Badge variant="secondary">Super admin</Badge>}
                   <span className="text-muted-foreground text-xs">·</span>
-                  {m.banned ? (
-                    <BannedBadge banReason={m.banReason} />
-                  ) : (
-                    <StatusBadge active={m.status === "ACTIVE"} />
-                  )}
+                  <MemberStatus banned={m.banned} banReason={m.banReason} status={m.status} />
                   <span className="text-muted-foreground text-xs tabular-nums">
                     · {formatDateShort(m.joinedAt)}
                   </span>
@@ -164,6 +178,17 @@ export function MembersCard({
           <MembersEmpty />
         )}
       </div>
+
+      {/* Reveal removed (suspended) members so they can be restored. */}
+      {removed.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowRemoved((v) => !v)}
+          className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-2 hover:underline"
+        >
+          {showRemoved ? "Hide" : "Show"} removed ({removed.length})
+        </button>
+      )}
 
       {canManageIdentities && (
         <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} />
@@ -201,9 +226,18 @@ function RoleCell({
   )
 }
 
-function MemberStatus({ banned, banReason, active }: { banned: boolean; banReason: string | null; active: boolean }) {
+function MemberStatus({
+  banned,
+  banReason,
+  status,
+}: {
+  banned: boolean
+  banReason: string | null
+  status: MembershipStatus
+}) {
   if (banned) return <BannedBadge banReason={banReason} />
-  return <StatusBadge active={active} />
+  if (status === "SUSPENDED") return <Badge variant="secondary">Removed</Badge>
+  return <StatusBadge active={status === "ACTIVE"} />
 }
 
 function BannedBadge({ banReason }: { banReason: string | null }) {

@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Ban, KeyRound, MoreHorizontal, ShieldCheck, Trash2, UserCog } from "lucide-react"
+import { Ban, KeyRound, MoreHorizontal, RotateCcw, ShieldCheck, Trash2, UserCog } from "lucide-react"
 
 import type { MemberListItem } from "@/features/members/types"
-import { useRemoveMember, useUnbanMember } from "@/features/members/hooks"
+import { useRemoveMember, useRestoreMember, useUnbanMember } from "@/features/members/hooks"
 import { ChangeRoleDialog } from "@/features/members/components/change-role-dialog"
 import { BanMemberDialog } from "@/features/members/components/ban-member-dialog"
 import { ResetPasswordDialog } from "@/features/members/components/reset-password-dialog"
@@ -38,17 +38,24 @@ export function MemberRowActions({
 }: MemberRowActionsProps) {
   const [dialog, setDialog] = useState<Dialog>(null)
   const remove = useRemoveMember()
+  const restore = useRestoreMember()
   const unban = useUnbanMember(member.userId)
+
+  // A removed (suspended) member has no access; the only sensible action is to
+  // restore them — the active-member actions don't apply.
+  const isRemoved = member.status === "SUSPENDED"
 
   // The platform super admin can't be demoted or removed by other admins —
   // mirror the server guard so those actions never appear on their row.
-  const canChangeRole = canManageMembers && !isSelf && !member.isSuperAdmin
-  const canResetPassword = canManageIdentities
-  const canBan = canManageIdentities && !isSelf
-  const canRemove = canManageMembers && !isSelf && !member.isSuperAdmin
+  const canChangeRole = canManageMembers && !isSelf && !member.isSuperAdmin && !isRemoved
+  const canResetPassword = canManageIdentities && !isRemoved
+  const canBan = canManageIdentities && !isSelf && !isRemoved
+  const canRemove = canManageMembers && !isSelf && !member.isSuperAdmin && !isRemoved
+  const canRestore = canManageMembers && isRemoved && !member.isSuperAdmin
 
   // Nothing to offer (e.g. own row without identity powers) — render no menu.
-  if (!canChangeRole && !canResetPassword && !canBan && !canRemove) return null
+  if (!canChangeRole && !canResetPassword && !canBan && !canRemove && !canRestore)
+    return null
 
   return (
     <>
@@ -61,6 +68,14 @@ export function MemberRowActions({
           }
         />
         <DropdownMenuContent align="end" className="w-48">
+          {canRestore && (
+            <DropdownMenuItem
+              onClick={() => restore.mutate(member.userId)}
+              disabled={restore.isPending}
+            >
+              <RotateCcw className="size-4" /> Restore to institute
+            </DropdownMenuItem>
+          )}
           {canChangeRole && (
             <DropdownMenuItem onClick={() => setDialog("role")}>
               <UserCog className="size-4" /> Change role
@@ -136,7 +151,7 @@ export function MemberRowActions({
           open={dialog === "remove"}
           onOpenChange={(open) => !open && setDialog(null)}
           title={`Remove ${member.name}?`}
-          description="They lose access to this institute. Their sign-in is kept, so you can add them back later."
+          description="They lose access immediately and move to Removed. Their sign-in is kept — you can restore them anytime."
           confirmLabel="Remove"
           variant="destructive"
           loading={remove.isPending}

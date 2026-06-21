@@ -14,6 +14,7 @@ export const membersApi = {
   updateRole: (userId: string, data: MemberUpdateInput) =>
     http.patch<MemberListItem>(`/api/members/${userId}`, data),
   remove: (userId: string) => http.delete<void>(`/api/members/${userId}`),
+  restore: (userId: string) => http.post<MemberListItem>(`/api/members/${userId}`),
   ban: (userId: string, data: BanMemberInput) =>
     http.post<MemberListItem>(`/api/members/${userId}/ban`, data),
   unban: (userId: string) =>

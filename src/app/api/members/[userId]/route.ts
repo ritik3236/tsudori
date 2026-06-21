@@ -3,7 +3,7 @@ import { ForbiddenError } from "@/lib/errors"
 import { getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { memberUpdateSchema } from "@/features/members/schema"
-import { removeMember, updateMemberRole } from "@/features/members/service"
+import { removeMember, restoreMember, updateMemberRole } from "@/features/members/service"
 
 type RouteContext = { params: Promise<{ userId: string }> }
 
@@ -33,4 +33,14 @@ export const DELETE = route<RouteContext>(async (_req, { params }) => {
 
   await removeMember(ctx.institute.id, userId)
   return noContent()
+})
+
+// Restore a previously removed (suspended) member back to active.
+export const POST = route<RouteContext>(async (_req, { params }) => {
+  const { userId } = await params
+  const ctx = await getTenantContext()
+  requirePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
+
+  const member = await restoreMember(ctx.institute.id, userId)
+  return ok(member)
 })
