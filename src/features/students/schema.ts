@@ -9,7 +9,7 @@ import { appDateToUtc } from "@/lib/date-helper"
 //  • studentFormSchema — the client form model: all strings, so React Hook Form
 //    typing stays simple. formValuesToInput() bridges form → domain.
 
-export const STUDENT_STATUSES = ["ACTIVE", "INACTIVE"] as const
+export const STUDENT_STATUSES = ["ACTIVE", "ON_HOLD", "LEFT", "COMPLETED"] as const
 
 const nullableText = (max: number) => z.string().trim().max(max).nullish()
 
@@ -38,7 +38,8 @@ export const studentQuerySchema = z.object({
   q: z.string().trim().optional(),
   status: z.enum(STUDENT_STATUSES).optional(),
   classId: z.string().trim().optional(),
-  includeArchived: z
+  // When true, show ONLY archived (soft-deleted) students; otherwise non-archived.
+  archived: z
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),

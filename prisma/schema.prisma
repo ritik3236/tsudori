@@ -256,7 +256,9 @@ model Class {
 
 enum StudentStatus {
   ACTIVE
-  INACTIVE
+  ON_HOLD
+  LEFT
+  COMPLETED
 
   @@schema("public")
 }

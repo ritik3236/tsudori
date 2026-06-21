@@ -25,7 +25,7 @@ export default async function StudentsPage() {
   const qc = makeServerQueryClient()
   await qc.prefetchInfiniteQuery({
     queryKey: studentKeys.list({}),
-    queryFn: () => listStudents(ctx.institute.id, { offset: 0, includeArchived: false }),
+    queryFn: () => listStudents(ctx.institute.id, { offset: 0, archived: false }),
     initialPageParam: 0,
   })
 

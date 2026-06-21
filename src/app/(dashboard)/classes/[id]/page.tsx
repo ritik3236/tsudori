@@ -45,7 +45,7 @@ export default async function ClassDetailPage({ params }: Props) {
   await qc.prefetchInfiniteQuery({
     queryKey: studentKeys.list({ classId: id }),
     queryFn: () =>
-      listStudents(ctx.institute.id, { classId: id, offset: 0, includeArchived: false }),
+      listStudents(ctx.institute.id, { classId: id, offset: 0, archived: false }),
     initialPageParam: 0,
   })
 

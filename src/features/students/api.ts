@@ -1,3 +1,5 @@
+import type { StudentStatus } from "@prisma/client"
+
 import { buildQuery, http } from "@/lib/http"
 import type {
   StudentDetail,
@@ -11,8 +13,10 @@ import type {
 
 export type StudentListParams = {
   q?: string
-  status?: "ACTIVE" | "INACTIVE"
+  status?: StudentStatus
   classId?: string
+  /** Show only archived (soft-deleted) students. */
+  archived?: boolean
 }
 
 // Query-key factory. Lives here (not in the "use client" hooks file) so server

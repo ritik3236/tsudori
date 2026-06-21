@@ -36,9 +36,12 @@ export async function listStudents(
 ): Promise<StudentPage> {
   const where: Prisma.StudentWhereInput = {
     instituteId,
-    ...(query.includeArchived ? {} : { archivedAt: null }),
-    ...(query.status ? { status: query.status } : {}),
     ...(query.classId ? { classId: query.classId } : {}),
+    // `archived` shows ONLY soft-deleted students; otherwise hide them and apply
+    // the lifecycle-status filter.
+    ...(query.archived
+      ? { archivedAt: { not: null } }
+      : { archivedAt: null, ...(query.status ? { status: query.status } : {}) }),
   }
 
   if (query.q) {
@@ -230,7 +233,9 @@ export async function archiveStudent(instituteId: string, id: string): Promise<v
 
   await prisma.student.update({
     where: { id },
-    data: { archivedAt: nowDate(), status: "INACTIVE" },
+    // Archiving is a soft-delete only — it doesn't change the lifecycle status,
+    // so a "Left"/"Completed" student keeps that status while archived.
+    data: { archivedAt: nowDate() },
   })
 }
 

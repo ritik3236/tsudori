@@ -6,14 +6,18 @@ import { zodResolver } from "@hookform/resolvers/zod"
 
 import { toDateInputValue } from "@/lib/format"
 import { nowDate } from "@/lib/date-helper"
+import type { StudentStatus } from "@prisma/client"
+
 import {
   NO_CLASS,
+  STUDENT_STATUSES,
   formValuesToInput,
   studentFormSchema,
   type StudentCreateInput,
   type StudentFormValues,
 } from "@/features/students/schema"
 import { useClassOptions } from "@/features/students/hooks"
+import { STUDENT_STATUS_LABEL } from "@/features/students/components/student-status-badge"
 import type { StudentDetail } from "@/features/students/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -215,13 +219,16 @@ export function StudentForm({
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue>
-                          {(v: string) => (v === "ACTIVE" ? "Active" : "Inactive")}
+                          {(v: string) => STUDENT_STATUS_LABEL[v as StudentStatus] ?? v}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="ACTIVE">Active</SelectItem>
-                      <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      {STUDENT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {STUDENT_STATUS_LABEL[s]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

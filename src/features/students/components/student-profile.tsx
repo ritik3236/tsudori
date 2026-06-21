@@ -9,7 +9,7 @@ import { formatCurrency, formatDateLong } from "@/lib/format"
 import type { StudentDetail } from "@/features/students/types"
 import { StudentProfileActions } from "@/features/students/components/student-profile-actions"
 import { StudentPhoto } from "@/features/students/components/student-photo"
-import { StatusBadge } from "@/components/shared/status-badge"
+import { StudentStatusBadge } from "@/features/students/components/student-status-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Badge } from "@/components/ui/badge"
@@ -44,7 +44,7 @@ export function StudentProfile({
               <h1 className="text-2xl font-semibold tracking-tight">
                 {student.fullName}
               </h1>
-              <StatusBadge active={student.status === "ACTIVE"} />
+              <StudentStatusBadge status={student.status} />
               {isArchived && <Badge variant="secondary">Archived</Badge>}
             </div>
             <p className="text-muted-foreground text-sm">

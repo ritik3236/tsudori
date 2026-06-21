@@ -4,14 +4,19 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Search, Users } from "lucide-react"
+import type { StudentStatus } from "@prisma/client"
 
 import { FILTER_ALL as ALL } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/format"
+import { STUDENT_STATUSES } from "@/features/students/schema"
 import { useClassOptions, useStudents } from "@/features/students/hooks"
+import {
+  StudentStatusBadge,
+  STUDENT_STATUS_LABEL,
+} from "@/features/students/components/student-status-badge"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { StatusBadge } from "@/components/shared/status-badge"
 import { EmptyState } from "@/components/shared/empty-state"
 import { InfiniteSentinel } from "@/components/shared/infinite-sentinel"
 import {
@@ -22,10 +27,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// "ARCHIVED" is a pseudo-status — it filters on archivedAt, not the status enum.
+const ARCHIVED = "ARCHIVED"
 const STATUS_OPTIONS = [
   { value: ALL, label: "All statuses" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "INACTIVE", label: "Inactive" },
+  ...STUDENT_STATUSES.map((s) => ({ value: s, label: STUDENT_STATUS_LABEL[s] })),
+  { value: ARCHIVED, label: "Archived" },
 ]
 
 // Soft tints (dark text on a light tint — WCAG AA), picked deterministically per
@@ -80,10 +87,12 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
 
   const effectiveClassId = lockedClassId ?? (classId === ALL ? undefined : classId)
 
+  const isArchived = status === ARCHIVED
   const { items, total, isLoading, isPlaceholder, hasMore, loadMore, isLoadingMore } =
     useStudents({
       q: q || undefined,
-      status: status === ALL ? undefined : (status as "ACTIVE" | "INACTIVE"),
+      status: status === ALL || isArchived ? undefined : (status as StudentStatus),
+      archived: isArchived || undefined,
       classId: effectiveClassId,
     })
 
@@ -197,8 +206,8 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                       </span>
                       {/* Only badge the exception (inactive); active is the norm. */}
                       {s.status !== "ACTIVE" && (
-                        <StatusBadge
-                          active={false}
+                        <StudentStatusBadge
+                          status={s.status}
                           className="shrink-0 px-1.5 py-0 text-[10px]"
                         />
                       )}
