@@ -18,7 +18,11 @@ export default async function YourProfilePage() {
         <BackLink href="/settings" label="Settings" />
         <PageHeader title="Your profile" description="Update your name and password." />
       </div>
-      <AccountForm name={ctx.user.name} email={ctx.user.email} />
+      <AccountForm
+        name={ctx.user.name}
+        email={ctx.user.email}
+        image={ctx.user.image}
+      />
     </div>
   )
 }

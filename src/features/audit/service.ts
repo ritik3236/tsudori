@@ -79,7 +79,7 @@ export async function listAuditLog(
     prisma.auditLog.count({ where }),
     prisma.auditLog.findMany({
       where,
-      include: { actor: { select: { name: true } } },
+      include: { actor: { select: { name: true, image: true } } },
       orderBy: { createdAt: "desc" },
       skip: query.offset,
       take: AUDIT_PAGE_SIZE + 1,
@@ -94,6 +94,7 @@ export async function listAuditLog(
       entityType: r.entityType,
       entityId: r.entityId,
       actorName: r.actor?.name ?? null,
+      actorImage: r.actor?.image ?? null,
       metadata: (r.metadata ?? null) as Record<string, unknown> | null,
       createdAt: r.createdAt.toISOString(),
     })),

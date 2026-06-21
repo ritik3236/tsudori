@@ -27,6 +27,7 @@ function toMemberListItem(m: MembershipWithRelations): MemberListItem {
     membershipId: m.id,
     userId: m.userId,
     name: m.user.name,
+    image: m.user.image,
     email: m.user.email,
     emailVerified: m.user.emailVerified,
     roleId: m.roleId,
@@ -46,7 +47,9 @@ export async function listMembers(instituteId: string): Promise<MemberListItem[]
     include: MEMBER_INCLUDE,
     orderBy: { createdAt: "asc" },
   })
-  return rows.map(toMemberListItem)
+  // The platform super admin is a hidden system account — never surface it in the
+  // team list (or anything built from it, like the audit actor filter).
+  return rows.map(toMemberListItem).filter((m) => !m.isSuperAdmin)
 }
 
 /** The institute's assignable roles (e.g. Institute Admin, Teacher). */

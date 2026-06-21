@@ -8,6 +8,7 @@ import { z } from "zod"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth/client"
+import { ProfilePhoto } from "@/features/account/components/profile-photo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
@@ -51,7 +52,15 @@ function messageOf(error: unknown, fallback: string): string {
   return fallback
 }
 
-export function AccountForm({ name, email }: { name: string; email: string }) {
+export function AccountForm({
+  name,
+  email,
+  image,
+}: {
+  name: string
+  email: string
+  image: string | null
+}) {
   const router = useRouter()
   const [savingName, setSavingName] = useState(false)
   const [savingPw, setSavingPw] = useState(false)
@@ -110,7 +119,16 @@ export function AccountForm({ name, email }: { name: string; email: string }) {
         <CardHeader>
           <CardTitle>Profile</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-4">
+            <ProfilePhoto name={name} imageUrl={image} />
+            <div>
+              <p className="text-sm font-medium">Profile picture</p>
+              <p className="text-muted-foreground text-xs">
+                Tap the photo to upload or change it.
+              </p>
+            </div>
+          </div>
           <Form {...nameForm}>
             <form onSubmit={nameForm.handleSubmit(onSaveName)} className="space-y-4">
               <div className="space-y-2">

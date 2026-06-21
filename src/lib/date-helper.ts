@@ -140,6 +140,11 @@ export function formatDateLong(value: DateInput): string {
   return toAppDT(value)?.toFormat("dd MMM yyyy") ?? "—"
 }
 
+// 17 Jun 2026, 2:34 PM — exact date + time, paired with a relative label.
+export function formatDateTime(value: DateInput): string {
+  return toAppDT(value)?.toFormat("dd MMM yyyy, h:mm a") ?? "—"
+}
+
 // "Jun 2026" — short month + year for a "YYYY-MM" string, in the app timezone.
 export function formatMonthLabel(monthStr: string): string {
   return appDT(`${monthStr}-01`).toFormat("MMM yyyy")

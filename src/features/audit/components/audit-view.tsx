@@ -6,8 +6,8 @@ import { ScrollText } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { FILTER_ALL as ALL } from "@/lib/constants"
-import { formatCurrency } from "@/lib/format"
-import { formatRelative } from "@/lib/date-helper"
+import { formatCurrency, getInitials } from "@/lib/format"
+import { formatDateTime, formatRelative } from "@/lib/date-helper"
 import { useAuditLog } from "@/features/audit/hooks"
 import { useMembers } from "@/features/members/hooks"
 import {
@@ -16,6 +16,7 @@ import {
   auditEntityHref,
 } from "@/features/audit/labels"
 import type { AuditLogItem } from "@/features/audit/types"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -140,26 +141,35 @@ function AuditRow({ e }: { e: AuditLogItem }) {
   const name = str("studentName") ?? str("memberName") ?? str("roleName")
   const amount = typeof m.amount === "number" ? formatCurrency(m.amount) : null
   const reason = str("reason")
-  const detail = [name, amount].filter(Boolean).join(" · ")
+  // One detail line: name · amount · "reason" (whichever are present).
+  const detail = [name, amount, reason ? `“${reason}”` : null]
+    .filter(Boolean)
+    .join(" · ")
   const href = auditEntityHref(e.action, e.entityId, e.metadata)
 
   const body = (
     <>
+      <Avatar className="mt-0.5 size-8 shrink-0">
+        {e.actorImage && (
+          <AvatarImage src={e.actorImage} alt={e.actorName ?? ""} className="object-cover" />
+        )}
+        <AvatarFallback className="text-xs">
+          {e.actorName ? getInitials(e.actorName) : "?"}
+        </AvatarFallback>
+      </Avatar>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">
+        <p className="text-sm">
           <span className="font-medium">{e.actorName ?? "Someone"}</span>{" "}
           <span className="text-muted-foreground">
             {AUDIT_ACTION_LABEL[e.action] ?? e.action}
           </span>
         </p>
         {detail && <p className="text-muted-foreground truncate text-xs">{detail}</p>}
-        {reason && (
-          <p className="text-muted-foreground/80 truncate text-xs italic">“{reason}”</p>
-        )}
       </div>
-      <span className="text-muted-foreground shrink-0 text-xs whitespace-nowrap">
-        {formatRelative(e.createdAt)}
-      </span>
+      <div className="shrink-0 text-right whitespace-nowrap" title={formatDateTime(e.createdAt)}>
+        <p className="text-muted-foreground text-xs">{formatRelative(e.createdAt)}</p>
+        <p className="text-muted-foreground/70 text-[11px]">{formatDateTime(e.createdAt)}</p>
+      </div>
     </>
   )
 

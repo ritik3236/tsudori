@@ -6,6 +6,7 @@ export type AuditLogItem = {
   entityType: string
   entityId: string
   actorName: string | null
+  actorImage: string | null
   metadata: Record<string, unknown> | null
   createdAt: string
 }

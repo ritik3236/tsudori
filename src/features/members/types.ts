@@ -7,6 +7,7 @@ export type MemberListItem = {
   membershipId: string
   userId: string
   name: string
+  image: string | null
   email: string
   emailVerified: boolean
   roleId: string

@@ -10,7 +10,7 @@ import { useMembers } from "@/features/members/hooks"
 import { AddMemberDialog } from "@/features/members/components/add-member-dialog"
 import { InviteMemberButton } from "@/features/invitations/components/invite-member-button"
 import { MemberRowActions } from "@/features/members/components/member-row-actions"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -110,7 +110,7 @@ export function MembersCard({
                   className={cn(m.status === "SUSPENDED" && "opacity-60")}
                 >
                   <TableCell>
-                    <MemberIdentity name={m.name} email={m.email} />
+                    <MemberIdentity name={m.name} image={m.image} email={m.email} />
                   </TableCell>
                   <TableCell>
                     <RoleCell roleName={m.roleName} isSuperAdmin={m.isSuperAdmin} />
@@ -156,7 +156,7 @@ export function MembersCard({
               )}
             >
               <div className={showActions ? "pr-9" : undefined}>
-                <MemberIdentity name={m.name} email={m.email} />
+                <MemberIdentity name={m.name} image={m.image} email={m.email} />
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-muted-foreground text-xs">{m.roleName}</span>
                   {m.isSuperAdmin && <Badge variant="secondary">Super admin</Badge>}
@@ -197,10 +197,19 @@ export function MembersCard({
   )
 }
 
-function MemberIdentity({ name, email }: { name: string; email: string }) {
+function MemberIdentity({
+  name,
+  image,
+  email,
+}: {
+  name: string
+  image: string | null
+  email: string
+}) {
   return (
     <div className="flex items-center gap-3">
       <Avatar size="sm">
+        {image && <AvatarImage src={image} alt={name} className="object-cover" />}
         <AvatarFallback>{getInitials(name)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0">
