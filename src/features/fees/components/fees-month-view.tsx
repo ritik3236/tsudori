@@ -8,7 +8,7 @@ import { Receipt, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FILTER_ALL as ALL, MONTHS_SHORT as MONTHS } from "@/lib/constants"
 import { formatCurrency, formatDateLong } from "@/lib/format"
-import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
+import { appYearMonth, appMonthStartUtc, nowDate } from "@/lib/date-helper"
 import {
   useFeeMonthSummary,
   useFeeOverview,
@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select"
 
 function monthStrip() {
-  const { year, month } = appYearMonth(new Date())
+  const { year, month } = appYearMonth(nowDate())
   const arr: { month: number; year: number }[] = []
   for (let off = -5; off <= 1; off++) {
     arr.push(appYearMonth(appMonthStartUtc(year, month + off)))
@@ -64,7 +64,7 @@ export function FeesMonthView({
   canWaive: boolean
   instituteName: string
 }) {
-  const nowYM = appYearMonth(new Date())
+  const nowYM = appYearMonth(nowDate())
   const [sel, setSel] = useState({ month: nowYM.month, year: nowYM.year })
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")

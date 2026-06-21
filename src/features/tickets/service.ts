@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { ForbiddenError, NotFoundError } from "@/lib/errors"
+import { nowDate } from "@/lib/date-helper"
 import { nextResolvedAt } from "@/features/tickets/logic"
 import { TICKET_PAGE_SIZE } from "@/features/tickets/schema"
 import type {
@@ -234,7 +235,7 @@ export async function triageTicket(
   const data: Prisma.TicketUpdateInput = {}
   if (input.status) {
     data.status = input.status
-    data.resolvedAt = nextResolvedAt(existing, input.status, new Date())
+    data.resolvedAt = nextResolvedAt(existing, input.status, nowDate())
   }
   if (input.priority) data.priority = input.priority
   if (input.category) data.category = input.category

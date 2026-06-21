@@ -5,6 +5,7 @@ import type { Prisma, PrismaClient, Student } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
+import { nowDate } from "@/lib/date-helper"
 import type {
   StudentDetail,
   StudentListItem,
@@ -229,7 +230,7 @@ export async function archiveStudent(instituteId: string, id: string): Promise<v
 
   await prisma.student.update({
     where: { id },
-    data: { archivedAt: new Date(), status: "INACTIVE" },
+    data: { archivedAt: nowDate(), status: "INACTIVE" },
   })
 }
 
