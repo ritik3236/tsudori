@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 
 import { can, getTenantContext } from "@/lib/tenant"
-import { APP_TIMEZONE } from "@/lib/date-helper"
+import { appHour, formatWeekdayLong, todayInAppTz } from "@/lib/date-helper"
 import { PERMISSIONS } from "@/lib/rbac"
 import { getDashboardStats } from "@/features/dashboard/service"
 import { cn } from "@/lib/utils"
@@ -42,20 +42,12 @@ export default async function DashboardPage() {
   const att = stats.attendance
   const finance = stats.finance
 
-  const now = new Date()
-  const hour = parseInt(
-    new Intl.DateTimeFormat("en-IN", { timeZone: APP_TIMEZONE, hour: "numeric", hour12: false }).format(now)
-  )
+  const hour = appHour()
   const firstName = ctx.user.name.trim().split(/\s+/)[0]
   const greeting =
     (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening") +
     (firstName ? `, ${firstName}` : "")
-  const today = new Intl.DateTimeFormat("en-IN", {
-    timeZone: APP_TIMEZONE,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(now)
+  const today = formatWeekdayLong(todayInAppTz())
 
   // Quick-access tiles. "Time table" isn't built yet, so it points at the closest
   // live module for now.

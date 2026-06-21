@@ -4,10 +4,11 @@ import { randomBytes } from "node:crypto"
 
 import { prisma } from "@/lib/prisma"
 import { ConflictError, NotFoundError } from "@/lib/errors"
+import { nowDate, nowPlus } from "@/lib/date-helper"
 import type { InviteCreateInput } from "@/features/invitations/schema"
 import type { InvitationPreview } from "@/features/invitations/types"
 
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+const INVITE_TTL_DAYS = 7
 
 /**
  * Creates a pending invite for `email` to join `instituteId` with `roleId` and
@@ -48,7 +49,7 @@ export async function createInvitation(
       roleId: input.roleId,
       token,
       invitedById,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      expiresAt: nowPlus({ days: INVITE_TTL_DAYS }),
     },
   })
   return { token }
@@ -59,7 +60,7 @@ export async function getInvitationPreview(
   token: string
 ): Promise<InvitationPreview | null> {
   const inv = await prisma.invitation.findFirst({
-    where: { token, status: "PENDING", expiresAt: { gt: new Date() } },
+    where: { token, status: "PENDING", expiresAt: { gt: nowDate() } },
     include: {
       institute: { select: { name: true } },
       role: { select: { name: true } },
@@ -76,7 +77,7 @@ export async function getInvitationPreview(
 /** Returns the invited email for a valid token (for the signup call), or throws. */
 export async function getInvitationEmail(token: string): Promise<string> {
   const inv = await prisma.invitation.findFirst({
-    where: { token, status: "PENDING", expiresAt: { gt: new Date() } },
+    where: { token, status: "PENDING", expiresAt: { gt: nowDate() } },
     select: { email: true },
   })
   if (!inv) throw new NotFoundError("This invite is invalid or has expired.")
@@ -91,7 +92,7 @@ export async function getInvitationEmail(token: string): Promise<string> {
 export async function acceptInvitation(token: string, userId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const inv = await tx.invitation.findFirst({
-      where: { token, status: "PENDING", expiresAt: { gt: new Date() } },
+      where: { token, status: "PENDING", expiresAt: { gt: nowDate() } },
     })
     if (!inv) throw new NotFoundError("This invite is invalid or has expired.")
 
@@ -102,7 +103,7 @@ export async function acceptInvitation(token: string, userId: string): Promise<v
     })
     await tx.invitation.update({
       where: { id: inv.id },
-      data: { status: "ACCEPTED", acceptedAt: new Date() },
+      data: { status: "ACCEPTED", acceptedAt: nowDate() },
     })
   })
 }

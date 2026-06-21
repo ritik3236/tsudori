@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { ALL_CLASSES } from "@/lib/constants"
 import { toDateInputValue } from "@/lib/format"
-import { shiftMonthStr } from "@/lib/date-helper"
+import { formatMonthLabel, nowDate, shiftMonthStr } from "@/lib/date-helper"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,7 +21,7 @@ import { AttendanceDayView } from "./attendance-day-view"
 import { AttendanceReport } from "./attendance-report"
 
 function todayStr() {
-  return toDateInputValue(new Date())
+  return toDateInputValue(nowDate())
 }
 
 function currentMonth() {
@@ -29,11 +29,7 @@ function currentMonth() {
 }
 
 function formatMonth(yyyyMm: string) {
-  const [y, m] = yyyyMm.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString("en-IN", {
-    month: "short",
-    year: "numeric",
-  })
+  return formatMonthLabel(yyyyMm)
 }
 
 function shiftMonth(yyyyMm: string, delta: number) {

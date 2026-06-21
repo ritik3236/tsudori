@@ -7,6 +7,7 @@ import { getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { blobPath, putPublicImage, deleteBlob } from "@/lib/blob"
+import { nowEpochMs } from "@/lib/date-helper"
 
 // The client resizes to a ~256px image (a few KB) before upload; this is just a
 // safety cap against a malformed/oversized payload reaching the action.
@@ -60,7 +61,7 @@ export async function setStudentPhoto(
   const path = blobPath(
     ctx.institute.id,
     "students",
-    `${studentId}-${Date.now()}.${format.ext}`
+    `${studentId}-${nowEpochMs()}.${format.ext}`
   )
   const url = await putPublicImage(path, buffer, format.contentType)
   await prisma.student.update({ where: { id: student.id }, data: { photoUrl: url } })

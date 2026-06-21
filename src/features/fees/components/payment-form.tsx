@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { formatCurrency, toDateInputValue } from "@/lib/format"
-import { appYearMonth } from "@/lib/date-helper"
+import { appYearMonth, nowDate } from "@/lib/date-helper"
 import { planPayment } from "@/features/fees/logic"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -50,7 +50,7 @@ const MONTHS = [
 ]
 
 function defaults(monthlyFee: number, remainingDue?: number): PaymentFormValues {
-  const now = new Date()
+  const now = nowDate()
   // Prefill the current month's remaining due (falling back to the full fee), the
   // usual "collect this month" case. The cash still lands oldest-first on save.
   const due = remainingDue ?? monthlyFee
@@ -79,7 +79,7 @@ function totalDue(
   fallback?: number
 ): number {
   if (!allocationContext) return Math.max(0, fallback ?? 0)
-  const now = appYearMonth(new Date())
+  const now = appYearMonth(nowDate())
   let total = 0
   let y = allocationContext.admission.year
   let m = allocationContext.admission.month
@@ -157,7 +157,7 @@ export function PaymentForm({
   // Live breakdown of where the cash lands, using the SAME allocator the server
   // runs — oldest unpaid month first, then prepaying upcoming months. This is the
   // receipt-in-advance, so there's no month to pick.
-  const now = appYearMonth(new Date())
+  const now = appYearMonth(nowDate())
   const nowOrd = now.year * 12 + now.month
   const willWaive = Boolean(watched.waiveRemaining)
 

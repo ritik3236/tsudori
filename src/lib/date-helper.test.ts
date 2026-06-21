@@ -9,6 +9,8 @@ import {
   appDayBounds,
   appMonthBounds,
   toDateInputValue,
+  formatMonthLabel,
+  formatWeekdayLong,
 } from "@/lib/date-helper"
 
 // IST is UTC+5:30, no DST. A stored UTC instant must resolve to its IST calendar
@@ -111,5 +113,26 @@ describe("toDateInputValue", () => {
   it("returns empty string for null/invalid", () => {
     expect(toDateInputValue(null)).toBe("")
     expect(toDateInputValue("not-a-date")).toBe("")
+  })
+})
+
+describe("formatMonthLabel", () => {
+  it("formats a YYYY-MM string as 'MMM yyyy'", () => {
+    expect(formatMonthLabel("2026-06")).toBe("Jun 2026")
+    expect(formatMonthLabel("2026-01")).toBe("Jan 2026")
+  })
+})
+
+describe("formatWeekdayLong", () => {
+  it("formats a UTC instant to its IST weekday + long date", () => {
+    // 21 Jun 2026 12:00 UTC is a Sunday in IST.
+    expect(formatWeekdayLong(new Date("2026-06-21T12:00:00.000Z"))).toBe("Sunday, 21 June")
+  })
+  it("uses the IST calendar day across the midnight boundary", () => {
+    // 16 Jun 18:30 UTC == 17 Jun 00:00 IST → Wednesday the 17th.
+    expect(formatWeekdayLong(new Date("2026-06-16T18:30:00.000Z"))).toBe("Wednesday, 17 June")
+  })
+  it("returns em dash for null/invalid", () => {
+    expect(formatWeekdayLong(null)).toBe("—")
   })
 })

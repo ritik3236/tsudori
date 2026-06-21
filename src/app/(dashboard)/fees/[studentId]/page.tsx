@@ -9,7 +9,7 @@ import { NotFoundError } from "@/lib/errors"
 import { cn } from "@/lib/utils"
 import { MONTHS_SHORT as MONTHS } from "@/lib/constants"
 import { formatCurrency, formatDateLong } from "@/lib/format"
-import { appYearMonth } from "@/lib/date-helper"
+import { appYearMonth, nowDate } from "@/lib/date-helper"
 import { getStudentFee } from "@/features/fees/service"
 import { METHOD_LABELS } from "@/features/fees/schema"
 import { BackLink } from "@/components/shared/back-link"
@@ -42,7 +42,7 @@ export default async function StudentFeesPage({
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
   const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
   const canReverse = can(ctx, PERMISSIONS.FEE_REVERSE)
-  const { year: periodYear, month: periodMonth } = appYearMonth(new Date())
+  const { year: periodYear, month: periodMonth } = appYearMonth(nowDate())
 
   // Three core KPIs — the actionable current-period figure first (advance when
   // in credit, else pending), then lifetime owed and lifetime collected. The

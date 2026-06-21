@@ -3,7 +3,7 @@ import "server-only"
 import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
-import { appYearMonth, appMonthStartUtc } from "@/lib/date-helper"
+import { appYearMonth, appMonthStartUtc, nowDate } from "@/lib/date-helper"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { deriveMonth, planPayment, planWaiver, resolveReversal } from "@/features/fees/logic"
 import { FEE_PAGE_SIZE } from "@/features/fees/schema"
@@ -37,7 +37,7 @@ const WAIVER_REASON_SETTLE = "Balance waived to settle dues"
 const WAIVER_REASON_REVERSED = "Waiver reversed"
 
 function currentPeriod() {
-  const { year, month } = appYearMonth(new Date())
+  const { year, month } = appYearMonth(nowDate())
   return { month, year }
 }
 
@@ -412,7 +412,7 @@ export async function recordPayment(
     if (!student) throw new NotFoundError("Student not found.")
 
     const fee = Number(student.monthlyFee)
-    const now = appYearMonth(new Date())
+    const now = appYearMonth(nowDate())
 
     // What's already settled per month, so we only ever fill the unmet due.
     const [paidGroups, waiverGroups] = await Promise.all([
@@ -568,7 +568,7 @@ export async function reversePayment(
         periodMonth: original.periodMonth,
         periodYear: original.periodYear,
         method: original.method,
-        paidAt: new Date(),
+        paidAt: nowDate(),
         receiptNo: null,
         note: input.reason,
         recordedById,
@@ -673,7 +673,7 @@ export async function recordWaiver(
     if (!student) throw new NotFoundError("Student not found.")
 
     const fee = Number(student.monthlyFee)
-    const now = appYearMonth(new Date())
+    const now = appYearMonth(nowDate())
 
     // What's already settled per month, so we only ever waive the unmet due.
     const [paidGroups, waiverGroups] = await Promise.all([
@@ -848,7 +848,7 @@ export async function feeMonthlyOverview(
   // A window of months around now. Expected for each month only counts students
   // already enrolled by then (admissionDate before the next month begins), and is
   // net of waivers — a waived month lowers what's expected to be collected in cash.
-  const nowYM = appYearMonth(new Date())
+  const nowYM = appYearMonth(nowDate())
   const byMonth: Record<string, { collected: number; expected: number }> = {}
   for (let off = -5; off <= 1; off++) {
     const { year: y, month: m } = appYearMonth(

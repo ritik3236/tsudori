@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
 import { toDateInputValue } from "@/lib/format"
+import { nowDate } from "@/lib/date-helper"
 import {
   NO_CLASS,
   formValuesToInput,
@@ -51,7 +52,7 @@ function emptyValues(): StudentFormValues {
     guardianName: "",
     contactNumber: "",
     email: "",
-    admissionDate: toDateInputValue(new Date()),
+    admissionDate: toDateInputValue(nowDate()),
     monthlyFee: "",
     status: "ACTIVE",
     notes: "",

@@ -1,4 +1,4 @@
-import { DateTime } from "luxon"
+import { DateTime, type DurationLike } from "luxon"
 
 // Product timezone — change this one constant to ship for a different region.
 export const APP_TIMEZONE = "Asia/Kolkata"
@@ -54,6 +54,30 @@ export function todayInAppTz(): string {
   return appNow().toISODate()!
 }
 
+// ─── "Now" helpers (no native Date / Date.now) ────────────────────────────────
+
+// The current instant as a UTC JS Date — the no-native-Date replacement for
+// `new Date()` when persisting/comparing "now" (paidAt, archivedAt, expiry gates).
+export function nowDate(): Date {
+  return appNow().toJSDate()
+}
+
+// Current epoch milliseconds (the absolute UTC instant). For unique tokens and
+// filenames that need a monotonic timestamp without reaching for Date.now().
+export function nowEpochMs(): number {
+  return appNow().toMillis()
+}
+
+// A UTC JS Date `delta` from now (calendar-aware via Luxon). For TTLs / expiries.
+export function nowPlus(delta: DurationLike): Date {
+  return appNow().plus(delta).toJSDate()
+}
+
+// Current hour (0–23) in the app timezone — for time-of-day logic like greetings.
+export function appHour(): number {
+  return appNow().hour
+}
+
 // ─── Boundary helpers ─────────────────────────────────────────────────────────
 
 // [dayStart, dayEnd) as UTC timestamps for a YYYY-MM-DD date in the app timezone.
@@ -100,6 +124,16 @@ export function formatDateShort(value: DateInput): string {
 // 17 Jun 2026
 export function formatDateLong(value: DateInput): string {
   return toAppDT(value)?.toFormat("dd MMM yyyy") ?? "—"
+}
+
+// "Jun 2026" — short month + year for a "YYYY-MM" string, in the app timezone.
+export function formatMonthLabel(monthStr: string): string {
+  return appDT(`${monthStr}-01`).toFormat("MMM yyyy")
+}
+
+// "Saturday, 21 June" — full weekday + day + long month, in the app timezone.
+export function formatWeekdayLong(value: DateInput): string {
+  return toAppDT(value)?.toFormat("cccc, d MMMM") ?? "—"
 }
 
 // "just now" / "5m ago" / "3h ago" / "2d ago", falling back to a date past a week.
