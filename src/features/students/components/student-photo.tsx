@@ -7,6 +7,7 @@ import { ImagePlus, Trash2, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { getInitials } from "@/lib/format"
+import { canvasToCompactDataUrl } from "@/lib/image"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -62,7 +63,7 @@ export function StudentPhoto({ studentId, fullName, photoUrl: initialUrl, canEdi
     if (!src || !areaPx) return
     setSaving(true)
     try {
-      const dataUrl = await cropToWebp(src, areaPx, TARGET_PX)
+      const dataUrl = await cropToImage(src, areaPx, TARGET_PX)
       const { photoUrl: url } = await setStudentPhoto(studentId, dataUrl)
       setPhotoUrl(url)
       setSrc(null)
@@ -190,9 +191,9 @@ export function StudentPhoto({ studentId, fullName, photoUrl: initialUrl, canEdi
 }
 
 // Draw the chosen crop region (in source pixels) onto a square canvas at the
-// target size and export a compressed webp data URL — the "optimize on the fly"
-// step, so a multi-MB upload becomes a few-KB avatar.
-async function cropToWebp(src: string, area: Area, size: number): Promise<string> {
+// target size and export a compressed data URL — the "optimize on the fly" step,
+// so a multi-MB upload becomes a few-KB avatar (webp, or jpeg on iOS Safari).
+async function cropToImage(src: string, area: Area, size: number): Promise<string> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image()
     el.onload = () => resolve(el)
@@ -205,5 +206,5 @@ async function cropToWebp(src: string, area: Area, size: number): Promise<string
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("no 2d context")
   ctx.drawImage(img, area.x, area.y, area.width, area.height, 0, 0, size, size)
-  return canvas.toDataURL("image/webp", 0.85)
+  return canvasToCompactDataUrl(canvas)
 }

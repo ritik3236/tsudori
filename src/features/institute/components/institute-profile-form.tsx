@@ -15,6 +15,7 @@ import {
 import type { InstituteProfile } from "@/features/institute/types"
 import { useUpdateInstitute } from "@/features/institute/hooks"
 import { getInitials } from "@/lib/format"
+import { canvasToCompactDataUrl } from "@/lib/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,8 +29,8 @@ import {
 
 const MAX_LOGO_PX = 256
 
-// Downscale an image File to a small webp data URL. The institute logo loads with
-// the tenant context on every page (for the header), so we keep the base64 light.
+// Downscale an image File to a small data URL. The institute logo loads with the
+// tenant context on every page (for the header), so we keep the base64 light.
 async function fileToLogoDataUrl(file: File): Promise<string> {
   const src = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -50,7 +51,7 @@ async function fileToLogoDataUrl(file: File): Promise<string> {
   canvas.width = w
   canvas.height = h
   canvas.getContext("2d")?.drawImage(img, 0, 0, w, h)
-  return canvas.toDataURL("image/webp", 0.85)
+  return canvasToCompactDataUrl(canvas)
 }
 
 type Props = {

@@ -8,13 +8,34 @@ import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { blobPath, putPublicImage, deleteBlob } from "@/lib/blob"
 
-// The client resizes to a ~256px webp (a few KB) before upload; this is just a
+// The client resizes to a ~256px image (a few KB) before upload; this is just a
 // safety cap against a malformed/oversized payload reaching the action.
 const MAX_BYTES = 600_000
-const WEBP_PREFIX = "data:image/webp;base64,"
 
-/** Set a student's profile photo from a base64 webp data URL. Uploads to Blob,
- *  points the row at the new URL, then deletes the previous blob. */
+// Accepted upload formats. The client encodes to webp, falling back to jpeg on
+// browsers without canvas webp support (iOS Safari). Each maps to its blob
+// content-type, file extension, and a magic-byte check on the decoded bytes —
+// this action takes client-supplied input directly, so we don't trust the prefix.
+const FORMATS = [
+  {
+    prefix: "data:image/webp;base64,",
+    ext: "webp",
+    contentType: "image/webp",
+    // RIFF....WEBP
+    isValid: (b: Buffer) =>
+      b.length >= 12 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP",
+  },
+  {
+    prefix: "data:image/jpeg;base64,",
+    ext: "jpg",
+    contentType: "image/jpeg",
+    // SOI marker FF D8 FF
+    isValid: (b: Buffer) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  },
+] as const
+
+/** Set a student's profile photo from a base64 webp/jpeg data URL. Uploads to
+ *  Blob, points the row at the new URL, then deletes the previous blob. */
 export async function setStudentPhoto(
   studentId: string,
   dataUrl: string
@@ -28,21 +49,20 @@ export async function setStudentPhoto(
   })
   if (!student) throw new NotFoundError("Student not found.")
 
-  if (!dataUrl.startsWith(WEBP_PREFIX)) throw new ValidationError("Invalid image.")
-  const buffer = Buffer.from(dataUrl.slice(WEBP_PREFIX.length), "base64")
+  const format = FORMATS.find((f) => dataUrl.startsWith(f.prefix))
+  if (!format) throw new ValidationError("Invalid image.")
+  const buffer = Buffer.from(dataUrl.slice(format.prefix.length), "base64")
   if (buffer.length === 0 || buffer.length > MAX_BYTES) {
     throw new ValidationError("Image is too large.")
   }
-  // Validate real WebP content (RIFF…WEBP magic bytes), not just the data-URL
-  // prefix — this action is directly callable with client-supplied input.
-  const isWebp =
-    buffer.length >= 12 &&
-    buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WEBP"
-  if (!isWebp) throw new ValidationError("Invalid image.")
+  if (!format.isValid(buffer)) throw new ValidationError("Invalid image.")
 
-  const path = blobPath(ctx.institute.id, "students", `${studentId}-${Date.now()}.webp`)
-  const url = await putPublicImage(path, buffer, "image/webp")
+  const path = blobPath(
+    ctx.institute.id,
+    "students",
+    `${studentId}-${Date.now()}.${format.ext}`
+  )
+  const url = await putPublicImage(path, buffer, format.contentType)
   await prisma.student.update({ where: { id: student.id }, data: { photoUrl: url } })
   if (student.photoUrl) await deleteBlob(student.photoUrl)
 
