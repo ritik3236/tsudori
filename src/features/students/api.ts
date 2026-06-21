@@ -43,6 +43,7 @@ export const studentsApi = {
     http.delete<void>(
       `/api/students/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ""}`
     ),
+  restore: (id: string) => http.post<void>(`/api/students/${id}`),
 }
 
 export const classesApi = {

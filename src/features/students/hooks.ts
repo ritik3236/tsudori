@@ -85,3 +85,15 @@ export function useArchiveStudent() {
     onError: (e) => reportError(e, "Couldn't archive the student."),
   })
 }
+
+export function useRestoreStudent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => studentsApi.restore(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: studentKeys.all })
+      toast.success("Student restored.")
+    },
+    onError: (e) => reportError(e, "Couldn't restore the student."),
+  })
+}

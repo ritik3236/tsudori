@@ -9,6 +9,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "member.restore": "Restored a member",
   "member.role_change": "Changed a member's role",
   "student.archive": "Archived a student",
+  "student.restore": "Restored a student",
   "role.permissions_change": "Changed role permissions",
 }
 

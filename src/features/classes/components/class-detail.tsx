@@ -15,9 +15,10 @@ import type { ClassListItem } from "@/features/classes/types"
 type ClassDetailProps = {
   cls: ClassListItem
   canManage: boolean
+  canConfigureAttendance: boolean
 }
 
-export function ClassDetail({ cls, canManage }: ClassDetailProps) {
+export function ClassDetail({ cls, canManage, canConfigureAttendance }: ClassDetailProps) {
   const [editOpen, setEditOpen] = useState(false)
 
   return (
@@ -48,7 +49,7 @@ export function ClassDetail({ cls, canManage }: ClassDetailProps) {
         <StudentsTable classId={cls.id} />
       </div>
 
-      {canManage && <ClassAttendanceConfig cls={cls} />}
+      {canConfigureAttendance && <ClassAttendanceConfig cls={cls} />}
 
       {canManage && (
         <EditClassDialog cls={cls} open={editOpen} onOpenChange={setEditOpen} />

@@ -258,6 +258,32 @@ export async function archiveStudent(
   })
 }
 
+/** Reverses an archive: clears archivedAt so the student returns to active lists. */
+export async function restoreStudent(
+  instituteId: string,
+  id: string,
+  actorId: string
+): Promise<void> {
+  const existing = await prisma.student.findFirst({
+    where: { id, instituteId },
+    select: { id: true, fullName: true, serialNo: true, archivedAt: true },
+  })
+  if (!existing) throw new NotFoundError("Student not found.")
+  if (existing.archivedAt === null) return // already active — idempotent
+
+  await prisma.$transaction(async (tx) => {
+    await tx.student.update({ where: { id }, data: { archivedAt: null } })
+    await recordAudit(tx, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.STUDENT_RESTORE,
+      entityType: "Student",
+      entityId: id,
+      metadata: { studentName: existing.fullName, serialNo: existing.serialNo },
+    })
+  })
+}
+
 type StudentWithClass = Student & { class: { name: string; section: string } | null }
 
 function toListItem(student: StudentWithClass): StudentListItem {

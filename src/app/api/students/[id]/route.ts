@@ -5,6 +5,7 @@ import { studentUpdateSchema } from "@/features/students/schema"
 import {
   archiveStudent,
   getStudent,
+  restoreStudent,
   updateStudent,
 } from "@/features/students/service"
 
@@ -38,5 +39,15 @@ export const DELETE = route<RouteContext>(async (req, { params }) => {
 
   const reason = new URL(req.url).searchParams.get("reason")
   await archiveStudent(ctx.institute.id, id, ctx.user.id, reason)
+  return noContent()
+})
+
+// Restore a previously archived student back to active.
+export const POST = route<RouteContext>(async (_req, { params }) => {
+  const { id } = await params
+  const ctx = await getTenantContext()
+  requirePermission(ctx, PERMISSIONS.STUDENT_ARCHIVE)
+
+  await restoreStudent(ctx.institute.id, id, ctx.user.id)
   return noContent()
 })

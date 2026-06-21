@@ -20,6 +20,7 @@ export const AUDIT_ACTIONS = {
   MEMBER_RESTORE: "member.restore",
   MEMBER_ROLE_CHANGE: "member.role_change",
   STUDENT_ARCHIVE: "student.archive",
+  STUDENT_RESTORE: "student.restore",
   ROLE_PERMISSIONS_CHANGE: "role.permissions_change",
 } as const
 

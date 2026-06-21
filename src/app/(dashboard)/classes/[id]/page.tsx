@@ -53,7 +53,11 @@ export default async function ClassDetailPage({ params }: Props) {
     <div className="space-y-6">
       <BackLink href="/classes" label="Classes" />
       <HydrationBoundary state={dehydrate(qc)}>
-        <ClassDetail cls={cls} canManage={can(ctx, PERMISSIONS.CLASS_MANAGE)} />
+        <ClassDetail
+          cls={cls}
+          canManage={can(ctx, PERMISSIONS.CLASS_MANAGE)}
+          canConfigureAttendance={can(ctx, PERMISSIONS.ATTENDANCE_CONFIGURE)}
+        />
       </HydrationBoundary>
     </div>
   )

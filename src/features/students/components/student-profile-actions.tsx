@@ -3,12 +3,16 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Archive, Check, ChevronDown, HandCoins, Pencil } from "lucide-react"
+import { Archive, Check, ChevronDown, HandCoins, Pencil, RotateCcw } from "lucide-react"
 import type { StudentStatus } from "@prisma/client"
 
 import { STUDENT_STATUSES } from "@/features/students/schema"
 import { STUDENT_STATUS_LABEL } from "@/features/students/components/student-status-badge"
-import { useArchiveStudent, useUpdateStudent } from "@/features/students/hooks"
+import {
+  useArchiveStudent,
+  useRestoreStudent,
+  useUpdateStudent,
+} from "@/features/students/hooks"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -41,10 +45,12 @@ export function StudentProfileActions({
   const router = useRouter()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const archive = useArchiveStudent()
+  const restore = useRestoreStudent()
   const update = useUpdateStudent(studentId)
 
   const canChangeStatus = canEdit && !isArchived
   const showArchive = canArchive && !isArchived
+  const canRestore = canArchive && isArchived
   // Status changes and archive share one menu — show it if either is available.
   const showMenu = canChangeStatus || showArchive
 
@@ -115,6 +121,19 @@ export function StudentProfileActions({
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+
+      {canRestore && (
+        <Button
+          variant="outline"
+          className="flex-1 sm:flex-none"
+          disabled={restore.isPending}
+          onClick={() =>
+            restore.mutate(studentId, { onSuccess: () => router.refresh() })
+          }
+        >
+          <RotateCcw className="size-4" /> Restore
+        </Button>
       )}
 
       {showArchive && (
