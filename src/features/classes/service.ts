@@ -1,10 +1,11 @@
 import "server-only"
 
 import { cache } from "react"
-import type { Class } from "@prisma/client"
+import { Prisma, type Class } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { ConflictError, NotFoundError } from "@/lib/errors"
+import { parseWeeklyOff } from "@/lib/working-day"
 import type { ClassListItem } from "@/features/classes/types"
 import { normalizeClassKey } from "@/features/classes/schema"
 import type { ClassCreateInput, ClassUpdateInput } from "@/features/classes/schema"
@@ -99,6 +100,12 @@ export async function updateClass(
         defaultMonthlyFee: input.defaultMonthlyFee,
       }),
       ...(input.status !== undefined && { status: input.status }),
+      // null → store SQL NULL (inherit the institute default); an array (incl. [])
+      // is an explicit per-class override.
+      ...(input.weeklyOffOverride !== undefined && {
+        weeklyOffOverride:
+          input.weeklyOffOverride === null ? Prisma.DbNull : input.weeklyOffOverride,
+      }),
     },
     include: { _count: { select: { students: { where: { archivedAt: null } } } } },
   })
@@ -115,5 +122,6 @@ function toListItem(cls: ClassWithCount): ClassListItem {
     defaultMonthlyFee: Number(cls.defaultMonthlyFee),
     status: cls.status,
     studentCount: cls._count.students,
+    weeklyOffOverride: parseWeeklyOff(cls.weeklyOffOverride),
   }
 }

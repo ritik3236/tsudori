@@ -12,6 +12,7 @@ export const PERMISSION_MODULES = [
   "institute",
   "member",
   "role",
+  "audit",
 ] as const
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number]
@@ -25,6 +26,7 @@ export const PERMISSIONS = {
 
   ATTENDANCE_READ: "attendance:read",
   ATTENDANCE_MARK: "attendance:mark",
+  ATTENDANCE_CONFIGURE: "attendance:configure",
 
   FEE_READ: "fee:read",
   FEE_RECORD: "fee:record",
@@ -44,6 +46,8 @@ export const PERMISSIONS = {
   MEMBER_MANAGE: "member:manage",
 
   ROLE_MANAGE: "role:manage",
+
+  AUDIT_READ: "audit:read",
 } as const
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -60,6 +64,8 @@ export const ADMIN_PERMISSIONS: Permission[] = [
   PERMISSIONS.MEMBER_MANAGE,
   PERMISSIONS.ROLE_MANAGE,
   PERMISSIONS.FEE_CONFIGURE,
+  PERMISSIONS.ATTENDANCE_CONFIGURE,
+  PERMISSIONS.AUDIT_READ,
 ]
 
 /** Maps a permission key back to its module, for building permission matrices. */
@@ -125,6 +131,7 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
       PERMISSIONS.CLASS_READ,
       PERMISSIONS.MEMBER_READ,
       PERMISSIONS.REPORT_VIEW,
+      PERMISSIONS.AUDIT_READ,
     ],
   },
 ]

@@ -63,14 +63,20 @@ export function AttendanceReport({ classId, month }: Props) {
                   class table — a long name no longer shifts them. */}
               <div className="w-36">Student</div>
             </th>
-            {data.schoolDays.map((d) => (
-              <th
-                key={d}
-                className="text-muted-foreground min-w-[28px] pb-2 px-1 text-center font-medium"
-              >
-                {parseInt(d.slice(8), 10)}
-              </th>
-            ))}
+            {data.schoolDays.map((d) => {
+              const holiday = data.holidays[d]
+              return (
+                <th
+                  key={d}
+                  title={holiday ? (holiday.name ?? "Holiday") : undefined}
+                  className={`min-w-[28px] pb-2 px-1 text-center font-medium ${
+                    holiday ? "text-muted-foreground/40" : "text-muted-foreground"
+                  }`}
+                >
+                  {parseInt(d.slice(8), 10)}
+                </th>
+              )
+            })}
             <th className="text-muted-foreground pb-2 pl-3 pr-1 text-center font-medium">P</th>
             <th className="text-muted-foreground pb-2 px-1 text-center font-medium">A</th>
             <th className="text-muted-foreground pb-2 px-1 text-center font-medium">L</th>
@@ -85,6 +91,18 @@ export function AttendanceReport({ classId, month }: Props) {
                 </div>
               </td>
               {data.schoolDays.map((d) => {
+                const holiday = data.holidays[d]
+                if (holiday) {
+                  return (
+                    <td
+                      key={d}
+                      className="py-2.5 px-1 text-center"
+                      title={holiday.name ?? "Holiday"}
+                    >
+                      <span className="text-muted-foreground/40 text-xs font-medium">H</span>
+                    </td>
+                  )
+                }
                 const status = row.days[d] as AttendanceStatus | undefined
                 const cfg = status ? STATUS_CELL[status] : null
                 return (

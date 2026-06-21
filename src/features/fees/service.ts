@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc, nowDate } from "@/lib/date-helper"
 import { NotFoundError, ValidationError } from "@/lib/errors"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 import { deriveMonth, planPayment, planWaiver, resolveReversal } from "@/features/fees/logic"
 import { FEE_PAGE_SIZE } from "@/features/fees/schema"
 import type {
@@ -579,6 +580,22 @@ export async function reversePayment(
       include: { recordedBy: { select: { name: true } } },
     })
 
+    await recordAudit(tx, {
+      instituteId,
+      actorId: recordedById,
+      action: AUDIT_ACTIONS.FEE_PAYMENT_REVERSE,
+      entityType: "FeePayment",
+      entityId: original.id,
+      metadata: {
+        amount: plan.amount,
+        receiptNo: original.receiptNo,
+        studentId: original.studentId,
+        month: original.periodMonth,
+        year: original.periodYear,
+        reason: input.reason ?? null,
+      },
+    })
+
     return {
       reversal: toPaymentItem(row),
       original: toPaymentItem(original, reversedSoFar + plan.amount),
@@ -646,6 +663,21 @@ export async function reverseWaiver(
         reversalOfId: original.id,
       },
       include: { waivedBy: { select: { name: true } } },
+    })
+
+    await recordAudit(tx, {
+      instituteId,
+      actorId: waivedById,
+      action: AUDIT_ACTIONS.FEE_WAIVER_REVERSE,
+      entityType: "FeeWaiver",
+      entityId: original.id,
+      metadata: {
+        amount: plan.amount,
+        studentId: original.studentId,
+        month: original.periodMonth,
+        year: original.periodYear,
+        reason: input.reason ?? null,
+      },
     })
 
     return {
@@ -733,6 +765,19 @@ export async function recordWaiver(
       })
       rows.push(row)
     }
+
+    await recordAudit(tx, {
+      instituteId,
+      actorId: waivedById,
+      action: AUDIT_ACTIONS.FEE_WAIVE,
+      entityType: "Student",
+      entityId: student.id,
+      metadata: {
+        amount: rows.reduce((sum, r) => sum + Number(r.amount), 0),
+        months: rows.length,
+        reason,
+      },
+    })
     return rows
   })
 

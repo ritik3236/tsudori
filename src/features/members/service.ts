@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 import type { MemberListItem, RoleOption } from "@/features/members/types"
 
 // Like the other services, every function takes instituteId as its first
@@ -142,23 +143,41 @@ export async function getMember(
 export async function updateMemberRole(
   instituteId: string,
   userId: string,
-  roleId: string
+  roleId: string,
+  actorId: string,
+  reason?: string | null
 ): Promise<MemberListItem> {
   await assertNotSuperAdmin(userId)
   await assertRoleInInstitute(instituteId, roleId)
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
-    select: { id: true },
+    include: MEMBER_INCLUDE,
   })
   if (!membership) {
     throw new NotFoundError("That user isn't a member of this institute.")
   }
-  const updated = await prisma.membership.update({
-    where: { id: membership.id },
-    data: { roleId },
-    include: MEMBER_INCLUDE,
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.membership.update({
+      where: { id: membership.id },
+      data: { roleId },
+      include: MEMBER_INCLUDE,
+    })
+    await recordAudit(tx, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.MEMBER_ROLE_CHANGE,
+      entityType: "Membership",
+      entityId: membership.id,
+      metadata: {
+        userId,
+        memberName: membership.user.name,
+        fromRole: membership.role.name,
+        toRole: updated.role.name,
+        reason: reason || null,
+      },
+    })
+    return toMemberListItem(updated)
   })
-  return toMemberListItem(updated)
 }
 
 /**
@@ -169,27 +188,45 @@ export async function updateMemberRole(
  */
 export async function removeMember(
   instituteId: string,
-  userId: string
+  userId: string,
+  actorId: string,
+  reason?: string | null
 ): Promise<void> {
   await assertNotSuperAdmin(userId)
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
-    select: { id: true, status: true },
+    include: MEMBER_INCLUDE,
   })
   if (!membership) {
     throw new NotFoundError("That user isn't a member of this institute.")
   }
   if (membership.status === "SUSPENDED") return // already removed — idempotent
-  await prisma.membership.update({
-    where: { id: membership.id },
-    data: { status: "SUSPENDED" },
+  await prisma.$transaction(async (tx) => {
+    await tx.membership.update({
+      where: { id: membership.id },
+      data: { status: "SUSPENDED" },
+    })
+    await recordAudit(tx, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.MEMBER_REMOVE,
+      entityType: "Membership",
+      entityId: membership.id,
+      metadata: {
+        userId,
+        memberName: membership.user.name,
+        role: membership.role.name,
+        reason: reason || null,
+      },
+    })
   })
 }
 
 /** Restores a soft-removed (suspended) member back to ACTIVE, re-granting access. */
 export async function restoreMember(
   instituteId: string,
-  userId: string
+  userId: string,
+  actorId: string
 ): Promise<MemberListItem> {
   const membership = await prisma.membership.findFirst({
     where: { instituteId, userId },
@@ -199,10 +236,24 @@ export async function restoreMember(
     throw new NotFoundError("That user isn't a member of this institute.")
   }
   if (membership.status === "ACTIVE") return toMemberListItem(membership) // already active — idempotent
-  const updated = await prisma.membership.update({
-    where: { id: membership.id },
-    data: { status: "ACTIVE" },
-    include: MEMBER_INCLUDE,
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.membership.update({
+      where: { id: membership.id },
+      data: { status: "ACTIVE" },
+      include: MEMBER_INCLUDE,
+    })
+    await recordAudit(tx, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.MEMBER_RESTORE,
+      entityType: "Membership",
+      entityId: membership.id,
+      metadata: {
+        userId,
+        memberName: membership.user.name,
+        role: membership.role.name,
+      },
+    })
+    return toMemberListItem(updated)
   })
-  return toMemberListItem(updated)
 }

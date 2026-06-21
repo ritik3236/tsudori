@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient, Student } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { NotFoundError, ValidationError } from "@/lib/errors"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import { nowDate } from "@/lib/date-helper"
 import type {
@@ -223,18 +224,37 @@ export async function updateStudent(
 }
 
 /** Soft-archive: drops the student from active lists but keeps all history. */
-export async function archiveStudent(instituteId: string, id: string): Promise<void> {
+export async function archiveStudent(
+  instituteId: string,
+  id: string,
+  actorId: string,
+  reason?: string | null
+): Promise<void> {
   const existing = await prisma.student.findFirst({
     where: { id, instituteId },
-    select: { id: true },
+    select: { id: true, fullName: true, serialNo: true },
   })
   if (!existing) throw new NotFoundError("Student not found.")
 
-  await prisma.student.update({
-    where: { id },
-    // Archiving is a soft-delete only — it doesn't change the lifecycle status,
-    // so a "Left"/"Completed" student keeps that status while archived.
-    data: { archivedAt: nowDate() },
+  await prisma.$transaction(async (tx) => {
+    await tx.student.update({
+      where: { id },
+      // Archiving is a soft-delete only — it doesn't change the lifecycle status,
+      // so a "Left"/"Completed" student keeps that status while archived.
+      data: { archivedAt: nowDate() },
+    })
+    await recordAudit(tx, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.STUDENT_ARCHIVE,
+      entityType: "Student",
+      entityId: id,
+      metadata: {
+        studentName: existing.fullName,
+        serialNo: existing.serialNo,
+        reason: reason || null,
+      },
+    })
   })
 }
 

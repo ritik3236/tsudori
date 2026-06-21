@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Users } from "lucide-react"
+import { CalendarOff, Users } from "lucide-react"
 import { toast } from "sonner"
 
 import { formatDateLong } from "@/lib/format"
+import { formatWeekdayLong } from "@/lib/date-helper"
 import {
   attendanceAbsenceMessage,
   toWhatsAppNumber,
@@ -15,8 +16,14 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { EmptyState } from "@/components/shared/empty-state"
 import { AttendanceStatusToggle } from "./attendance-status-toggle"
-import { useAttendanceDay, useMarkAttendance, useMarkBulkAttendance } from "@/features/attendance/hooks"
-import type { AttendanceStatus } from "@/features/attendance/types"
+import {
+  useAttendanceDay,
+  useClearDay,
+  useHoldClass,
+  useMarkAttendance,
+  useMarkBulkAttendance,
+} from "@/features/attendance/hooks"
+import type { AttendanceStatus, WorkingDay } from "@/features/attendance/types"
 
 type Props = {
   classId: string
@@ -25,16 +32,27 @@ type Props = {
   instituteName: string
 }
 
+/** Human label for why a day is closed. */
+function holidayTitle(workingDay: WorkingDay): string {
+  if (workingDay.reason === "weekly-off") return "Weekly holiday"
+  return workingDay.name ?? "Holiday"
+}
+
 export function AttendanceDayView({ classId, date, canMark, instituteName }: Props) {
   const { data, isLoading } = useAttendanceDay(classId, date)
   const mark = useMarkAttendance(classId, date)
   const markBulk = useMarkBulkAttendance(classId, date)
+  const holdClass = useHoldClass(classId, date)
+  const clearDay = useClearDay(classId, date)
 
-  // Auto-mark all unmarked students as Present when the day loads for the first time.
-  // Teachers only need to change who is Absent or on Leave.
+  const isWorkingDay = data?.workingDay.working ?? true
+
+  // Auto-mark all unmarked students as Present when the day loads for the first
+  // time — but NEVER on a non-working day (that's what manufactured the phantom
+  // Sunday attendance). Teachers only need to change who is Absent or on Leave.
   const autoMarked = useRef(new Set<string>())
   useEffect(() => {
-    if (!canMark || !data) return
+    if (!canMark || !data || !data.workingDay.working) return
     const key = `${data.classId}:${data.date}`
     if (autoMarked.current.has(key)) return
     autoMarked.current.add(key)
@@ -48,7 +66,7 @@ export function AttendanceDayView({ classId, date, canMark, instituteName }: Pro
       },
       { onSuccess: () => {} } // auto-mark is silent; no toast
     )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
   function handleMark(studentId: string, status: AttendanceStatus) {
@@ -82,7 +100,57 @@ export function AttendanceDayView({ classId, date, canMark, instituteName }: Pro
 
   if (!data) return null
 
-  const { students, summary } = data
+  const { students, summary, workingDay } = data
+  const markedCount = summary.present + summary.absent + summary.leave
+
+  // ── Holiday: no auto-mark, no marking grid. Offer to open the day or clear any
+  //    phantom records left from before holidays existed. ──
+  if (!isWorkingDay) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+          <div className="flex items-start gap-3">
+            <CalendarOff className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-400" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {holidayTitle(workingDay)}
+              </p>
+              <p className="mt-0.5 text-sm text-amber-800/90 dark:text-amber-200/80">
+                {`${formatWeekdayLong(date)} is not a working day — attendance isn’t taken.`}
+              </p>
+              {markedCount > 0 && (
+                <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/70">
+                  {markedCount} student{markedCount === 1 ? "" : "s"} still marked for this
+                  day.
+                </p>
+              )}
+              {canMark && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => holdClass.mutate()}
+                    disabled={holdClass.isPending}
+                  >
+                    Hold class today
+                  </Button>
+                  {markedCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => clearDay.mutate()}
+                      disabled={clearDay.isPending}
+                    >
+                      Clear attendance
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (students.length === 0) {
     return (
@@ -96,6 +164,13 @@ export function AttendanceDayView({ classId, date, canMark, instituteName }: Pro
 
   return (
     <div className="space-y-4">
+      {/* Extra-class banner: a normally-off day that was opened for marking. */}
+      {workingDay.reason === "extra-class" && (
+        <p className="text-muted-foreground rounded-lg border border-dashed px-3 py-2 text-xs">
+          Extra class — this day is normally off.
+        </p>
+      )}
+
       {/* Summary row */}
       <div className="bg-card grid grid-cols-4 divide-x rounded-xl border">
         <SumCell label="Total" value={summary.total} />

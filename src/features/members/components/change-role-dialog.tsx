@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 
 type ChangeRoleDialogProps = {
   open: boolean
@@ -55,12 +56,12 @@ export function ChangeRoleDialog({
 
   const form = useForm<MemberUpdateInput>({
     resolver: zodResolver(memberUpdateSchema),
-    defaultValues: { roleId: currentRoleId },
+    defaultValues: { roleId: currentRoleId, reason: "" },
   })
 
   // Re-sync to the member's current role each time the dialog opens.
   useEffect(() => {
-    if (open) form.reset({ roleId: currentRoleId })
+    if (open) form.reset({ roleId: currentRoleId, reason: "" })
   }, [open, currentRoleId, form])
 
   const submit = form.handleSubmit((values) => {
@@ -68,7 +69,10 @@ export function ChangeRoleDialog({
       onOpenChange(false)
       return
     }
-    update.mutate(values.roleId, { onSuccess: () => onOpenChange(false) })
+    update.mutate(
+      { roleId: values.roleId, reason: values.reason },
+      { onSuccess: () => onOpenChange(false) }
+    )
   })
 
   return (
@@ -107,6 +111,28 @@ export function ChangeRoleDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Reason{" "}
+                    <span className="text-muted-foreground font-normal">(optional)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      rows={2}
+                      placeholder="e.g. Promoted to admin"
+                      disabled={update.isPending}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

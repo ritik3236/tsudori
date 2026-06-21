@@ -155,8 +155,13 @@ export function MemberRowActions({
           confirmLabel="Remove"
           variant="destructive"
           loading={remove.isPending}
-          onConfirm={() =>
-            remove.mutate(member.userId, { onSuccess: () => setDialog(null) })
+          withReason
+          reasonPlaceholder="e.g. Left the organisation"
+          onConfirm={(reason) =>
+            remove.mutate(
+              { userId: member.userId, reason },
+              { onSuccess: () => setDialog(null) }
+            )
           }
         />
       )}

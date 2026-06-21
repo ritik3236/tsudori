@@ -43,12 +43,14 @@ model User {
 
   memberships      Membership[]
   markedAttendance Attendance[] @relation("AttendanceMarkedBy")
+  createdHolidays  Holiday[]    @relation("HolidayCreatedBy")
   recordedPayments FeePayment[] @relation("PaymentRecordedBy")
   grantedWaivers   FeeWaiver[]  @relation("WaiverBy")
   notes            Note[]          @relation("NoteAuthor")
   noteComments     NoteComment[]   @relation("NoteCommentAuthor")
   tickets          Ticket[]        @relation("TicketRequester")
   ticketComments   TicketComment[] @relation("TicketCommentAuthor")
+  auditLogs        AuditLog[]      @relation("AuditActor")
   preference       UserPreference?
 
   @@map("user")
@@ -104,12 +106,14 @@ model Institute {
   classes     Class[]
   students    Student[]
   attendance  Attendance[]
+  holidays    Holiday[]
   payments    FeePayment[]
   waivers     FeeWaiver[]
   notes       Note[]
   settings    Setting[]
   invitations Invitation[]
   tickets     Ticket[]
+  auditLogs   AuditLog[]
 
   @@schema("public")
 }
@@ -247,11 +251,16 @@ model Class {
   nameKey           String
   defaultMonthlyFee Decimal?    @db.Decimal(10, 2)
   status            ClassStatus @default(ACTIVE)
+  // Per-class weekly-off override: a JSON array of Luxon weekdays (1=Mon..7=Sun),
+  // or NULL to inherit the institute default (Setting "attendance.weeklyOff").
+  // An explicit [] means the class has NO weekly off (a daily/weekend-only batch).
+  weeklyOffOverride Json?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  institute Institute  @relation(fields: [instituteId], references: [id], onDelete: Cascade)
   students  Student[]
+  holidays  Holiday[]
 
   @@unique([instituteId, nameKey])
   @@index([instituteId])
@@ -328,6 +337,42 @@ model Attendance {
 
   /// One record per student per day — prevents duplicate attendance.
   @@unique([studentId, date])
+  @@index([instituteId, date])
+  @@schema("public")
+}
+
+enum HolidayKind {
+  /// A non-working day — closes the day (public/custom holiday, or a named off).
+  OFF
+  /// Forces a working day, overriding the weekly-off (e.g. extra class on Sunday).
+  WORKING
+
+  @@schema("public")
+}
+
+/// A dated ruling that overrides the weekly-off pattern for attendance. Scope is
+/// institute-wide when `classId` is null, or a single class otherwise — the
+/// class-specific row wins over the institute one. Resolution + precedence live
+/// in src/lib/working-day.ts (most specific wins; OFF/WORKING beat the pattern).
+model Holiday {
+  id          String      @id @default(cuid())
+  instituteId String
+  classId     String?
+  date        DateTime    @db.Timestamptz(3)
+  kind        HolidayKind @default(OFF)
+  name        String?
+  createdById String?     @db.Uuid
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  class     Class?    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("HolidayCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  // One ruling per (institute, class, date). classId NULL = institute-wide; the
+  // migration creates this index NULLS NOT DISTINCT so two institute-wide rows
+  // can't collide on the same date.
+  @@unique([instituteId, classId, date])
   @@index([instituteId, date])
   @@schema("public")
 }
@@ -545,5 +590,29 @@ model Setting {
   institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
 
   @@unique([instituteId, key])
+  @@schema("public")
+}
+
+/// Append-only trail of sensitive mutations (reversals, member/role changes,
+/// archive, waive). Written in-transaction from the service layer, so a log row
+/// exists iff the change committed. `action` is a dotted string (see AUDIT_ACTIONS
+/// in src/features/audit/service.ts); `metadata` holds readable context (amounts,
+/// names, before/after) so the admin view needs no joins.
+model AuditLog {
+  id          String   @id @default(cuid())
+  instituteId String
+  actorId     String?  @db.Uuid
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  institute Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([instituteId, createdAt])
+  @@index([instituteId, entityType, entityId])
+  @@index([instituteId, actorId])
   @@schema("public")
 }

@@ -58,6 +58,7 @@ export function StudentProfile({
         <StudentProfileActions
           studentId={student.id}
           studentName={student.fullName}
+          status={student.status}
           canViewFees={canViewFees}
           canEdit={canEdit}
           canArchive={canArchive}

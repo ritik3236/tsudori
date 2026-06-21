@@ -114,6 +114,20 @@ export function shiftMonthStr(monthStr: string, delta: number): string {
   return appDT(`${monthStr}-01`).plus({ months: delta }).toFormat("yyyy-MM")
 }
 
+// Weekday number (Luxon: 1=Mon … 7=Sun) for a date, in the app timezone. Used by
+// the working-day resolver to test a date against the weekly-off pattern.
+export function appWeekday(value: DateInput): number {
+  return (toAppDT(value) ?? appNow()).weekday
+}
+
+// Every YYYY-MM-DD string in a "YYYY-MM" month, in the app timezone. For building
+// a full-month calendar (e.g. marking holiday columns in the attendance report).
+export function eachDayOfMonthStr(monthStr: string): string[] {
+  const start = appDT(`${monthStr}-01`).startOf("month")
+  const days = start.daysInMonth ?? 30
+  return Array.from({ length: days }, (_, i) => start.plus({ days: i }).toISODate()!)
+}
+
 // ─── Display formatters ───────────────────────────────────────────────────────
 
 // 17/06/2026

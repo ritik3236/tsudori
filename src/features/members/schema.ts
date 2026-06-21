@@ -76,6 +76,7 @@ export type MemberCreateFormValues = z.infer<typeof memberCreateFormSchema>
 
 export const memberUpdateSchema = z.object({
   roleId: z.string().trim().min(1, "Pick a role."),
+  reason: z.string().trim().max(200, "Keep the reason under 200 characters.").optional(),
 })
 
 export type MemberUpdateInput = z.infer<typeof memberUpdateSchema>

@@ -57,12 +57,7 @@ export const waiveFeeSchema = z.object({
     .number({ message: "Enter a valid amount." })
     .positive("Enter an amount greater than zero.")
     .max(10_000_000),
-  reason: z
-    .string()
-    .trim()
-    .max(500)
-    .nullish()
-    .transform((v) => v || null),
+  reason: z.string().trim().min(1, "A reason is required.").max(500),
 })
 
 export type WaiveFeeInput = z.infer<typeof waiveFeeSchema>
@@ -75,12 +70,7 @@ export const reverseFeeSchema = z.object({
     .positive("Enter an amount greater than zero.")
     .max(10_000_000)
     .optional(),
-  reason: z
-    .string()
-    .trim()
-    .max(500)
-    .nullish()
-    .transform((v) => v || null),
+  reason: z.string().trim().min(1, "A reason is required.").max(500),
 })
 
 export type ReverseFeeInput = z.infer<typeof reverseFeeSchema>
@@ -89,12 +79,7 @@ export type ReverseFeeInput = z.infer<typeof reverseFeeSchema>
 // optional reason. Gated on fee:waive, like granting the waiver.
 export const reverseWaiverSchema = z.object({
   waiverId: z.string().min(1, "Waiver is required."),
-  reason: z
-    .string()
-    .trim()
-    .max(500)
-    .nullish()
-    .transform((v) => v || null),
+  reason: z.string().trim().min(1, "A reason is required.").max(500),
 })
 
 export type ReverseWaiverInput = z.infer<typeof reverseWaiverSchema>
@@ -163,7 +148,8 @@ export const waiverFormSchema = z.object({
     .string()
     .min(1, "Amount is required.")
     .refine((v) => Number(v) > 0, "Enter an amount greater than zero."),
-  reason: z.string().trim().max(500),
+  // Required: waiving money owed must be explained for the audit trail.
+  reason: z.string().trim().min(1, "Add a reason for the waiver.").max(500),
 })
 
 export type WaiverFormValues = z.infer<typeof waiverFormSchema>
@@ -175,7 +161,7 @@ export function waiverValuesToInput(
   return {
     studentId,
     amount: Number(v.amount),
-    reason: v.reason || null,
+    reason: v.reason,
   }
 }
 
@@ -186,7 +172,8 @@ export const reversalFormSchema = z.object({
     .string()
     .min(1, "Amount is required.")
     .refine((v) => Number(v) > 0, "Enter an amount greater than zero."),
-  reason: z.string().trim().max(500),
+  // Required: reversing recorded money must be explained for the audit trail.
+  reason: z.string().trim().min(1, "Add a reason for the reversal.").max(500),
 })
 
 export type ReversalFormValues = z.infer<typeof reversalFormSchema>
@@ -198,13 +185,13 @@ export function reversalValuesToInput(
   return {
     paymentId,
     amount: Number(v.amount),
-    reason: v.reason || null,
+    reason: v.reason,
   }
 }
 
-// Waiver reversal form: full reversal, so only an optional reason.
+// Waiver reversal form: full reversal, so just a (required) reason.
 export const waiverReversalFormSchema = z.object({
-  reason: z.string().trim().max(500),
+  reason: z.string().trim().min(1, "Add a reason for the reversal.").max(500),
 })
 
 export type WaiverReversalFormValues = z.infer<typeof waiverReversalFormSchema>
@@ -213,5 +200,5 @@ export function waiverReversalValuesToInput(
   waiverId: string,
   v: WaiverReversalFormValues
 ): ReverseWaiverInput {
-  return { waiverId, reason: v.reason || null }
+  return { waiverId, reason: v.reason }
 }

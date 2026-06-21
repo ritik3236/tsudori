@@ -58,7 +58,8 @@ export function useCreateMember() {
 export function useUpdateMemberRole(userId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (roleId: string) => membersApi.updateRole(userId, { roleId }),
+    mutationFn: ({ roleId, reason }: { roleId: string; reason?: string }) =>
+      membersApi.updateRole(userId, { roleId, reason }),
     onSuccess: (member) => {
       qc.invalidateQueries({ queryKey: memberKeys.lists() })
       toast.success(`Role changed to ${member.roleName}.`)
@@ -73,7 +74,8 @@ export function useUpdateMemberRole(userId: string) {
 export function useRemoveMember() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (userId: string) => membersApi.remove(userId),
+    mutationFn: ({ userId, reason }: { userId: string; reason?: string }) =>
+      membersApi.remove(userId, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: memberKeys.lists() })
       toast.success("Member removed.")

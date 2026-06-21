@@ -3,6 +3,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors"
 import { roleWeight } from "@/lib/rbac"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 import type { RolePermissions, RolesData } from "@/features/roles/types"
 import type { UpdateRolePermissionsInput } from "@/features/roles/schema"
 
@@ -100,11 +101,12 @@ export async function updateRolePermissions(
   instituteId: string,
   roleId: string,
   input: UpdateRolePermissionsInput,
-  editor: Editor
+  editor: Editor,
+  actorId: string
 ): Promise<RolePermissions> {
   const role = await prisma.role.findFirst({
     where: { id: roleId, instituteId },
-    select: { id: true, key: true },
+    select: { id: true, key: true, name: true },
   })
   if (!role) throw new NotFoundError("Role not found.")
 
@@ -139,6 +141,14 @@ export async function updateRolePermissions(
     prisma.rolePermission.deleteMany({ where: { roleId } }),
     prisma.rolePermission.createMany({
       data: known.map((p) => ({ roleId, permissionId: p.id })),
+    }),
+    recordAudit(prisma, {
+      instituteId,
+      actorId,
+      action: AUDIT_ACTIONS.ROLE_PERMISSIONS_CHANGE,
+      entityType: "Role",
+      entityId: roleId,
+      metadata: { roleName: role.name, roleKey: role.key, permissions: requested },
     }),
   ])
 

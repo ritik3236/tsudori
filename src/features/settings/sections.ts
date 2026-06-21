@@ -1,8 +1,10 @@
 import {
   Bell,
+  CalendarDays,
   CircleUser,
   IndianRupee,
   Palette,
+  ScrollText,
   ShieldCheck,
   SlidersHorizontal,
   University,
@@ -60,6 +62,13 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     permission: PERMISSIONS.ROLE_MANAGE,
   },
   {
+    label: "Audit log",
+    description: "Who reversed a payment, changed a role, archived a student…",
+    href: "/admin/audit",
+    icon: ScrollText,
+    permission: PERMISSIONS.AUDIT_READ,
+  },
+  {
     label: "Institute profile",
     description: "Logo, name, and contact details.",
     href: "/admin/settings/institute",
@@ -72,6 +81,13 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     href: "/admin/settings/appearance",
     icon: Palette,
     permission: PERMISSIONS.INSTITUTE_MANAGE,
+  },
+  {
+    label: "Attendance",
+    description: "Weekly off and holidays — which days attendance is taken.",
+    href: "/admin/settings/attendance",
+    icon: CalendarDays,
+    permission: PERMISSIONS.ATTENDANCE_CONFIGURE,
   },
   {
     label: "Fees configuration",

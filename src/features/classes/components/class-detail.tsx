@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EditClassDialog } from "@/features/classes/components/edit-class-dialog"
+import { ClassAttendanceConfig } from "@/features/attendance/components/class-attendance-config"
 import { StudentsTable } from "@/features/students/components/students-table"
 import type { ClassListItem } from "@/features/classes/types"
 
@@ -46,6 +47,8 @@ export function ClassDetail({ cls, canManage }: ClassDetailProps) {
         <h2 className="text-base font-semibold">Enrolled students</h2>
         <StudentsTable classId={cls.id} />
       </div>
+
+      {canManage && <ClassAttendanceConfig cls={cls} />}
 
       {canManage && (
         <EditClassDialog cls={cls} open={editOpen} onOpenChange={setEditOpen} />

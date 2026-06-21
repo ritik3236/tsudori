@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma"
-import { NotFoundError } from "@/lib/errors"
+import { NotFoundError, ValidationError } from "@/lib/errors"
 import { ALL_CLASSES } from "@/lib/constants"
 import { appDateToUtc, utcToAppDateStr, appMonthBounds } from "@/lib/date-helper"
+import { resolveDay, resolveMonth } from "@/features/attendance/holiday-service"
+import type { WorkingDay } from "@/lib/working-day"
 import type { MarkAttendanceInput, BulkMarkInput } from "./schema"
 import type {
   DayAttendance,
@@ -22,6 +24,17 @@ function computeSummary(students: StudentAttendance[]) {
     unmarked: students.filter((s) => s.status === null).length,
     total: students.length,
   }
+}
+
+/** Blocks marking on a non-working day. Callers force the day open first (a
+ *  WORKING holiday override) when they really mean to hold an extra class. */
+function assertWorkingDay(day: WorkingDay): void {
+  if (day.working) return
+  throw new ValidationError(
+    day.name
+      ? `This day is a holiday (${day.name}). Mark it a working day to take attendance.`
+      : "This is a non-working day. Mark it a working day to take attendance."
+  )
 }
 
 async function getAttendanceDayAll(instituteId: string, date: string): Promise<DayAttendance> {
@@ -57,10 +70,13 @@ async function getAttendanceDayAll(instituteId: string, date: string): Promise<D
     }
   })
 
+  const workingDay = await resolveDay(instituteId, null, date)
+
   return {
     date,
     classId: ALL_CLASSES,
     className: "All Classes",
+    workingDay,
     students: records,
     summary: computeSummary(records),
   }
@@ -111,10 +127,13 @@ export async function getAttendanceDay(
     }
   })
 
+  const workingDay = await resolveDay(instituteId, classId, date)
+
   return {
     date,
     classId,
-    className: cls.name + (cls.section ? ` / ${cls.section}` : ""),
+    className: cls.name + (cls.section ? `/${cls.section}` : ""),
+    workingDay,
     students: records,
     summary: computeSummary(records),
   }
@@ -127,9 +146,18 @@ export async function markAttendance(
 ): Promise<StudentAttendance> {
   const student = await prisma.student.findFirst({
     where: { id: input.studentId, instituteId },
-    select: { id: true, fullName: true, serialNo: true, rollNumber: true, contactNumber: true },
+    select: {
+      id: true,
+      fullName: true,
+      serialNo: true,
+      rollNumber: true,
+      contactNumber: true,
+      classId: true,
+    },
   })
   if (!student) throw new NotFoundError("Student not found")
+
+  assertWorkingDay(await resolveDay(instituteId, student.classId, input.date))
 
   const dateObj = parseDate(input.date)
 
@@ -167,6 +195,8 @@ export async function markBulkAttendance(
   input: BulkMarkInput,
   userId: string | null
 ): Promise<DayAttendance> {
+  assertWorkingDay(await resolveDay(instituteId, input.classId, input.date))
+
   const dateObj = parseDate(input.date)
 
   await prisma.$transaction(
@@ -233,7 +263,17 @@ export async function getMonthlyReport(
     byStudent.get(r.studentId)!.set(d, r.status)
   }
 
-  const schoolDays = Array.from(schoolDaySet).sort()
+  // Resolve the whole month so non-working days render as "H" columns and are
+  // excluded from each student's counts — weekly-offs and named holidays alike.
+  const monthMap = await resolveMonth(instituteId, classId, month)
+  const holidays: Record<string, { name: string | null }> = {}
+  for (const [d, wd] of Object.entries(monthMap)) {
+    if (!wd.working) holidays[d] = { name: wd.name }
+  }
+
+  const schoolDays = Array.from(
+    new Set([...schoolDaySet, ...Object.keys(holidays)])
+  ).sort()
 
   const rows: MonthlyReportRow[] = students.map((s) => {
     const dayMap = byStudent.get(s.id) ?? new Map<string, AttendanceStatus>()
@@ -243,6 +283,7 @@ export async function getMonthlyReport(
       leave = 0
 
     for (const day of schoolDays) {
+      if (holidays[day]) continue // non-working column — shown as "H", never counted
       const status = dayMap.get(day)
       if (status) {
         days[day] = status
@@ -263,9 +304,10 @@ export async function getMonthlyReport(
 
   return {
     classId,
-    className: cls.name + (cls.section ? ` / ${cls.section}` : ""),
+    className: cls.name + (cls.section ? `/${cls.section}` : ""),
     month,
     schoolDays,
+    holidays,
     rows,
   }
 }

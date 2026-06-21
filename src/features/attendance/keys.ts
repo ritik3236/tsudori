@@ -9,4 +9,8 @@ export const attendanceKeys = {
   reports: () => [...attendanceKeys.all, "report"] as const,
   report: (classId: string, month: string) =>
     [...attendanceKeys.reports(), classId, month] as const,
+  config: () => [...attendanceKeys.all, "config"] as const,
+  holidayLists: () => [...attendanceKeys.all, "holidays"] as const,
+  holidays: (month: string, classId: string) =>
+    [...attendanceKeys.holidayLists(), month, classId] as const,
 }

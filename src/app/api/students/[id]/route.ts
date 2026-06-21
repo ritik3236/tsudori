@@ -31,11 +31,12 @@ export const PATCH = route<RouteContext>(async (req, { params }) => {
   return ok(student)
 })
 
-export const DELETE = route<RouteContext>(async (_req, { params }) => {
+export const DELETE = route<RouteContext>(async (req, { params }) => {
   const { id } = await params
   const ctx = await getTenantContext()
   requirePermission(ctx, PERMISSIONS.STUDENT_ARCHIVE)
 
-  await archiveStudent(ctx.institute.id, id)
+  const reason = new URL(req.url).searchParams.get("reason")
+  await archiveStudent(ctx.institute.id, id, ctx.user.id, reason)
   return noContent()
 })

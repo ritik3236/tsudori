@@ -10,11 +10,17 @@ export const PATCH = route(async (req, ctx: { params: Promise<{ id: string }> })
   requirePermission(tenant, PERMISSIONS.ROLE_MANAGE)
 
   const input = await parseJson(req, updateRolePermissionsSchema)
-  const role = await updateRolePermissions(tenant.institute.id, id, input, {
-    roleId: tenant.membership?.roleId ?? null,
-    weight: roleWeight(tenant.membership?.role.key ?? ""),
-    permissions: tenant.permissions,
-    isSuperAdmin: tenant.isSuperAdmin,
-  })
+  const role = await updateRolePermissions(
+    tenant.institute.id,
+    id,
+    input,
+    {
+      roleId: tenant.membership?.roleId ?? null,
+      weight: roleWeight(tenant.membership?.role.key ?? ""),
+      permissions: tenant.permissions,
+      isSuperAdmin: tenant.isSuperAdmin,
+    },
+    tenant.user.id
+  )
   return ok(role)
 })

@@ -7,4 +7,6 @@ export type ClassListItem = {
   defaultMonthlyFee: number
   status: ClassStatus
   studentCount: number
+  /** Per-class weekly-off (Luxon weekdays), or null when it inherits the institute. */
+  weeklyOffOverride: number[] | null
 }

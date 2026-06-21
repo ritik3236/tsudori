@@ -39,7 +39,10 @@ export const studentsApi = {
     http.post<StudentDetail>("/api/students", data),
   update: (id: string, data: StudentUpdateInput) =>
     http.patch<StudentDetail>(`/api/students/${id}`, data),
-  archive: (id: string) => http.delete<void>(`/api/students/${id}`),
+  archive: (id: string, reason?: string) =>
+    http.delete<void>(
+      `/api/students/${id}${reason ? `?reason=${encodeURIComponent(reason)}` : ""}`
+    ),
 }
 
 export const classesApi = {

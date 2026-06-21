@@ -76,7 +76,8 @@ export function useUpdateStudent(id: string) {
 export function useArchiveStudent() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => studentsApi.archive(id),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      studentsApi.archive(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: studentKeys.all })
       toast.success("Student archived.")

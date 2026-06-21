@@ -35,7 +35,11 @@ export const classCreateSchema = z.object({
   status: z.enum(CLASS_STATUSES).default("ACTIVE"),
 })
 
-export const classUpdateSchema = classCreateSchema.partial()
+export const classUpdateSchema = classCreateSchema.partial().extend({
+  // Per-class weekly-off override (Luxon weekdays); null = inherit the institute
+  // default, [] = no weekly off. Omitted = leave unchanged.
+  weeklyOffOverride: z.array(z.number().int().min(1).max(7)).max(7).nullable().optional(),
+})
 
 export type ClassCreateInput = z.infer<typeof classCreateSchema>
 export type ClassUpdateInput = z.infer<typeof classUpdateSchema>

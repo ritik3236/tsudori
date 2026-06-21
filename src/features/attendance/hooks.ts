@@ -7,9 +7,13 @@ import { ApiError } from "@/lib/http"
 import { attendanceApi } from "./api"
 import { attendanceKeys } from "./keys"
 import type { DayAttendance } from "./types"
-import type { BulkMarkInput, MarkAttendanceInput } from "./schema"
+import type { BulkMarkInput, HolidayUpsertInput, MarkAttendanceInput } from "./schema"
 
 export { attendanceKeys }
+
+function reportError(error: unknown, fallback: string) {
+  toast.error(error instanceof ApiError ? error.message : fallback)
+}
 
 function computeSummary(students: DayAttendance["students"]) {
   return {
@@ -50,9 +54,9 @@ export function useMarkAttendance(classId: string, date: string) {
       }
       return { prev }
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(key, ctx.prev)
-      toast.error("Couldn't mark attendance.")
+      reportError(err, "Couldn't mark attendance.")
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: key })
@@ -78,5 +82,97 @@ export function useAttendanceReport(classId: string | null, month: string | null
     queryKey: attendanceKeys.report(classId ?? "", month ?? ""),
     queryFn: () => attendanceApi.report(classId!, month!),
     enabled: Boolean(classId && month),
+  })
+}
+
+// ─── Holidays / working-day config ─────────────────────────────────────────────
+
+/** Opens a non-working day for marking ("Hold class today" → WORKING override). */
+export function useHoldClass(classId: string, date: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => attendanceApi.holdClass(classId, date),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: attendanceKeys.day(classId, date) })
+      qc.invalidateQueries({ queryKey: attendanceKeys.reports() })
+      toast.success("Class day opened — you can mark attendance now.")
+    },
+    onError: (e) => reportError(e, "Couldn't open the day."),
+  })
+}
+
+/** Clears all attendance for a day (wipes phantom rows on a holiday). */
+export function useClearDay(classId: string, date: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => attendanceApi.clearDay(classId, date),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: attendanceKeys.day(classId, date) })
+      qc.invalidateQueries({ queryKey: attendanceKeys.reports() })
+      toast.success(
+        res.count > 0
+          ? `Cleared ${res.count} record${res.count === 1 ? "" : "s"}.`
+          : "Nothing to clear."
+      )
+    },
+    onError: (e) => reportError(e, "Couldn't clear the day."),
+  })
+}
+
+export function useAttendanceConfig() {
+  return useQuery({
+    queryKey: attendanceKeys.config(),
+    queryFn: () => attendanceApi.getConfig(),
+    staleTime: 5 * 60_000,
+  })
+}
+
+export function useSaveWeeklyOff() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (weeklyOff: number[]) => attendanceApi.saveConfig(weeklyOff),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: attendanceKeys.config() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.days() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.reports() })
+      toast.success("Weekly off saved.")
+    },
+    onError: (e) => reportError(e, "Couldn't save the weekly off."),
+  })
+}
+
+export function useHolidays(month: string, classId?: string) {
+  return useQuery({
+    queryKey: attendanceKeys.holidays(month, classId ?? ""),
+    queryFn: () => attendanceApi.listHolidays(month, classId),
+    enabled: Boolean(month),
+  })
+}
+
+export function useUpsertHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: HolidayUpsertInput) => attendanceApi.upsertHoliday(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: attendanceKeys.holidayLists() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.days() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.reports() })
+      toast.success("Holiday saved.")
+    },
+    onError: (e) => reportError(e, "Couldn't save the holiday."),
+  })
+}
+
+export function useDeleteHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => attendanceApi.deleteHoliday(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: attendanceKeys.holidayLists() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.days() })
+      qc.invalidateQueries({ queryKey: attendanceKeys.reports() })
+      toast.success("Holiday removed.")
+    },
+    onError: (e) => reportError(e, "Couldn't remove the holiday."),
   })
 }

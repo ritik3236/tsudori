@@ -36,5 +36,36 @@ export const reportQuerySchema = z.object({
   month: monthString,
 })
 
+// ─── Holidays / working-day config ─────────────────────────────────────────────
+
+export const HOLIDAY_KINDS = ["OFF", "WORKING"] as const
+
+/** Weekly-off as Luxon weekdays (1=Mon..7=Sun). Empty = no weekly off. */
+export const weeklyOffSchema = z.object({
+  weeklyOff: z.array(z.number().int().min(1).max(7)).max(7),
+})
+
+export const holidayQuerySchema = z.object({
+  month: monthString,
+  // Optional class scope; omitted = institute-wide rows only.
+  classId: z.string().trim().min(1).optional(),
+})
+
+export const holidayUpsertSchema = z.object({
+  classId: z.string().trim().min(1).nullish(),
+  date: dateString,
+  kind: z.enum(HOLIDAY_KINDS),
+  name: z.string().trim().max(80).nullish(),
+})
+
+/** "Hold class today" / "Clear this day" — operate on one (class?, date). */
+export const dayActionSchema = z.object({
+  classId: z.string().trim().min(1),
+  date: dateString,
+})
+
+export type WeeklyOffInput = z.infer<typeof weeklyOffSchema>
+export type HolidayUpsertInput = z.infer<typeof holidayUpsertSchema>
+export type DayActionInput = z.infer<typeof dayActionSchema>
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>
 export type BulkMarkInput = z.infer<typeof bulkMarkSchema>
