@@ -211,7 +211,8 @@ export async function createTicket(
       instituteId,
       requesterId,
       subject: input.subject,
-      description: input.description,
+      // Description is optional; fall back to the subject when it's left blank.
+      description: input.description || input.subject,
       category: input.category,
       priority: input.priority,
     },

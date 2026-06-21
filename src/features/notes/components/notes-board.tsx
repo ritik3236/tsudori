@@ -173,7 +173,7 @@ export function NotesBoard() {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
-          placeholder="Ask a question, flag a bug, or leave a note for the team…"
+          placeholder="Share a note, idea, or update with the team…"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") post()
           }}

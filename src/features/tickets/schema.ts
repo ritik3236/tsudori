@@ -67,7 +67,8 @@ export const TICKET_PAGE_SIZE = 30
 
 export const ticketCreateSchema = z.object({
   subject: z.string().trim().min(1, "Add a short subject.").max(200),
-  description: z.string().trim().min(1, "Describe the issue or request.").max(5000),
+  // Optional — when blank the service falls back to the subject as the description.
+  description: z.string().trim().max(5000).optional().default(""),
   category: z.enum(TICKET_CATEGORIES).default("QUESTION"),
   priority: z.enum(TICKET_PRIORITIES).default("NORMAL"),
 })
@@ -102,7 +103,8 @@ export type TicketQuery = z.infer<typeof ticketQuerySchema>
 
 export const ticketFormSchema = z.object({
   subject: z.string().trim().min(1, "Add a short subject.").max(200),
-  description: z.string().trim().min(1, "Describe the issue or request.").max(5000),
+  // Optional — left blank, the subject is reused as the description on submit.
+  description: z.string().trim().max(5000),
   category: z.enum(TICKET_CATEGORIES),
   priority: z.enum(TICKET_PRIORITIES),
 })

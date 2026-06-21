@@ -130,11 +130,11 @@ export function TicketForm({ submitting, onSubmit, onCancel }: TicketFormProps) 
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <FormLabel>Description (optional)</FormLabel>
               <FormControl>
                 <Textarea
                   rows={5}
-                  placeholder="What's happening? Steps to reproduce, what you expected, links…"
+                  placeholder="Steps, what you expected, links… Leave blank to reuse the subject."
                   {...field}
                 />
               </FormControl>

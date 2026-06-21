@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, type ComponentProps } from "react"
-import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -38,7 +37,6 @@ export function NewTicketButton({
 }: NewTicketButtonProps) {
   const [open, setOpen] = useState(false)
   const create = useCreateTicket()
-  const router = useRouter()
 
   return (
     <>
@@ -66,10 +64,7 @@ export function NewTicketButton({
             onCancel={() => setOpen(false)}
             onSubmit={(values) =>
               create.mutate(values, {
-                onSuccess: (ticket) => {
-                  setOpen(false)
-                  router.push(`/tickets/${ticket.id}`)
-                },
+                onSuccess: () => setOpen(false),
               })
             }
           />
