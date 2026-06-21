@@ -1,6 +1,9 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { AuthView } from "@neondatabase/auth-ui"
 import { authViewPaths } from "@neondatabase/auth-ui/server"
+
+import { getCurrentUser } from "@/lib/auth"
 
 export const metadata: Metadata = { title: "Account" }
 
@@ -23,5 +26,15 @@ export default async function AuthPage({
   params: Promise<{ path: string }>
 }) {
   const { path } = await params
+
+  // Send already-signed-in users to the dashboard instead of letting them sit on
+  // an auth view — EXCEPT the sign-out view, which is reached while authenticated
+  // and must render so its client-side signOut() can run. Redirecting it would
+  // bounce the user straight back and make logout impossible.
+  if (path !== authViewPaths.SIGN_OUT) {
+    const user = await getCurrentUser()
+    if (user) redirect("/dashboard")
+  }
+
   return <AuthView path={path} />
 }

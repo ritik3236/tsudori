@@ -39,6 +39,11 @@ export const POST = route<RouteContext>(async (req, { params }) => {
   })
   if (error) throw toAppError(error, "Couldn't ban the member.")
 
+  // banUser already revokes the target's upstream sessions; call it explicitly
+  // too as belt-and-suspenders so a ban ejects every live session immediately.
+  const { error: revokeError } = await auth.admin.revokeUserSessions({ userId })
+  if (revokeError) throw toAppError(revokeError, "Couldn't revoke the member's sessions.")
+
   const member = await getMember(ctx.institute.id, userId)
   return ok(member)
 })

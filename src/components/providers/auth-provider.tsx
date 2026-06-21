@@ -18,11 +18,27 @@ export function AuthUIProvider({
 }) {
   const router = useRouter()
 
+  // Guard against open redirects: the auth UI derives its post-login destination
+  // from an unvalidated `?redirectTo=` query param and hands it to navigate().
+  // Reduce any target to a same-origin path (rejecting absolute cross-origin and
+  // protocol-relative URLs) before routing, so a crafted sign-in link can't
+  // bounce a freshly authenticated user to an attacker site.
+  const toSafeInternalPath = (href: string) => {
+    try {
+      const url = new URL(href, window.location.origin)
+      return url.origin === window.location.origin
+        ? url.pathname + url.search + url.hash
+        : "/dashboard"
+    } catch {
+      return "/dashboard"
+    }
+  }
+
   return (
     <NeonAuthUIProvider
       authClient={authClient}
-      navigate={router.push}
-      replace={router.replace}
+      navigate={(href) => router.push(toSafeInternalPath(href))}
+      replace={(href) => router.replace(toSafeInternalPath(href))}
       onSessionChange={() => router.refresh()}
       Link={Link}
       redirectTo="/dashboard"

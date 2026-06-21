@@ -3,12 +3,28 @@ import "server-only"
 import { randomBytes } from "node:crypto"
 
 import { prisma } from "@/lib/prisma"
-import { ConflictError, NotFoundError } from "@/lib/errors"
+import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors"
+import { roleWeight } from "@/lib/rbac"
 import { nowDate, nowPlus } from "@/lib/date-helper"
 import type { InviteCreateInput } from "@/features/invitations/schema"
 import type { InvitationPreview } from "@/features/invitations/types"
 
 const INVITE_TTL_DAYS = 7
+
+/**
+ * Who is sending the invite — used to block privilege escalation on the grant
+ * (mirrors the `Editor` concept in src/features/roles/service.ts and
+ * `RoleGrantActor` in the members service). A non-super-admin can only invite
+ * into roles strictly below their own seniority whose permissions are a subset
+ * of their own. Super admins bypass both checks.
+ */
+export type InviteActor = {
+  /** roleWeight() of the actor's own role. */
+  weight: number
+  /** The actor's own granted permission keys. */
+  permissions: ReadonlySet<string>
+  isSuperAdmin: boolean
+}
 
 /**
  * Creates a pending invite for `email` to join `instituteId` with `roleId` and
@@ -19,13 +35,33 @@ const INVITE_TTL_DAYS = 7
 export async function createInvitation(
   instituteId: string,
   invitedById: string,
-  input: InviteCreateInput
+  input: InviteCreateInput,
+  actor: InviteActor
 ): Promise<{ token: string }> {
   const role = await prisma.role.findFirst({
     where: { id: input.roleId, instituteId },
-    select: { id: true },
+    select: {
+      id: true,
+      key: true,
+      permissions: { select: { permission: { select: { key: true } } } },
+    },
   })
   if (!role) throw new NotFoundError("Role not found.")
+
+  // Block privilege escalation: a non-super-admin can't invite someone into a
+  // role more senior than, or holding permissions beyond, their own.
+  if (!actor.isSuperAdmin) {
+    if (roleWeight(role.key) >= actor.weight) {
+      throw new ForbiddenError("You can't assign a role more privileged than your own.")
+    }
+    const targetKeys = role.permissions.map((p) => p.permission.key)
+    const escalating = targetKeys.filter((k) => !actor.permissions.has(k))
+    if (escalating.length > 0) {
+      throw new ForbiddenError(
+        `You can't grant a role with permissions you don't hold yourself: ${escalating.join(", ")}.`
+      )
+    }
+  }
 
   const alreadyMember = await prisma.membership.findFirst({
     where: { instituteId, user: { email: input.email } },

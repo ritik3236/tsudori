@@ -7,6 +7,7 @@ import type { Institute, Membership, Prisma, Role, User } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/auth"
+import { nowDate } from "@/lib/date-helper"
 import { ForbiddenError } from "@/lib/errors"
 import {
   ADMIN_PERMISSIONS,
@@ -54,6 +55,20 @@ const MEMBERSHIP_INCLUDE = {
 export const getTenantContext = cache(async (): Promise<TenantContext> => {
   let user = await requireUser()
 
+  // Identity-level revocation gate. requireUser() re-reads the User row from the
+  // DB every request, so this catches a ban even while the signed session_data
+  // cookie still caches a stale (unbanned) session upstream — closing the ≤24h
+  // window. Applied to EVERYONE, including super admins, and before any
+  // permission/super-admin handling so a banned super admin is locked out too.
+  // banExpires === null means a permanent ban; a future banExpires is still
+  // active; a past one has lapsed.
+  if (
+    user.banned === true &&
+    (user.banExpires === null || user.banExpires > nowDate())
+  ) {
+    throw new ForbiddenError("Your account has been suspended.")
+  }
+
   let memberships = await prisma.membership.findMany({
     where: { userId: user.id, status: "ACTIVE" },
     include: MEMBERSHIP_INCLUDE,
@@ -85,6 +100,13 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
 
   if (active) {
     const { institute, ...membership } = active
+
+    // Tenant-level gate: a suspended institute grants no access to its members.
+    // Super admins may still enter for support/recovery.
+    if (institute.status !== "ACTIVE" && !isSuperAdmin) {
+      throw new ForbiddenError("This institute has been suspended.")
+    }
+
     const permissions = isSuperAdmin
       ? new Set<Permission>(ALL_PERMISSIONS)
       : new Set<Permission>(
@@ -105,6 +127,7 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   // Super admin onboarding fallback: no membership yet, but should still see data.
   if (isSuperAdmin) {
     const institute = await prisma.institute.findFirst({
+      where: { status: "ACTIVE" },
       orderBy: { createdAt: "asc" },
     })
     if (institute) {

@@ -1,22 +1,19 @@
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { GraduationCap } from "lucide-react"
 
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants"
-import { getCurrentUser } from "@/lib/auth"
 import { LoginRedirectOverlay } from "@/components/auth/login-redirect-overlay"
 
-export default async function AuthLayout({
+export default function AuthLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Already signed in? The auth views (sign-in, etc.) aren't covered by the
-  // proxy guard, so send authenticated users to the dashboard instead of
-  // letting them sit on the sign-in screen.
-  const user = await getCurrentUser()
-  if (user) redirect("/dashboard")
-
+  // NOTE: the "already signed in → /dashboard" redirect lives in the auth view
+  // page (auth/[path]/page.tsx), NOT here, so it can be skipped for the
+  // `sign-out` view. The sign-out view is reached while still authenticated and
+  // must be allowed to render so its client-side signOut() can run; a redirect
+  // at the layout level would bounce the user back and make logout impossible.
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
       <Link href="/" className="flex items-center gap-2.5">

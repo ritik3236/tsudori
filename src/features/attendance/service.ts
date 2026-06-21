@@ -197,6 +197,23 @@ export async function markBulkAttendance(
 ): Promise<DayAttendance> {
   assertWorkingDay(await resolveDay(instituteId, input.classId, input.date))
 
+  // Guard against cross-tenant IDOR: every studentId comes straight from the
+  // client and the Attendance upsert keys on a global @@unique([studentId, date]),
+  // so an unscoped id could overwrite another institute's rows. Load the valid
+  // ids for this institute (and class, when not the ALL_CLASSES sentinel) and
+  // reject the whole batch before any write if any record falls outside that set.
+  const validIds = new Set(
+    (
+      await prisma.student.findMany({
+        where: { instituteId, ...(input.classId !== ALL_CLASSES ? { classId: input.classId } : {}) },
+        select: { id: true },
+      })
+    ).map((s) => s.id)
+  )
+  if (input.records.some((r) => !validIds.has(r.studentId))) {
+    throw new NotFoundError("Student not found")
+  }
+
   const dateObj = parseDate(input.date)
 
   await prisma.$transaction(

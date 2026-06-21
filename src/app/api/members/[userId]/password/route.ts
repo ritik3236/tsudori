@@ -36,5 +36,17 @@ export const POST = route<RouteContext>(async (req, { params }) => {
     )
   }
 
+  // setUserPassword does NOT invalidate existing sessions, so a compromised
+  // session would survive the reset. Eject all of the target's sessions
+  // immediately as defense-in-depth.
+  const { error: revokeError } = await auth.admin.revokeUserSessions({ userId })
+  if (revokeError) {
+    throw new AppError(
+      revokeError.message || "Couldn't revoke the member's sessions.",
+      typeof revokeError.status === "number" ? revokeError.status : 502,
+      "AUTH_ERROR"
+    )
+  }
+
   return noContent()
 })

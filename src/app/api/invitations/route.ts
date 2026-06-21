@@ -1,6 +1,6 @@
 import { created, parseJson, route } from "@/lib/api"
 import { getTenantContext, requirePermission } from "@/lib/tenant"
-import { PERMISSIONS } from "@/lib/rbac"
+import { PERMISSIONS, roleWeight } from "@/lib/rbac"
 import { inviteCreateSchema } from "@/features/invitations/schema"
 import { createInvitation } from "@/features/invitations/service"
 
@@ -11,6 +11,11 @@ export const POST = route(async (req) => {
   requirePermission(ctx, PERMISSIONS.MEMBER_MANAGE)
 
   const input = await parseJson(req, inviteCreateSchema)
-  const { token } = await createInvitation(ctx.institute.id, ctx.user.id, input)
+  const actor = {
+    weight: roleWeight(ctx.membership?.role.key ?? ""),
+    permissions: ctx.permissions,
+    isSuperAdmin: ctx.isSuperAdmin,
+  }
+  const { token } = await createInvitation(ctx.institute.id, ctx.user.id, input, actor)
   return created({ token })
 })

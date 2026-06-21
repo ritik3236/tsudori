@@ -1,7 +1,7 @@
 import { noContent, ok, parseJson, route } from "@/lib/api"
 import { ForbiddenError } from "@/lib/errors"
 import { getTenantContext, requirePermission } from "@/lib/tenant"
-import { PERMISSIONS } from "@/lib/rbac"
+import { PERMISSIONS, roleWeight } from "@/lib/rbac"
 import { memberUpdateSchema } from "@/features/members/schema"
 import { removeMember, restoreMember, updateMemberRole } from "@/features/members/service"
 
@@ -18,7 +18,12 @@ export const PATCH = route<RouteContext>(async (req, { params }) => {
   }
 
   const { roleId, reason } = await parseJson(req, memberUpdateSchema)
-  const member = await updateMemberRole(ctx.institute.id, userId, roleId, ctx.user.id, reason)
+  const actor = {
+    weight: roleWeight(ctx.membership?.role.key ?? ""),
+    permissions: ctx.permissions,
+    isSuperAdmin: ctx.isSuperAdmin,
+  }
+  const member = await updateMemberRole(ctx.institute.id, userId, roleId, actor, ctx.user.id, reason)
   return ok(member)
 })
 
