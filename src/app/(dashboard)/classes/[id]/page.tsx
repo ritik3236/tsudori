@@ -5,7 +5,6 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { NotFoundError } from "@/lib/errors"
-import { MAX_PAGE_SIZE } from "@/lib/constants"
 import { makeServerQueryClient } from "@/lib/query"
 import { getClass } from "@/features/classes/service"
 import { listStudents } from "@/features/students/service"
@@ -39,32 +38,22 @@ export default async function ClassDetailPage({ params }: Props) {
     throw error
   }
 
-  // Prefetch the enrolled students here so the list paints with the page instead
-  // of the client firing a second round trip (which re-runs the whole auth chain
-  // and flashes a skeleton). Key + params must match useStudents() in
-  // ClassStudentsList exactly, or the client won't reuse the hydrated data.
-  const studentParams = { classId: id, pageSize: MAX_PAGE_SIZE }
+  // Prefetch the enrolled students' first page so the list paints with the page
+  // instead of a client round trip. Key must match StudentsTable's first-render
+  // useStudents() key for this class ({ classId } — undefined q/status drop out).
   const qc = makeServerQueryClient()
-  await qc.prefetchQuery({
-    queryKey: studentKeys.list(studentParams),
+  await qc.prefetchInfiniteQuery({
+    queryKey: studentKeys.list({ classId: id }),
     queryFn: () =>
-      listStudents(ctx.institute.id, {
-        ...studentParams,
-        page: 1,
-        includeArchived: false,
-      }),
+      listStudents(ctx.institute.id, { classId: id, offset: 0, includeArchived: false }),
+    initialPageParam: 0,
   })
 
   return (
     <div className="space-y-6">
       <BackLink href="/classes" label="Classes" />
       <HydrationBoundary state={dehydrate(qc)}>
-        <ClassDetail
-          cls={cls}
-          canManage={can(ctx, PERMISSIONS.CLASS_MANAGE)}
-          canEditStudents={can(ctx, PERMISSIONS.STUDENT_UPDATE)}
-          canArchiveStudents={can(ctx, PERMISSIONS.STUDENT_ARCHIVE)}
-        />
+        <ClassDetail cls={cls} canManage={can(ctx, PERMISSIONS.CLASS_MANAGE)} />
       </HydrationBoundary>
     </div>
   )

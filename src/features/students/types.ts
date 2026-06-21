@@ -48,10 +48,9 @@ export type StudentDetail = StudentListItem & {
     | null
 }
 
-export type Paginated<T> = {
-  items: T[]
+/** Offset-paged slice for the infinite-scroll student list (mirrors StudentFeePage). */
+export type StudentPage = {
+  items: StudentListItem[]
+  nextOffset: number | null
   total: number
-  page: number
-  pageSize: number
-  totalPages: number
 }

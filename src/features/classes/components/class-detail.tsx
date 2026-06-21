@@ -8,17 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { EditClassDialog } from "@/features/classes/components/edit-class-dialog"
-import { ClassStudentsList } from "@/features/classes/components/class-students-list"
+import { StudentsTable } from "@/features/students/components/students-table"
 import type { ClassListItem } from "@/features/classes/types"
 
 type ClassDetailProps = {
   cls: ClassListItem
   canManage: boolean
-  canEditStudents: boolean
-  canArchiveStudents: boolean
 }
 
-export function ClassDetail({ cls, canManage, canEditStudents, canArchiveStudents }: ClassDetailProps) {
+export function ClassDetail({ cls, canManage }: ClassDetailProps) {
   const [editOpen, setEditOpen] = useState(false)
 
   return (
@@ -43,8 +41,11 @@ export function ClassDetail({ cls, canManage, canEditStudents, canArchiveStudent
         )}
       </div>
 
-      {/* Students */}
-      <ClassStudentsList classId={cls.id} canEdit={canEditStudents} canArchive={canArchiveStudents} />
+      {/* Students — same list as the main Students page, scoped to this class. */}
+      <div className="space-y-3">
+        <h2 className="text-base font-semibold">Enrolled students</h2>
+        <StudentsTable classId={cls.id} />
+      </div>
 
       {canManage && (
         <EditClassDialog cls={cls} open={editOpen} onOpenChange={setEditOpen} />

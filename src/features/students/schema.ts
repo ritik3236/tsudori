@@ -1,6 +1,5 @@
 import { z } from "zod"
 
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@/lib/constants"
 import { appDateToUtc } from "@/lib/date-helper"
 
 // Two related schemas:
@@ -43,8 +42,8 @@ export const studentQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => v === "true"),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  // Offset cursor for the infinite-scroll list (mirrors the fees view).
+  offset: z.coerce.number().int().min(0).default(0),
 })
 
 export type StudentCreateInput = z.infer<typeof studentCreateSchema>

@@ -5,7 +5,6 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
-import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import { makeServerQueryClient } from "@/lib/query"
 import { studentKeys } from "@/features/students/api"
 import { listStudents } from "@/features/students/service"
@@ -21,18 +20,14 @@ export default async function StudentsPage() {
 
   const canCreate = can(ctx, PERMISSIONS.STUDENT_CREATE)
 
-  // Prefetch the first page server-side so the table renders with data instead
-  // of a skeleton + client round-trip. Key must match the table's first-render
-  // query key (q/status/classId are undefined there → dropped from the hash).
+  // Prefetch the first page server-side so the list renders with data instead of
+  // a skeleton + client round-trip. Key must match StudentsTable's first-render
+  // useStudents() key — q/status/classId are undefined there, so they drop out.
   const qc = makeServerQueryClient()
-  await qc.prefetchQuery({
-    queryKey: studentKeys.list({ page: 1, pageSize: DEFAULT_PAGE_SIZE }),
-    queryFn: () =>
-      listStudents(ctx.institute.id, {
-        page: 1,
-        pageSize: DEFAULT_PAGE_SIZE,
-        includeArchived: false,
-      }),
+  await qc.prefetchInfiniteQuery({
+    queryKey: studentKeys.list({}),
+    queryFn: () => listStudents(ctx.institute.id, { offset: 0, includeArchived: false }),
+    initialPageParam: 0,
   })
 
   return (
@@ -49,10 +44,7 @@ export default async function StudentsPage() {
             />
           </div>
         )}
-        <StudentsTable
-          canEdit={can(ctx, PERMISSIONS.STUDENT_UPDATE)}
-          canArchive={can(ctx, PERMISSIONS.STUDENT_ARCHIVE)}
-        />
+        <StudentsTable />
 
         {/* Mobile primary action lives in the thumb zone */}
         {canCreate && <Fab href="/students/new" label="Add student" icon={Plus} />}

@@ -4,10 +4,11 @@ import type { Prisma, PrismaClient, Student } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { NotFoundError, ValidationError } from "@/lib/errors"
+import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import type {
-  Paginated,
   StudentDetail,
   StudentListItem,
+  StudentPage,
 } from "@/features/students/types"
 import type {
   StudentCreateInput,
@@ -31,7 +32,7 @@ async function assertClassInInstitute(tx: Tx, instituteId: string, classId: stri
 export async function listStudents(
   instituteId: string,
   query: StudentQuery
-): Promise<Paginated<StudentListItem>> {
+): Promise<StudentPage> {
   const where: Prisma.StudentWhereInput = {
     instituteId,
     ...(query.includeArchived ? {} : { archivedAt: null }),
@@ -58,17 +59,17 @@ export async function listStudents(
       where,
       include: { class: { select: { name: true } } },
       orderBy: { fullName: "asc" },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
+      // Fetch one extra row to signal "there's more" without a second query.
+      skip: query.offset,
+      take: DEFAULT_PAGE_SIZE + 1,
     }),
   ])
 
+  const hasMore = rows.length > DEFAULT_PAGE_SIZE
   return {
-    items: rows.map(toListItem),
+    items: rows.slice(0, DEFAULT_PAGE_SIZE).map(toListItem),
+    nextOffset: hasMore ? query.offset + DEFAULT_PAGE_SIZE : null,
     total,
-    page: query.page,
-    pageSize: query.pageSize,
-    totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
   }
 }
 

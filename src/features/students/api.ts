@@ -1,8 +1,7 @@
 import { buildQuery, http } from "@/lib/http"
 import type {
-  Paginated,
   StudentDetail,
-  StudentListItem,
+  StudentPage,
 } from "@/features/students/types"
 import type { ClassListItem } from "@/features/classes/types"
 import type {
@@ -14,9 +13,6 @@ export type StudentListParams = {
   q?: string
   status?: "ACTIVE" | "INACTIVE"
   classId?: string
-  includeArchived?: boolean
-  page?: number
-  pageSize?: number
 }
 
 // Query-key factory. Lives here (not in the "use client" hooks file) so server
@@ -30,8 +26,10 @@ export const studentKeys = {
 }
 
 export const studentsApi = {
-  list: (params: StudentListParams) =>
-    http.get<Paginated<StudentListItem>>(`/api/students${buildQuery(params)}`),
+  list: (params: StudentListParams, offset = 0) =>
+    http.get<StudentPage>(
+      `/api/students${buildQuery({ ...params, offset: offset || undefined })}`
+    ),
   get: (id: string) => http.get<StudentDetail>(`/api/students/${id}`),
   create: (data: StudentCreateInput) =>
     http.post<StudentDetail>("/api/students", data),

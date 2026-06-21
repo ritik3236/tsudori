@@ -195,9 +195,9 @@ export function FeesMonthView({
         })}
       </div>
 
-      {/* Student search + status filter + class filter (wraps on narrow screens) */}
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative min-w-[160px] flex-1">
+      {/* Search on its own row; status + class share the row below. */}
+      <div className="space-y-2.5">
+        <div className="relative">
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             value={search}
@@ -206,42 +206,44 @@ export function FeesMonthView({
             className="h-8 pl-9"
           />
         </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter((v as StatusFilter) ?? "ALL")}
-        >
-          <SelectTrigger className="w-32 shrink-0 data-[size=default]:h-8">
-            <SelectValue placeholder="Status">
-              {(v: string) =>
-                STATUS_FILTER_OPTIONS.find((o) => o.value === v)?.label ?? "All status"
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_FILTER_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={classId} onValueChange={(v) => setClassId(v ?? ALL)}>
-          <SelectTrigger className="w-32 shrink-0 data-[size=default]:h-8">
-            <SelectValue placeholder="Class">
-              {(v: string) =>
-                v === ALL ? "All classes" : (classes?.find((c) => c.id === v)?.name ?? "Class")
-              }
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>All classes</SelectItem>
-            {(classes ?? []).map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2.5">
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter((v as StatusFilter) ?? "ALL")}
+          >
+            <SelectTrigger className="w-full data-[size=default]:h-8">
+              <SelectValue placeholder="Status">
+                {(v: string) =>
+                  STATUS_FILTER_OPTIONS.find((o) => o.value === v)?.label ?? "All status"
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_FILTER_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={classId} onValueChange={(v) => setClassId(v ?? ALL)}>
+            <SelectTrigger className="w-full data-[size=default]:h-8">
+              <SelectValue placeholder="Class">
+                {(v: string) =>
+                  v === ALL ? "All classes" : (classes?.find((c) => c.id === v)?.name ?? "Class")
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All classes</SelectItem>
+              {(classes ?? []).map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Slim month headline — collected vs expected + a thin progress bar. The

@@ -1,14 +1,10 @@
 "use client"
 
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
+import { useInfiniteList } from "@/lib/use-infinite-list"
 import {
   classesApi,
   studentKeys,
@@ -22,11 +18,13 @@ import type {
 
 export { studentKeys }
 
+// Infinite scroll over the student list; keepPrevious so changing search/filter
+// doesn't flash a skeleton. Mirrors the fees month view.
 export function useStudents(params: StudentListParams) {
-  return useQuery({
+  return useInfiniteList({
     queryKey: studentKeys.list(params),
-    queryFn: () => studentsApi.list(params),
-    placeholderData: keepPreviousData,
+    queryFn: (offset) => studentsApi.list(params, offset),
+    keepPrevious: true,
   })
 }
 
