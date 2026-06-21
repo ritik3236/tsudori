@@ -58,8 +58,10 @@ export function AttendanceReport({ classId, month }: Props) {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
-            <th className="bg-card sticky left-0 pb-2 pr-4 text-left font-medium whitespace-nowrap pt-4">
-              Student
+            <th className="bg-card sticky left-0 pb-2 pr-4 text-left font-medium pt-4">
+              {/* Fixed width so the date columns start at the same x in every
+                  class table — a long name no longer shifts them. */}
+              <div className="w-36">Student</div>
             </th>
             {data.schoolDays.map((d) => (
               <th
@@ -77,8 +79,10 @@ export function AttendanceReport({ classId, month }: Props) {
         <tbody>
           {data.rows.map((row) => (
             <tr key={row.studentId} className="border-t">
-              <td className="bg-card sticky left-0 py-2.5 pr-4 font-medium whitespace-nowrap">
-                {row.studentName}
+              <td className="bg-card sticky left-0 py-2.5 pr-4 font-medium">
+                <div className="w-36 truncate" title={row.studentName}>
+                  {row.studentName}
+                </div>
               </td>
               {data.schoolDays.map((d) => {
                 const status = row.days[d] as AttendanceStatus | undefined
