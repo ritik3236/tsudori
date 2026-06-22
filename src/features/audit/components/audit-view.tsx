@@ -51,12 +51,12 @@ export function AuditView({ mine = false }: { mine?: boolean }) {
     (!mine && actorId !== ALL) || entityType !== ALL || !!from || !!to
 
   return (
-    <div className="space-y-4">
-      {/* Filters: (actor ·) type · from · to */}
+    <div className="space-y-3">
+      {/* Filters: (actor ·) type · from · to — kept to a single compact row. */}
       <div
         className={cn(
-          "grid gap-2.5",
-          mine ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+          "grid gap-2",
+          mine ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
         )}
       >
         {!mine && <ActorFilter value={actorId} onChange={setActorId} />}
@@ -85,7 +85,7 @@ export function AuditView({ mine = false }: { mine?: boolean }) {
         <DatePicker value={to} onChange={setTo} placeholder="To" />
       </div>
 
-      {!isLoading && total > 0 && (
+      {!mine && !isLoading && total > 0 && (
         <p className="text-muted-foreground text-xs">
           {total} {total === 1 ? "event" : "events"}
         </p>
