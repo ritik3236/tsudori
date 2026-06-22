@@ -9,10 +9,9 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth/client"
 import { ProfilePhoto } from "@/features/account/components/profile-photo"
+import { ChangePasswordDialog } from "@/features/account/components/change-password-dialog"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
@@ -23,28 +22,10 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 
-const MIN_PASSWORD_LENGTH = 8
-
 const nameSchema = z.object({
   name: z.string().trim().min(1, "Name is required.").max(120),
 })
 type NameValues = z.infer<typeof nameSchema>
-
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Enter your current password."),
-    newPassword: z
-      .string()
-      .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters.`)
-      .max(128, "That password is too long."),
-    confirmPassword: z.string(),
-    revokeOtherSessions: z.boolean(),
-  })
-  .refine((v) => v.newPassword === v.confirmPassword, {
-    message: "Passwords don't match.",
-    path: ["confirmPassword"],
-  })
-type PasswordValues = z.infer<typeof passwordSchema>
 
 function messageOf(error: unknown, fallback: string): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -65,20 +46,10 @@ export function AccountForm({
 }) {
   const router = useRouter()
   const [savingName, setSavingName] = useState(false)
-  const [savingPw, setSavingPw] = useState(false)
 
   const nameForm = useForm<NameValues>({
     resolver: zodResolver(nameSchema),
     defaultValues: { name },
-  })
-  const pwForm = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: "",
-      revokeOtherSessions: true,
-    },
   })
 
   async function onSaveName(v: NameValues) {
@@ -96,27 +67,6 @@ export function AccountForm({
       toast.error(messageOf(e, "Couldn't update your name."))
     } finally {
       setSavingName(false)
-    }
-  }
-
-  async function onChangePassword(v: PasswordValues) {
-    setSavingPw(true)
-    try {
-      const { error } = await authClient.changePassword({
-        currentPassword: v.currentPassword,
-        newPassword: v.newPassword,
-        revokeOtherSessions: v.revokeOtherSessions,
-      })
-      if (error) {
-        toast.error(messageOf(error, "Couldn't change your password."))
-        return
-      }
-      toast.success("Password changed.")
-      pwForm.reset()
-    } catch (e) {
-      toast.error(messageOf(e, "Couldn't change your password."))
-    } finally {
-      setSavingPw(false)
     }
   }
 
@@ -172,82 +122,12 @@ export function AccountForm({
         <CardHeader>
           <CardTitle>Password</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Form {...pwForm}>
-            <form
-              onSubmit={pwForm.handleSubmit(onChangePassword)}
-              className="space-y-4"
-            >
-              <FormField
-                control={pwForm.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current password</FormLabel>
-                    <FormControl>
-                      <PasswordInput autoComplete="current-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={pwForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New password</FormLabel>
-                    <FormControl>
-                      <PasswordInput autoComplete="new-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={pwForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm new password</FormLabel>
-                    <FormControl>
-                      <PasswordInput autoComplete="new-password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={pwForm.control}
-                name="revokeOtherSessions"
-                render={({ field }) => (
-                  <FormItem>
-                    <label className="flex cursor-pointer items-start gap-2.5">
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        className="mt-0.5"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium">
-                          Sign out of all other devices
-                        </span>
-                        <span className="text-muted-foreground block text-xs">
-                          Ends every other active session. Recommended if your
-                          password may have been seen by someone else.
-                        </span>
-                      </span>
-                    </label>
-                  </FormItem>
-                )}
-              />
-              <div className="flex justify-end">
-                <Button type="submit" disabled={savingPw}>
-                  {savingPw ? "Saving…" : "Change password"}
-                </Button>
-              </div>
-            </form>
-          </Form>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-muted-foreground text-sm">
+            Change your account password, and optionally sign out of your other
+            devices.
+          </p>
+          <ChangePasswordDialog />
         </CardContent>
       </Card>
     </div>

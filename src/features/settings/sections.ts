@@ -36,6 +36,12 @@ export const PERSONAL_SETTINGS_SECTIONS: SettingsSection[] = [
     icon: CircleUser,
   },
   {
+    label: "Security",
+    description: "Active sessions and password.",
+    href: "/settings/security",
+    icon: ShieldCheck,
+  },
+  {
     label: "Your activity",
     description: "Your recent actions and account sign-ins.",
     href: "/settings/activity",
