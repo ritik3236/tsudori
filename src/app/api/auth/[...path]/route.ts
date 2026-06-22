@@ -9,6 +9,24 @@ const handlers = auth.handler()
 
 export const GET = handlers.GET
 
+// Approximate "City, CC" from Vercel's edge geo headers — free and present on
+// every request in production. Absent locally / off-Vercel, so it's simply
+// omitted there. The city header is URL-encoded by Vercel (spaces/unicode).
+function readLocation(request: Request): string | null {
+  const rawCity = request.headers.get("x-vercel-ip-city")
+  let city: string | null = null
+  if (rawCity) {
+    try {
+      city = decodeURIComponent(rawCity)
+    } catch {
+      city = rawCity
+    }
+  }
+  const country = request.headers.get("x-vercel-ip-country")
+  const parts = [city, country].filter(Boolean)
+  return parts.length ? parts.join(", ") : null
+}
+
 // Append an account/security event to the activity log. The audit log is
 // per-institute, so it's scoped to the user's active institute (their first
 // active membership); skipped if they have none yet. Wrapped so a logging
@@ -27,13 +45,17 @@ async function logAuthEvent(
     if (!membership) return
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null
+    const location = readLocation(request)
     await recordAudit(prisma, {
       instituteId: membership.instituteId,
       actorId: userId,
       action,
       entityType: "User",
       entityId: userId,
-      metadata: ip ? { ip } : {},
+      metadata: {
+        ...(ip ? { ip } : {}),
+        ...(location ? { location } : {}),
+      },
     })
   } catch {
     // Activity logging is best-effort — never let it break sign-in/out.

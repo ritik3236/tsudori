@@ -166,8 +166,9 @@ function AuditRow({ e, mine }: { e: AuditLogItem; mine: boolean }) {
   const amount = typeof m.amount === "number" ? formatCurrency(m.amount) : null
   const reason = str("reason")
   const ip = str("ip")
-  // One detail line: name · amount · ip · "reason" (whichever are present).
-  const detail = [name, amount, ip, reason ? `“${reason}”` : null]
+  const location = str("location")
+  // One detail line: name · amount · location · ip · "reason" (whichever exist).
+  const detail = [name, amount, location, ip, reason ? `“${reason}”` : null]
     .filter(Boolean)
     .join(" · ")
   const href = auditEntityHref(e.action, e.entityId, e.metadata)
