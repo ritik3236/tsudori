@@ -13,6 +13,7 @@ type Tx = PrismaClient | Prisma.TransactionClient
 // enum) so adding an action later needs no migration; type-safety comes from
 // AuditAction below.
 export const AUDIT_ACTIONS = {
+  FEE_PAYMENT_RECORD: "fee.payment.record",
   FEE_PAYMENT_REVERSE: "fee.payment.reverse",
   FEE_WAIVER_REVERSE: "fee.waiver.reverse",
   FEE_WAIVE: "fee.waive",
@@ -21,9 +22,14 @@ export const AUDIT_ACTIONS = {
   MEMBER_ROLE_CHANGE: "member.role_change",
   MEMBER_BAN: "member.ban",
   MEMBER_UNBAN: "member.unban",
+  MEMBER_PASSWORD_RESET: "member.password_reset",
   STUDENT_ARCHIVE: "student.archive",
   STUDENT_RESTORE: "student.restore",
   ROLE_PERMISSIONS_CHANGE: "role.permissions_change",
+  // Account & security events — captured in the auth proxy (src/app/api/auth).
+  AUTH_SIGN_IN: "auth.sign_in",
+  AUTH_SIGN_OUT: "auth.sign_out",
+  AUTH_PASSWORD_CHANGE: "auth.password_change",
 } as const
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS]

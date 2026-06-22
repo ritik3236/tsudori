@@ -6,6 +6,12 @@ export type AuditListParams = {
   entityType?: string
   from?: string
   to?: string
+  /**
+   * When true, reads the caller's OWN activity from /api/activity (no AUDIT_READ
+   * needed) instead of the institute-wide /api/audit. The actor is forced to the
+   * caller server-side, so actorId is irrelevant here.
+   */
+  mine?: boolean
 }
 
 // Query-key factory. Lives here (not in the "use client" hooks file) so server
@@ -17,8 +23,11 @@ export const auditKeys = {
 }
 
 export const auditApi = {
-  list: (params: AuditListParams, offset = 0) =>
-    http.get<AuditPage>(
-      `/api/audit${buildQuery({ ...params, offset: offset || undefined })}`
-    ),
+  list: (params: AuditListParams, offset = 0) => {
+    const { mine, ...filters } = params
+    const path = mine ? "/api/activity" : "/api/audit"
+    return http.get<AuditPage>(
+      `${path}${buildQuery({ ...filters, offset: offset || undefined })}`
+    )
+  },
 }

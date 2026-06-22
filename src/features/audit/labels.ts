@@ -2,6 +2,7 @@
 // keyed by the dotted action / entityType strings written by the service.
 
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  "fee.payment.record": "Recorded a payment",
   "fee.payment.reverse": "Reversed a payment",
   "fee.waiver.reverse": "Reversed a waiver",
   "fee.waive": "Waived a fee",
@@ -10,9 +11,13 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "member.role_change": "Changed a member's role",
   "member.ban": "Banned a member",
   "member.unban": "Unbanned a member",
+  "member.password_reset": "Reset a member's password",
   "student.archive": "Archived a student",
   "student.restore": "Restored a student",
   "role.permissions_change": "Changed role permissions",
+  "auth.sign_in": "Signed in",
+  "auth.sign_out": "Signed out",
+  "auth.password_change": "Changed password",
 }
 
 export const AUDIT_ENTITY_LABEL: Record<string, string> = {
@@ -21,6 +26,7 @@ export const AUDIT_ENTITY_LABEL: Record<string, string> = {
   Student: "Student",
   Membership: "Member",
   Role: "Role",
+  User: "Account",
 }
 
 /**
@@ -50,4 +56,5 @@ export const AUDIT_ENTITY_FILTERS = [
   { value: "Student", label: "Students" },
   { value: "Membership", label: "Members" },
   { value: "Role", label: "Roles" },
+  { value: "User", label: "Account" },
 ] as const

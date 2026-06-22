@@ -410,7 +410,7 @@ export async function recordPayment(
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true, monthlyFee: true, admissionDate: true },
+      select: { id: true, fullName: true, monthlyFee: true, admissionDate: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
 
@@ -501,6 +501,27 @@ export async function recordPayment(
         },
       })
       waivedAmount += w.amount
+    }
+
+    // Activity trail: who collected the fee. One row summarising the whole
+    // payment (it may span several months/receipts). Logged in-tx so it commits
+    // with the payment. Skipped for system writes with no actor.
+    const collected = rows.reduce((sum, r) => sum + Number(r.amount), 0)
+    if (recordedById && rows.length > 0) {
+      await recordAudit(tx, {
+        instituteId,
+        actorId: recordedById,
+        action: AUDIT_ACTIONS.FEE_PAYMENT_RECORD,
+        entityType: "FeePayment",
+        entityId: rows[0].id,
+        metadata: {
+          studentId: student.id,
+          studentName: student.fullName,
+          amount: collected,
+          receiptNo: rows[0].receiptNo,
+          months: rows.length,
+        },
+      })
     }
 
     return { rows, waivedAmount }
@@ -702,7 +723,7 @@ export async function recordWaiver(
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true, monthlyFee: true, admissionDate: true },
+      select: { id: true, fullName: true, monthlyFee: true, admissionDate: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
 

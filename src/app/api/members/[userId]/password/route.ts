@@ -1,10 +1,12 @@
 import { noContent, parseJson, route } from "@/lib/api"
 import { auth } from "@/lib/auth/server"
+import { prisma } from "@/lib/prisma"
 import { AppError, ForbiddenError } from "@/lib/errors"
 import { getTenantContext, requirePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { resetPasswordSchema } from "@/features/members/schema"
-import { assertMemberInInstitute } from "@/features/members/service"
+import { assertMemberInInstitute, getMember } from "@/features/members/service"
+import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 
 type RouteContext = { params: Promise<{ userId: string }> }
 
@@ -47,6 +49,16 @@ export const POST = route<RouteContext>(async (req, { params }) => {
       "AUTH_ERROR"
     )
   }
+
+  const member = await getMember(ctx.institute.id, userId)
+  await recordAudit(prisma, {
+    instituteId: ctx.institute.id,
+    actorId: ctx.user.id,
+    action: AUDIT_ACTIONS.MEMBER_PASSWORD_RESET,
+    entityType: "Membership",
+    entityId: member.membershipId,
+    metadata: { userId, memberName: member.name },
+  })
 
   return noContent()
 })

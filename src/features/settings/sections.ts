@@ -1,4 +1,5 @@
 import {
+  Activity,
   Bell,
   CalendarDays,
   CircleUser,
@@ -33,6 +34,12 @@ export const PERSONAL_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "Your name and password.",
     href: "/settings/profile",
     icon: CircleUser,
+  },
+  {
+    label: "Your activity",
+    description: "Your recent actions and account sign-ins.",
+    href: "/settings/activity",
+    icon: Activity,
   },
   {
     label: "Appearance",
