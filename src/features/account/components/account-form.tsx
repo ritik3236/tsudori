@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { authClient } from "@/lib/auth/client"
 import { ProfilePhoto } from "@/features/account/components/profile-photo"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,6 +38,7 @@ const passwordSchema = z
       .min(MIN_PASSWORD_LENGTH, `Use at least ${MIN_PASSWORD_LENGTH} characters.`)
       .max(128, "That password is too long."),
     confirmPassword: z.string(),
+    revokeOtherSessions: z.boolean(),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {
     message: "Passwords don't match.",
@@ -71,7 +73,12 @@ export function AccountForm({
   })
   const pwForm = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema),
-    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+      revokeOtherSessions: true,
+    },
   })
 
   async function onSaveName(v: NameValues) {
@@ -98,7 +105,7 @@ export function AccountForm({
       const { error } = await authClient.changePassword({
         currentPassword: v.currentPassword,
         newPassword: v.newPassword,
-        revokeOtherSessions: false,
+        revokeOtherSessions: v.revokeOtherSessions,
       })
       if (error) {
         toast.error(messageOf(error, "Couldn't change your password."))
@@ -207,6 +214,30 @@ export function AccountForm({
                       <PasswordInput autoComplete="new-password" {...field} />
                     </FormControl>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={pwForm.control}
+                name="revokeOtherSessions"
+                render={({ field }) => (
+                  <FormItem>
+                    <label className="flex cursor-pointer items-start gap-2.5">
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium">
+                          Sign out of all other devices
+                        </span>
+                        <span className="text-muted-foreground block text-xs">
+                          Ends every other active session. Recommended if your
+                          password may have been seen by someone else.
+                        </span>
+                      </span>
+                    </label>
                   </FormItem>
                 )}
               />
