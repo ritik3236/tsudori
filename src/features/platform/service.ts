@@ -16,10 +16,7 @@ import { AUDIT_ACTIONS, recordAudit } from "@/features/audit/service"
 import { MEMBER_INCLUDE, toMemberListItem } from "@/features/members/service"
 import type { MemberListItem } from "@/features/members/types"
 import type { StudentListItem } from "@/features/students/types"
-import type {
-  InstituteCreateInput,
-  PlatformStudentQuery,
-} from "@/features/platform/schema"
+import type { PlatformStudentQuery } from "@/features/platform/schema"
 
 // The roles every institute gets — SUPER_ADMIN is a platform flag, not an
 // institute role, so it's excluded.
@@ -184,13 +181,16 @@ export async function getPlatformActivity(
  * Create a new institute — a full tenant bootstrap, in one transaction:
  * the Institute row (with a unique slug) + its standard per-institute roles
  * (Institute Admin / Teacher / Auditor) and their permission grants, mirroring
- * what the seed does. The super admin isn't auto-added as a member — they enter
- * any institute via the switcher with full permissions; the roles exist so the
- * first real admin (invited later) has one to receive. Returns the list row.
+ * what the seed does, + the first admin's membership on the Institute Admin role.
+ *
+ * The admin's Neon Auth identity is created by the caller (identity-first, so a
+ * taken email fails before anything is written); `adminUserId` is that user's id,
+ * linked here so the new tenant ships usable rather than empty. Returns the list
+ * row (members: 1 — the admin we just linked).
  */
 export async function createInstitute(
   ctx: SuperAdminContext,
-  input: InstituteCreateInput
+  input: { name: string; adminUserId: string }
 ): Promise<PlatformInstituteRow> {
   requireSuperAdmin(ctx)
 
@@ -205,6 +205,8 @@ export async function createInstitute(
     const allPerms = await tx.permission.findMany({ select: { id: true, key: true } })
     const permIdByKey = new Map(allPerms.map((p) => [p.key, p.id]))
 
+    // Capture the Institute Admin role as we create it — the first admin lands on it.
+    let adminRoleId: string | null = null
     for (const template of SYSTEM_ROLES) {
       if (!INSTITUTE_ROLE_KEYS.includes(template.key)) continue
       const role = await tx.role.create({
@@ -217,6 +219,7 @@ export async function createInstitute(
         },
         select: { id: true },
       })
+      if (template.key === ROLE_KEYS.INSTITUTE_ADMIN) adminRoleId = role.id
       const grants = resolveRolePermissions(template)
         .map((key) => permIdByKey.get(key))
         .filter((id): id is string => Boolean(id))
@@ -225,6 +228,12 @@ export async function createInstitute(
         await tx.rolePermission.createMany({ data: grants, skipDuplicates: true })
       }
     }
+    if (!adminRoleId) throw new Error("Institute Admin role was not created.")
+
+    // Link the first admin (identity already provisioned by the caller).
+    await tx.membership.create({
+      data: { userId: input.adminUserId, instituteId: institute.id, roleId: adminRoleId },
+    })
 
     await recordAudit(tx, {
       instituteId: institute.id,
@@ -240,7 +249,7 @@ export async function createInstitute(
       name: institute.name,
       status: institute.status,
       students: 0,
-      members: 0,
+      members: 1,
       openTickets: 0,
       revenue: 0,
     }

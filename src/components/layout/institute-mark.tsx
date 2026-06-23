@@ -17,14 +17,14 @@ export function InstituteMark({
       <img
         src={logoUrl}
         alt=""
-        className={cn("size-8 shrink-0 rounded-lg border object-cover", className)}
+        className={cn("size-8 shrink-0 rounded-full border object-cover", className)}
       />
     )
   }
   return (
     <span
       className={cn(
-        "bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg",
+        "bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-full",
         className
       )}
     >

@@ -9,10 +9,12 @@ import {
   listPlatformMembers,
   getPlatformActivity,
 } from "@/features/platform/service"
+import { listAssignableRoles } from "@/features/members/service"
 import { StatCard } from "@/features/platform/components/stat-card"
 import { PlatformActivity } from "@/features/platform/components/platform-activity"
 import { EnterInstituteButton } from "@/features/platform/components/enter-institute-button"
 import { InstituteStatusToggle } from "@/features/platform/components/institute-status-toggle"
+import { AddInstituteMemberDialog } from "@/features/platform/components/add-institute-member-dialog"
 import { BackLink } from "@/components/shared/back-link"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,9 +40,10 @@ export default async function InstituteDetailPage({
   const institute = await getInstituteDetail(ctx, id)
   if (!institute) notFound()
 
-  const [members, activity] = await Promise.all([
+  const [members, activity, roles] = await Promise.all([
     listPlatformMembers(ctx, id),
     getPlatformActivity(ctx, 10, id),
+    listAssignableRoles(id),
   ])
 
   return (
@@ -50,7 +53,7 @@ export default async function InstituteDetailPage({
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-3">
-          <Avatar className="size-14 rounded-xl">
+          <Avatar className="size-14">
             {institute.logoUrl && (
               <AvatarImage
                 src={institute.logoUrl}
@@ -58,7 +61,7 @@ export default async function InstituteDetailPage({
                 className="object-cover"
               />
             )}
-            <AvatarFallback className="rounded-xl text-base font-semibold">
+            <AvatarFallback className="text-base font-semibold">
               {getInitials(institute.name)}
             </AvatarFallback>
           </Avatar>
@@ -105,7 +108,10 @@ export default async function InstituteDetailPage({
 
       {/* Members */}
       <section className="space-y-3">
-        <h2 className="text-base font-semibold">Members</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">Members</h2>
+          <AddInstituteMemberDialog instituteId={institute.id} roles={roles} />
+        </div>
         {members.length === 0 ? (
           <EmptyState
             icon={Users}

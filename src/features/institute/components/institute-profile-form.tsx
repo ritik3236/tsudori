@@ -116,7 +116,7 @@ export function InstituteProfileForm({ profile, canManage }: Props) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Section title="Logo">
           <div className="flex items-center gap-4">
-            <span className="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border">
+            <span className="bg-muted flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-full border">
               {logo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logo} alt="Institute logo" className="size-full object-cover" />
@@ -158,7 +158,7 @@ export function InstituteProfileForm({ profile, canManage }: Props) {
             )}
           </div>
           <p className="text-muted-foreground text-xs">
-            PNG, JPG, or SVG. It&apos;s resized to a small square automatically.
+            PNG, JPG, or SVG. It&apos;s resized and cropped to a circle automatically.
           </p>
         </Section>
 
