@@ -1,7 +1,8 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState, useTransition } from "react"
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
+import { Check, ChevronsUpDown, Globe, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { InstituteMark } from "@/components/layout/institute-mark"
@@ -98,6 +99,27 @@ export function InstituteSwitcher({
           </div>
         )}
         <div className="max-h-72 overflow-y-auto p-1">
+          {/* Super admins can step up to the cross-institute platform view. */}
+          {isSuperAdmin && (
+            <>
+              <Link
+                href="/platform"
+                onClick={() => setOpen(false)}
+                className="hover:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left"
+              >
+                <span className="bg-foreground text-background flex size-6 shrink-0 items-center justify-center rounded-md">
+                  <Globe className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">Platform</span>
+                  <span className="text-muted-foreground block truncate text-xs">
+                    All institutes
+                  </span>
+                </span>
+              </Link>
+              <div className="bg-border my-1 h-px" />
+            </>
+          )}
           {isLoading ? (
             <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-sm">
               <Loader2 className="size-4 animate-spin" /> Loading…

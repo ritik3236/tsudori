@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Building2,
   CalendarCheck,
   LayoutDashboard,
   School,
@@ -105,6 +106,46 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ShieldCheck,
     activeColor: "text-rose-600 dark:text-rose-400",
     adminOnly: true,
+  },
+]
+
+// Super-admin platform area (cross-tenant). Every item is super-admin-only by the
+// route gate, so there's no permission filtering — rendered as-is. Dashboard is
+// live; the rest are Phase 3 placeholders (comingSoon → non-clickable).
+export const PLATFORM_NAV_ITEMS: NavItem[] = [
+  {
+    label: "Dashboard",
+    href: "/platform",
+    icon: LayoutDashboard,
+    activeColor: "text-blue-600 dark:text-blue-400",
+  },
+  {
+    label: "Institutes",
+    href: "/platform/institutes",
+    icon: Building2,
+    activeColor: "text-violet-600 dark:text-violet-400",
+    comingSoon: true,
+  },
+  {
+    label: "Students",
+    href: "/platform/students",
+    icon: Users,
+    activeColor: "text-emerald-600 dark:text-emerald-400",
+    comingSoon: true,
+  },
+  {
+    label: "Tickets",
+    href: "/platform/tickets",
+    icon: Ticket,
+    activeColor: "text-indigo-600 dark:text-indigo-400",
+    comingSoon: true,
+  },
+  {
+    label: "Members",
+    href: "/platform/members",
+    icon: ShieldCheck,
+    activeColor: "text-amber-600 dark:text-amber-400",
+    comingSoon: true,
   },
 ]
 

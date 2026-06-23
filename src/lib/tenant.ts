@@ -275,3 +275,34 @@ export function canAccessAdmin(ctx: TenantContext): boolean {
 export function requireAdminPage(ctx: TenantContext): void {
   if (!canAccessAdmin(ctx)) forbidden()
 }
+
+/**
+ * A TenantContext proven to belong to a platform super admin. This is the
+ * compiler-enforced key to the cross-tenant `/platform` area: every function in
+ * src/features/platform takes ONLY this type, so a caller holding a plain
+ * TenantContext can't reach a cross-tenant query without first passing through
+ * requireSuperAdmin (which narrows the type). The active institute is still
+ * resolved on ctx (cookie/fallback) — platform code simply ignores it.
+ */
+export type SuperAdminContext = TenantContext & { isSuperAdmin: true }
+
+/** Action/route guard. Narrows ctx to SuperAdminContext, else throws (→ 403 JSON). */
+export function requireSuperAdmin(
+  ctx: TenantContext
+): asserts ctx is SuperAdminContext {
+  if (!ctx.isSuperAdmin) throw new ForbiddenError()
+}
+
+/** Page-only variant — forbidden() interrupt → friendly 403 page. */
+export function requireSuperAdminPage(
+  ctx: TenantContext
+): asserts ctx is SuperAdminContext {
+  if (!ctx.isSuperAdmin) forbidden()
+}
+
+/** Resolve the tenant context AND assert super admin in one call. */
+export async function getSuperAdminContext(): Promise<SuperAdminContext> {
+  const ctx = await getTenantContext()
+  requireSuperAdmin(ctx)
+  return ctx
+}
