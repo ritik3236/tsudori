@@ -12,6 +12,7 @@ export function CreateStudent() {
   return (
     <StudentForm
       syncClassFee
+      requireClass
       submitLabel="Add student"
       submitting={create.isPending}
       onCancel={() => router.push("/students")}

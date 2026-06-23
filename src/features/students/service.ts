@@ -158,6 +158,10 @@ export async function createStudent(
   instituteId: string,
   input: StudentCreateInput
 ): Promise<StudentDetail> {
+  // Every new student must join a class (the form enforces it too; this guards
+  // the API). Edits stay lenient so legacy class-less students remain editable.
+  if (!input.classId) throw new ValidationError("Please select a class.")
+
   const created = await prisma.$transaction(async (tx) => {
     if (input.classId) await assertClassInInstitute(tx, instituteId, input.classId)
 

@@ -73,6 +73,16 @@ export const studentFormSchema = z.object({
 
 export type StudentFormValues = z.infer<typeof studentFormSchema>
 
+// On CREATE every student must join a class. The edit form keeps class optional
+// (studentFormSchema) so legacy class-less students stay editable — only the
+// create flow uses this stricter schema. Field-level (not an object .refine) so
+// the class error surfaces alongside any other field errors on submit.
+export const studentCreateFormSchema = studentFormSchema.extend({
+  classId: z
+    .string()
+    .refine((v) => v.length > 0 && v !== NO_CLASS, "Please select a class."),
+})
+
 /** Maps the all-strings form model onto the nullable domain input. */
 export function formValuesToInput(values: StudentFormValues): StudentCreateInput {
   return {

@@ -12,6 +12,7 @@ import {
   NO_CLASS,
   STUDENT_STATUSES,
   formValuesToInput,
+  studentCreateFormSchema,
   studentFormSchema,
   type StudentCreateInput,
   type StudentFormValues,
@@ -44,6 +45,9 @@ type StudentFormProps = {
   submitLabel: string
   submitting?: boolean
   syncClassFee?: boolean
+  /** Require a class (create flow). Edit leaves it optional so legacy
+   *  class-less students stay editable. */
+  requireClass?: boolean
   onSubmit: (input: StudentCreateInput) => void
   onCancel?: () => void
 }
@@ -102,13 +106,14 @@ export function StudentForm({
   submitLabel,
   submitting,
   syncClassFee,
+  requireClass,
   onSubmit,
   onCancel,
 }: StudentFormProps) {
   const { data: classes } = useClassOptions()
 
   const form = useForm<StudentFormValues>({
-    resolver: zodResolver(studentFormSchema),
+    resolver: zodResolver(requireClass ? studentCreateFormSchema : studentFormSchema),
     defaultValues: { ...emptyValues(), ...defaultValues },
   })
 
@@ -141,7 +146,10 @@ export function StudentForm({
               name="classId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Class</FormLabel>
+                  <FormLabel>
+                    Class
+                    {requireClass && <Req />}
+                  </FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={(value) => {
@@ -155,21 +163,23 @@ export function StudentForm({
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select class">
-                          {(v: string) =>
-                            v === NO_CLASS
-                              ? "No class"
-                              : (() => {
-                                  const c = classes?.find((c) => c.id === v)
-                                  return c
-                                    ? formatClassName(c.name, c.section)
-                                    : "Select class"
-                                })()
-                          }
+                          {(v: string) => {
+                            if (!v || v === NO_CLASS) {
+                              return requireClass ? (
+                                <span className="text-muted-foreground">Select class</span>
+                              ) : (
+                                "No class"
+                              )
+                            }
+                            const c = classes?.find((c) => c.id === v)
+                            return c ? formatClassName(c.name, c.section) : "Select class"
+                          }}
                         </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={NO_CLASS}>No class</SelectItem>
+                      {/* "No class" is only offered when class is optional (edit). */}
+                      {!requireClass && <SelectItem value={NO_CLASS}>No class</SelectItem>}
                       {classes?.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {formatClassName(c.name, c.section)}
