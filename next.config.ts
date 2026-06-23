@@ -27,6 +27,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // The /auth/* pages redirect based on live auth state (e.g. already
+        // signed in → /dashboard). They must never be served from the browser
+        // cache, or Safari shows a stale sign-in page on reload even when the
+        // user is logged in. Force a fresh server render every time.
+        source: "/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "no-store, must-revalidate" },
+        ],
+      },
     ]
   },
 };

@@ -20,10 +20,20 @@ import { createNeonAuth } from "@neondatabase/auth/next/server"
 // (sign-out elsewhere / ban) can linger up to a day; acceptable for this app.
 // Complementary fix: a longer compute autosuspend window so the upstream never
 // cold-starts.
+//
+// sameSite: "lax" (the package default is "strict"). Strict withholds the
+// session cookie on any navigation that originated outside the site — so Safari
+// (which enforces SameSite + ITP aggressively) shows a still-logged-in user the
+// sign-in screen when they return via a bookmark / backgrounded tab / link.
+// Lax sends the cookie on top-level navigations (you stay signed in on return)
+// while still withholding it on cross-site POST / sub-resource requests, which
+// is the real CSRF vector — so this stays CSRF-safe (the API also asserts a JSON
+// content-type as a second layer). Applies to all neon-auth session cookies.
 export const auth = createNeonAuth({
   baseUrl: process.env.NEON_AUTH_BASE_URL!,
   cookies: {
     secret: process.env.NEON_AUTH_COOKIE_SECRET!,
     sessionDataTtl: 60 * 60 * 24,
+    sameSite: "lax",
   },
 })
