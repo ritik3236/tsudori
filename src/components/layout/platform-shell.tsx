@@ -92,11 +92,51 @@ export function PlatformShell({
           </div>
         </header>
 
-        <main className="flex-1 bg-background px-4 py-6 pb-[max(env(safe-area-inset-bottom),2rem)] lg:px-8 lg:py-8">
+        <main className="flex-1 bg-background px-4 py-6 pb-[calc(env(safe-area-inset-bottom)+5rem)] lg:px-8 lg:py-8 lg:pb-8">
           {children}
         </main>
       </div>
+
+      {/* Mobile-only platform nav (the sidebar is desktop-only). */}
+      <PlatformBottomNav />
     </div>
+  )
+}
+
+// Mobile bottom nav for the platform sections. Only the live (non-comingSoon)
+// items, since the placeholders have no page yet. The index (/platform) is
+// matched exactly so it isn't "active" on every child route.
+function PlatformBottomNav() {
+  const pathname = usePathname()
+  const items = PLATFORM_NAV_ITEMS.filter((i) => !i.comingSoon)
+  const isActive = (href: string) =>
+    href === "/platform" ? pathname === "/platform" : pathname.startsWith(href)
+
+  return (
+    <nav
+      aria-label="Platform"
+      className="bg-background/90 fixed inset-x-0 bottom-0 z-40 flex border-t pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+    >
+      {items.map((item) => {
+        const Icon = item.icon
+        const active = isActive(item.href)
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            prefetch={true}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 px-1 pt-1.5 pb-1 transition-colors",
+              active ? item.activeColor : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="size-5 shrink-0" />
+            <span className="text-[11px] leading-none font-medium">{item.label}</span>
+          </Link>
+        )
+      })}
+    </nav>
   )
 }
 

@@ -97,7 +97,9 @@ async function assertOtherAdminRemains(
 // admin-plugin operations and live in the route handler, which owns the
 // request-scoped session.
 
-const MEMBER_INCLUDE = {
+// Exported so the cross-tenant platform member list can reuse the exact same
+// include + mapping (it adds an institute join on top).
+export const MEMBER_INCLUDE = {
   user: true,
   role: true,
 } satisfies Prisma.MembershipInclude
@@ -106,7 +108,7 @@ type MembershipWithRelations = Prisma.MembershipGetPayload<{
   include: typeof MEMBER_INCLUDE
 }>
 
-function toMemberListItem(m: MembershipWithRelations): MemberListItem {
+export function toMemberListItem(m: MembershipWithRelations): MemberListItem {
   return {
     membershipId: m.id,
     userId: m.userId,

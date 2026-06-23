@@ -27,6 +27,9 @@ export const AUDIT_ACTIONS = {
   STUDENT_RESTORE: "student.restore",
   ROLE_PERMISSIONS_CHANGE: "role.permissions_change",
   INSTITUTE_SWITCH: "institute.switch",
+  INSTITUTE_CREATE: "institute.create",
+  INSTITUTE_SUSPEND: "institute.suspend",
+  INSTITUTE_REACTIVATE: "institute.reactivate",
   // Account & security events — captured in the auth proxy (src/app/api/auth).
   AUTH_SIGN_IN: "auth.sign_in",
   AUTH_SIGN_OUT: "auth.sign_out",
