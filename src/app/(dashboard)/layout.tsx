@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { ShieldAlert } from "lucide-react"
 
 import { getTenantContext, canAccessAdmin } from "@/lib/tenant"
@@ -20,10 +21,23 @@ export default async function DashboardLayout({
     throw error
   }
 
+  // First-choice gate: when the active institute is only a fallback (no deliberate
+  // cookie pick) AND the choice is ambiguous (member of several, or a super admin
+  // who can enter any), send them to pick. A single-institute member never matches.
+  if (
+    ctx.activeSource !== "cookie" &&
+    (ctx.myInstitutes.length > 1 || ctx.isSuperAdmin)
+  ) {
+    redirect("/choose-institute")
+  }
+
   return (
     <AppShell
+      instituteId={ctx.institute.id}
       instituteName={ctx.institute.name}
       logoUrl={ctx.institute.logoUrl}
+      myInstitutes={ctx.myInstitutes}
+      isSuperAdmin={ctx.isSuperAdmin}
       permissions={[...ctx.permissions]}
       isAdmin={canAccessAdmin(ctx)}
     >

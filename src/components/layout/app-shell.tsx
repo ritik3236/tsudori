@@ -3,44 +3,46 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { UserButton } from "@neondatabase/auth-ui"
-import { GraduationCap } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { APP_NAME } from "@/lib/constants"
 import { visibleNavItems, type NavItem } from "@/components/layout/nav"
 import { BottomNav } from "@/components/layout/bottom-nav"
+import { InstituteMark } from "@/components/layout/institute-mark"
+import { InstituteSwitcher } from "@/components/layout/institute-switcher"
 import { RefreshButton } from "@/components/layout/refresh-button"
 import { ThemeSelector } from "@/components/layout/theme-selector"
 import { Badge } from "@/components/ui/badge"
+import type { InstituteOption } from "@/features/institute/types"
+
+type CurrentInstitute = { id: string; name: string; logoUrl: string | null }
 
 type AppShellProps = {
+  instituteId: string
   instituteName: string
   logoUrl: string | null
+  myInstitutes: InstituteOption[]
+  isSuperAdmin: boolean
   permissions: string[]
   isAdmin: boolean
   children: React.ReactNode
 }
 
-// The institute logo (base64 data URL) or the default graduation-cap badge.
-function InstituteMark({ logoUrl }: { logoUrl: string | null }) {
-  if (logoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={logoUrl}
-        alt=""
-        className="size-8 shrink-0 rounded-lg border object-cover"
-      />
-    )
+export function AppShell({
+  instituteId,
+  instituteName,
+  logoUrl,
+  myInstitutes,
+  isSuperAdmin,
+  permissions,
+  isAdmin,
+  children,
+}: AppShellProps) {
+  const currentInstitute: CurrentInstitute = {
+    id: instituteId,
+    name: instituteName,
+    logoUrl,
   }
-  return (
-    <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-      <GraduationCap className="size-4.5" />
-    </span>
-  )
-}
-
-export function AppShell({ instituteName, logoUrl, permissions, isAdmin, children }: AppShellProps) {
   const items = visibleNavItems(new Set(permissions), isAdmin)
   const pathname = usePathname()
   // The page title now lives in the top bar (replacing the institute name, which
@@ -54,7 +56,11 @@ export function AppShell({ instituteName, logoUrl, permissions, isAdmin, childre
     <div className="flex min-h-screen">
       {/* Desktop sidebar — unchanged; hidden on mobile in favour of the bottom bar */}
       <aside className="bg-sidebar text-sidebar-foreground hidden w-64 shrink-0 flex-col border-r lg:flex">
-        <BrandHeader instituteName={instituteName} logoUrl={logoUrl} />
+        <BrandHeader
+          current={currentInstitute}
+          myInstitutes={myInstitutes}
+          isSuperAdmin={isSuperAdmin}
+        />
         <SidebarNav items={items} className="flex-1 px-3 py-4" />
         <SidebarFooter />
       </aside>
@@ -77,9 +83,12 @@ export function AppShell({ instituteName, logoUrl, permissions, isAdmin, childre
               <p className="truncate text-base font-semibold tracking-tight">
                 {pageTitle}
               </p>
-              <p className="text-muted-foreground truncate text-xs leading-tight">
-                {instituteName}
-              </p>
+              <InstituteSwitcher
+                current={currentInstitute}
+                myInstitutes={myInstitutes}
+                isSuperAdmin={isSuperAdmin}
+                triggerClassName="text-muted-foreground text-xs leading-tight"
+              />
             </div>
 
             <ThemeSelector />
@@ -102,18 +111,25 @@ export function AppShell({ instituteName, logoUrl, permissions, isAdmin, childre
 }
 
 function BrandHeader({
-  instituteName,
-  logoUrl,
+  current,
+  myInstitutes,
+  isSuperAdmin,
 }: {
-  instituteName: string
-  logoUrl: string | null
+  current: CurrentInstitute
+  myInstitutes: InstituteOption[]
+  isSuperAdmin: boolean
 }) {
   return (
     <div className="flex h-14 items-center gap-2.5 border-b px-5">
-      <InstituteMark logoUrl={logoUrl} />
+      <InstituteMark logoUrl={current.logoUrl} />
       <div className="flex min-w-0 flex-col leading-none">
         <span className="text-sm font-semibold tracking-tight">{APP_NAME}</span>
-        <span className="text-muted-foreground truncate text-xs">{instituteName}</span>
+        <InstituteSwitcher
+          current={current}
+          myInstitutes={myInstitutes}
+          isSuperAdmin={isSuperAdmin}
+          triggerClassName="text-muted-foreground text-xs"
+        />
       </div>
     </div>
   )

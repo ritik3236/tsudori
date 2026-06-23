@@ -14,6 +14,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "member.password_reset": "Reset a member's password",
   "student.archive": "Archived a student",
   "student.restore": "Restored a student",
+  "institute.switch": "Switched into this institute",
   "role.permissions_change": "Changed role permissions",
   "auth.sign_in": "Signed in",
   "auth.sign_out": "Signed out",

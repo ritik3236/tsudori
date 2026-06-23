@@ -16,6 +16,7 @@ import {
   ROLE_KEYS,
   type Permission,
 } from "@/lib/rbac"
+import type { InstituteOption } from "@/features/institute/types"
 
 export const ACTIVE_INSTITUTE_COOKIE = "tsudori.active_institute"
 
@@ -30,6 +31,11 @@ export type TenantContext = {
   membership: (Membership & { role: Role }) | null
   permissions: ReadonlySet<Permission>
   isSuperAdmin: boolean
+  /** Every institute the user is an active member of — powers the switcher. */
+  myInstitutes: InstituteOption[]
+  /** How the active institute was chosen. "cookie" = a deliberate pick; the
+   *  others are fallbacks, which trigger the post-login picker when ambiguous. */
+  activeSource: "cookie" | "membership-default" | "superadmin-default"
 }
 
 // Fold the active role's permissions into the membership fetch so resolving a
@@ -92,13 +98,24 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
   // Platform super-admin is carried by Neon Auth's (Better Auth) role column.
   const isSuperAdmin = user.role === "admin"
 
+  // Cheap: mapped from the memberships already loaded above — powers the switcher.
+  const myInstitutes: InstituteOption[] = memberships.map((m) => ({
+    id: m.institute.id,
+    name: m.institute.name,
+    logoUrl: m.institute.logoUrl,
+    roleName: m.role.name,
+    status: m.institute.status,
+  }))
+
   const cookieStore = await cookies()
   const preferredId = cookieStore.get(ACTIVE_INSTITUTE_COOKIE)?.value
 
-  const active =
-    memberships.find((m) => m.instituteId === preferredId) ?? memberships[0]
-
-  if (active) {
+  // Builds the context for an institute the user is a member of: applies the
+  // suspended-institute gate and resolves the role's permissions.
+  const memberContext = (
+    active: (typeof memberships)[number],
+    activeSource: TenantContext["activeSource"]
+  ): TenantContext => {
     const { institute, ...membership } = active
 
     // Tenant-level gate: a suspended institute grants no access to its members.
@@ -110,21 +127,41 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
     const permissions = isSuperAdmin
       ? new Set<Permission>(ALL_PERMISSIONS)
       : new Set<Permission>(
-          membership.role.permissions.map(
-            (rp) => rp.permission.key as Permission
-          )
+          membership.role.permissions.map((rp) => rp.permission.key as Permission)
         )
 
-    return {
-      user,
-      institute,
-      membership,
-      permissions,
-      isSuperAdmin,
+    return { user, institute, membership, permissions, isSuperAdmin, myInstitutes, activeSource }
+  }
+
+  // 1. The cookie names an institute the user is a member of — a deliberate pick.
+  const cookieMembership = preferredId
+    ? memberships.find((m) => m.instituteId === preferredId)
+    : undefined
+  if (cookieMembership) return memberContext(cookieMembership, "cookie")
+
+  // 2. Super admin entering a cookie-named institute they're NOT a member of
+  //    (cross-tenant support access). Allowed for ACTIVE or SUSPENDED institutes.
+  if (isSuperAdmin && preferredId) {
+    const institute = await prisma.institute.findFirst({
+      where: { id: preferredId, status: { in: ["ACTIVE", "SUSPENDED"] } },
+    })
+    if (institute) {
+      return {
+        user,
+        institute,
+        membership: null,
+        permissions: new Set<Permission>(ALL_PERMISSIONS),
+        isSuperAdmin: true,
+        myInstitutes,
+        activeSource: "cookie",
+      }
     }
   }
 
-  // Super admin onboarding fallback: no membership yet, but should still see data.
+  // 3. Fall back to the user's first active membership (no / stale cookie).
+  if (memberships[0]) return memberContext(memberships[0], "membership-default")
+
+  // 4. Super admin onboarding fallback: no membership yet, but should still see data.
   if (isSuperAdmin) {
     const institute = await prisma.institute.findFirst({
       where: { status: "ACTIVE" },
@@ -137,6 +174,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
         membership: null,
         permissions: new Set<Permission>(ALL_PERMISSIONS),
         isSuperAdmin: true,
+        myInstitutes,
+        activeSource: "superadmin-default",
       }
     }
   }

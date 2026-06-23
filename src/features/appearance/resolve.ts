@@ -28,7 +28,7 @@ export const resolveEffectiveAppearance = cache(
 
     // Institute default fills any field the user hasn't personally set.
     if (theme === null || font === null) {
-      const instituteId = await activeInstituteId(user.id)
+      const instituteId = await activeInstituteId(user)
       if (instituteId) {
         const inst = await getInstituteAppearance(instituteId)
         theme = theme ?? inst?.theme ?? null
@@ -43,17 +43,29 @@ export const resolveEffectiveAppearance = cache(
 // The institute to inherit defaults from: the active-institute cookie (if the
 // user still belongs to it), else their first active membership. Lightweight
 // (id only) — mirrors getTenantContext's resolution without the full load.
-async function activeInstituteId(userId: string): Promise<string | null> {
+async function activeInstituteId(user: {
+  id: string
+  role: string | null
+}): Promise<string | null> {
   const preferred = (await cookies()).get(ACTIVE_INSTITUTE_COOKIE)?.value
   if (preferred) {
     const m = await prisma.membership.findFirst({
-      where: { userId, instituteId: preferred, status: "ACTIVE" },
+      where: { userId: user.id, instituteId: preferred, status: "ACTIVE" },
       select: { instituteId: true },
     })
     if (m) return m.instituteId
+    // A super admin may be viewing a non-member institute — inherit its defaults,
+    // mirroring getTenantContext's resolution.
+    if (user.role === "admin") {
+      const inst = await prisma.institute.findFirst({
+        where: { id: preferred },
+        select: { id: true },
+      })
+      if (inst) return inst.id
+    }
   }
   const first = await prisma.membership.findFirst({
-    where: { userId, status: "ACTIVE" },
+    where: { userId: user.id, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
     select: { instituteId: true },
   })
