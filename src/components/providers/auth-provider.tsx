@@ -46,6 +46,10 @@ export function AuthUIProvider({
       // Public self-signup is disabled — people join only via an invite link
       // (/invite/<token>). The auth UI shows sign-in only.
       signUp={false}
+      // Point the user-menu "Settings" link at our own settings hub — the built-in
+      // account views aren't used (we have custom /settings/*). The link is
+      // `basePath`/`viewPaths.SETTINGS`, so this resolves to /settings/profile.
+      account={{ basePath: "/settings", viewPaths: { SETTINGS: "profile" } }}
       className={className}
     >
       {children}
