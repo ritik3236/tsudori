@@ -69,13 +69,18 @@ export async function getDashboardStats(
               where: { instituteId, periodMonth: tm, periodYear: ty },
               _sum: { amount: true },
             }),
-            // Exclude reversal rows (negative credit notes) — they aren't
-            // payments received. The aggregates above still net them out.
+            // Recent payments = money actually received. Skip reversal rows (the
+            // negative credit notes), and pull each original's own reversals so we
+            // can net them below. Over-fetch, then filter + slice to 5, since some
+            // of the latest rows may be fully reversed and drop out.
             prisma.feePayment.findMany({
               where: { instituteId, reversalOfId: null },
               orderBy: { paidAt: "desc" },
-              take: 5,
-              include: { student: { select: { fullName: true } } },
+              take: 20,
+              include: {
+                student: { select: { fullName: true } },
+                reversals: { select: { amount: true } },
+              },
             }),
           ])
         const expected = Number(expectedAgg._sum.monthlyFee ?? 0)
@@ -83,14 +88,24 @@ export async function getDashboardStats(
         return {
           feeCollectedThisMonth: Number(collectedAgg._sum.amount ?? 0),
           outstandingThisMonth: Math.max(0, expected - collectedForMonth),
-          recentPayments: recentPayments.map((p) => ({
-            id: p.id,
-            studentName: p.student.fullName,
-            amount: Number(p.amount),
-            paidAt: p.paidAt,
-            // Non-reversal rows always carry a receipt number (filtered above).
-            receiptNo: p.receiptNo ?? 0,
-          })),
+          recentPayments: recentPayments
+            .map((p) => {
+              // Reversal rows are negative, so adding them nets the payment down to
+              // what was actually kept: fully reversed → 0 (dropped below), partial
+              // → the remaining amount.
+              const reversed = p.reversals.reduce((s, r) => s + Number(r.amount), 0)
+              const net = Math.round((Number(p.amount) + reversed) * 100) / 100
+              return {
+                id: p.id,
+                studentName: p.student.fullName,
+                amount: net,
+                paidAt: p.paidAt,
+                // Non-reversal rows always carry a receipt number (filtered above).
+                receiptNo: p.receiptNo ?? 0,
+              }
+            })
+            .filter((p) => p.amount > 0)
+            .slice(0, 5),
         }
       })()
     : Promise.resolve(null)
