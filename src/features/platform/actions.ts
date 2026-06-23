@@ -5,12 +5,21 @@ import type { InstituteStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth/server"
-import { AppError, ConflictError, NotFoundError } from "@/lib/errors"
+import { AppError, ConflictError, NotFoundError, ValidationError } from "@/lib/errors"
 import { getSuperAdminContext } from "@/lib/tenant"
 import { AUDIT_ACTIONS, recordAudit } from "@/features/audit/service"
-import { instituteCreateSchema } from "@/features/platform/schema"
-import { createInstitute, type PlatformInstituteRow } from "@/features/platform/service"
-import { memberCreateSchema, type MemberCreateInput } from "@/features/members/schema"
+import {
+  instituteCreateSchema,
+  instituteMemberAddSchema,
+  type InstituteMemberAddInput,
+} from "@/features/platform/schema"
+import {
+  createInstitute,
+  lookupInstituteMember,
+  type InstituteMemberLookup,
+  type PlatformInstituteRow,
+} from "@/features/platform/service"
+import { MIN_PASSWORD_LENGTH } from "@/features/members/schema"
 import { addMembership, assertRoleInInstitute } from "@/features/members/service"
 import type { MemberListItem } from "@/features/members/types"
 
@@ -53,27 +62,62 @@ export async function createInstituteAction(
   return row
 }
 
+/** Resolve an email for the add-member dialog (super-admin only): a brand-new
+ *  person, an existing login to attach, or someone already a member here. */
+export async function lookupInstituteMemberAction(
+  instituteId: string,
+  email: string
+): Promise<InstituteMemberLookup> {
+  const ctx = await getSuperAdminContext()
+  return lookupInstituteMember(ctx, instituteId, email)
+}
+
 /**
- * Add a member (real login + membership) to an existing institute from its
- * platform detail page (super-admin only) — the "after" path for institutes that
- * need more staff beyond the first admin. Mirrors POST /api/members but targets
- * an explicit institute rather than the active tenant.
+ * Add a member to an existing institute from its platform detail page (super-admin
+ * only). Email is the identity: an existing login is just attached — so one person
+ * can belong to several institutes with a single login — while a new email
+ * provisions a login (name + password required). Re-adding someone already in this
+ * institute is blocked.
  */
 export async function addInstituteMemberAction(
   instituteId: string,
-  input: MemberCreateInput
+  input: InstituteMemberAddInput
 ): Promise<MemberListItem> {
   await getSuperAdminContext() // gate: throws for non-super-admins
-  const data = memberCreateSchema.parse(input)
+  const data = instituteMemberAddSchema.parse(input)
 
   // Role must belong to this institute (a super admin may grant any of them).
   await assertRoleInInstitute(instituteId, data.roleId)
 
-  const userId = await createAuthUser({
-    name: data.name,
-    email: data.email,
-    password: data.password,
+  const existing = await prisma.user.findUnique({
+    where: { email: data.email },
+    select: { id: true },
   })
+
+  let userId: string
+  if (existing) {
+    // Attach an existing login. Guard the re-add so "Add" never silently changes
+    // someone's existing role here (that's what change-role is for).
+    const dup = await prisma.membership.findUnique({
+      where: { userId_instituteId: { userId: existing.id, instituteId } },
+      select: { id: true },
+    })
+    if (dup) throw new ConflictError("They're already a member of this institute.")
+    userId = existing.id
+  } else {
+    // New person — name + password required (the dialog reveals those fields only
+    // once the email is found to be new; re-checked here as the server contract).
+    if (!data.name || !data.password || data.password.length < MIN_PASSWORD_LENGTH) {
+      throw new ValidationError(
+        `Enter a name and a password of at least ${MIN_PASSWORD_LENGTH} characters.`
+      )
+    }
+    userId = await createAuthUser({
+      name: data.name,
+      email: data.email,
+      password: data.password,
+    })
+  }
 
   const member = await addMembership(instituteId, userId, data.roleId)
   revalidatePath(`/platform/institutes/${instituteId}`)

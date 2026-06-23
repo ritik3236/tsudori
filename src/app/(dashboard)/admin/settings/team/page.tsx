@@ -18,11 +18,7 @@ export default async function TeamSettingsPage() {
         <BackLink href="/admin/settings" label="Admin" />
         <PageHeader
           title="Team members"
-          description={
-            ctx.isSuperAdmin
-              ? "Add members, change roles, reset passwords, and ban access."
-              : "People with access to this institute and their roles."
-          }
+          description="People with access to this institute and their roles."
         />
       </div>
       <MembersCard

@@ -5,10 +5,7 @@ import { toast } from "sonner"
 
 import { ApiError } from "@/lib/http"
 import { membersApi } from "@/features/members/api"
-import type {
-  MemberCreateInput,
-  ResetPasswordInput,
-} from "@/features/members/schema"
+import type { ResetPasswordInput } from "@/features/members/schema"
 
 export const memberKeys = {
   all: ["members"] as const,
@@ -40,18 +37,6 @@ export function useAssignableRoles() {
     queryKey: memberKeys.roles(),
     queryFn: () => membersApi.roles(),
     staleTime: 5 * 60_000,
-  })
-}
-
-export function useCreateMember() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: MemberCreateInput) => membersApi.create(data),
-    onSuccess: (member) => {
-      qc.invalidateQueries({ queryKey: memberKeys.lists() })
-      toast.success(`${member.name} added.`)
-    },
-    onError: (e) => reportError(e, "Couldn't add the member."),
   })
 }
 

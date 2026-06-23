@@ -1,18 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { UserPlus, Users } from "lucide-react"
+import { Users } from "lucide-react"
 import type { MembershipStatus } from "@prisma/client"
 
 import { cn } from "@/lib/utils"
 import { formatDateShort, getInitials } from "@/lib/format"
 import { useMembers } from "@/features/members/hooks"
-import { AddMemberDialog } from "@/features/members/components/add-member-dialog"
 import { InviteMemberButton } from "@/features/invitations/components/invite-member-button"
 import { MemberRowActions } from "@/features/members/components/member-row-actions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -41,7 +39,6 @@ export function MembersCard({
   currentUserId,
 }: MembersCardProps) {
   const { data: members, isLoading } = useMembers()
-  const [addOpen, setAddOpen] = useState(false)
   const [showRemoved, setShowRemoved] = useState(false)
 
   const showActions = canManageMembers || canManageIdentities
@@ -68,16 +65,11 @@ export function MembersCard({
 
   return (
     <div className="space-y-4">
-      {(canManageMembers || canManageIdentities) && (
-        <div className="flex gap-2 sm:justify-end">
-          {/* Invite (member:manage) — sends a link, no super-admin needed. */}
-          {canManageMembers && <InviteMemberButton />}
-          {/* Direct create (super admin only) — instant account, no invitee step. */}
-          {canManageIdentities && (
-            <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setAddOpen(true)}>
-              <UserPlus className="size-4" /> Add member
-            </Button>
-          )}
+      {/* Invite (member:manage) — sends a link. Direct account creation lives on
+          the platform institute detail page (super admin only), not here. */}
+      {canManageMembers && (
+        <div className="flex sm:justify-end">
+          <InviteMemberButton />
         </div>
       )}
 
@@ -188,10 +180,6 @@ export function MembersCard({
         >
           {showRemoved ? "Hide" : "Show"} removed ({removed.length})
         </button>
-      )}
-
-      {canManageIdentities && (
-        <AddMemberDialog open={addOpen} onOpenChange={setAddOpen} />
       )}
     </div>
   )

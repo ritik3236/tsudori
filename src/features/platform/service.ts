@@ -381,6 +381,35 @@ export async function listPlatformMembers(
   }))
 }
 
+/** Where an email stands relative to this institute, so the add-member dialog can
+ *  show the right fields: a brand-new person (collect name + password), an
+ *  existing login we can just attach (one login spans many institutes), or someone
+ *  already a member here (block the re-add). */
+export type InstituteMemberLookup =
+  | { status: "new" }
+  | { status: "existing"; name: string }
+  | { status: "member"; name: string }
+
+export async function lookupInstituteMember(
+  ctx: SuperAdminContext,
+  instituteId: string,
+  email: string
+): Promise<InstituteMemberLookup> {
+  requireSuperAdmin(ctx)
+
+  const user = await prisma.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
+    select: { id: true, name: true },
+  })
+  if (!user) return { status: "new" }
+
+  const membership = await prisma.membership.findUnique({
+    where: { userId_instituteId: { userId: user.id, instituteId } },
+    select: { id: true },
+  })
+  return { status: membership ? "member" : "existing", name: user.name }
+}
+
 export type InstituteDetail = {
   id: string
   name: string

@@ -2,7 +2,6 @@ import { http } from "@/lib/http"
 import type { MemberListItem, RoleOption } from "@/features/members/types"
 import type {
   BanMemberInput,
-  MemberCreateInput,
   MemberUpdateInput,
   ResetPasswordInput,
 } from "@/features/members/schema"
@@ -10,7 +9,6 @@ import type {
 export const membersApi = {
   list: () => http.get<MemberListItem[]>("/api/members"),
   roles: () => http.get<RoleOption[]>("/api/members/roles"),
-  create: (data: MemberCreateInput) => http.post<MemberListItem>("/api/members", data),
   updateRole: (userId: string, data: MemberUpdateInput) =>
     http.patch<MemberListItem>(`/api/members/${userId}`, data),
   remove: (userId: string, reason?: string) =>
