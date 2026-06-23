@@ -8,10 +8,7 @@ import { auth } from "@/lib/auth/server"
 import { AppError, ConflictError, NotFoundError } from "@/lib/errors"
 import { getSuperAdminContext } from "@/lib/tenant"
 import { AUDIT_ACTIONS, recordAudit } from "@/features/audit/service"
-import {
-  instituteCreateSchema,
-  type InstituteCreateInput,
-} from "@/features/platform/schema"
+import { instituteCreateSchema } from "@/features/platform/schema"
 import { createInstitute, type PlatformInstituteRow } from "@/features/platform/service"
 import { memberCreateSchema, type MemberCreateInput } from "@/features/members/schema"
 import { addMembership, assertRoleInInstitute } from "@/features/members/service"
@@ -41,25 +38,16 @@ async function createAuthUser(input: {
   return data.user.id
 }
 
-/**
- * Create a new institute and its first admin in one step (super-admin only).
- * Identity-first: the admin's login is created before anything is written, so a
- * taken email fails with nothing left behind. Returns the new list row; the
- * caller stays on /platform/institutes — creating an institute doesn't enter it.
- */
+/** Create a new institute (super-admin only). Returns the new list row; the
+ *  caller stays on /platform/institutes — creating an institute doesn't enter it.
+ *  Members (including the first admin) are assigned from the institute's detail
+ *  page via addInstituteMemberAction. */
 export async function createInstituteAction(
-  input: InstituteCreateInput
+  name: string
 ): Promise<PlatformInstituteRow> {
   const ctx = await getSuperAdminContext()
-  const data = instituteCreateSchema.parse(input)
-
-  const adminUserId = await createAuthUser({
-    name: data.adminName,
-    email: data.adminEmail,
-    password: data.adminPassword,
-  })
-
-  const row = await createInstitute(ctx, { name: data.name, adminUserId })
+  const input = instituteCreateSchema.parse({ name })
+  const row = await createInstitute(ctx, input)
   revalidatePath("/platform/institutes")
   revalidatePath("/platform")
   return row

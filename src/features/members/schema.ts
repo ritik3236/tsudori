@@ -6,7 +6,7 @@ import { z } from "zod"
 //    field so the admin can't fat-finger the new password.
 
 export const MIN_PASSWORD_LENGTH = 8
-export const MAX_PASSWORD_LENGTH = 128
+const MAX_PASSWORD_LENGTH = 128
 
 export const resetPasswordSchema = z.object({
   newPassword: z
