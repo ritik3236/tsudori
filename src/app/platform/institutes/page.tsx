@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { formatCurrency } from "@/lib/format"
 import { getSuperAdminContext } from "@/lib/tenant"
 import { getPlatformStats } from "@/features/platform/service"
-import { EnterInstituteButton } from "@/features/platform/components/enter-institute-button"
+import { InstituteNameLink } from "@/features/platform/components/institute-name-link"
 import { CreateInstituteDialog } from "@/features/platform/components/create-institute-dialog"
 import { InstituteStatusToggle } from "@/features/platform/components/institute-status-toggle"
 
@@ -41,7 +41,7 @@ export default async function PlatformInstitutesPage() {
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-muted/40">
                 <td className="px-4 py-2.5">
-                  <EnterInstituteButton id={r.id} name={r.name} status={r.status} />
+                  <InstituteNameLink id={r.id} name={r.name} status={r.status} />
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{r.students}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums">{r.members}</td>
@@ -61,7 +61,7 @@ export default async function PlatformInstitutesPage() {
           {rows.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-3 p-3.5">
               <div className="min-w-0">
-                <EnterInstituteButton id={r.id} name={r.name} status={r.status} />
+                <InstituteNameLink id={r.id} name={r.name} status={r.status} />
                 <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs tabular-nums">
                   <span>{r.students} students</span>
                   <span>{r.members} members</span>

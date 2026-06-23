@@ -150,13 +150,19 @@ export type PlatformActivityItem = {
   createdAt: string
 }
 
-/** Recent sensitive changes across every institute — the platform activity feed. */
+/**
+ * Recent sensitive changes — the platform activity feed. Un-scoped by default
+ * (every institute); pass `instituteId` to narrow to one (the institute detail
+ * page).
+ */
 export async function getPlatformActivity(
   ctx: SuperAdminContext,
-  limit = 8
+  limit = 8,
+  instituteId?: string
 ): Promise<PlatformActivityItem[]> {
   requireSuperAdmin(ctx)
   const rows = await prisma.auditLog.findMany({
+    where: instituteId ? { instituteId } : undefined,
     include: {
       actor: { select: { name: true, image: true } },
       institute: { select: { name: true } },
@@ -351,18 +357,20 @@ export type PlatformMemberListItem = MemberListItem & {
 }
 
 /**
- * Every active member across every institute (the platform super admin excluded,
- * via the same null-safe filter the stats use). Load-all — members are sparse;
- * if that changes, paginate like the student list. Reuses the members feature's
- * own include + row mapping, adding the owning institute.
+ * Active members (the platform super admin excluded, via the same null-safe
+ * filter the stats use). Un-scoped by default (every institute); pass
+ * `instituteId` to narrow to one (the institute detail page). Load-all — members
+ * are sparse; if that changes, paginate like the student list. Reuses the
+ * members feature's own include + row mapping, adding the owning institute.
  */
 export async function listPlatformMembers(
-  ctx: SuperAdminContext
+  ctx: SuperAdminContext,
+  instituteId?: string
 ): Promise<PlatformMemberListItem[]> {
   requireSuperAdmin(ctx)
 
   const rows = await prisma.membership.findMany({
-    where: REAL_MEMBER_WHERE,
+    where: { ...REAL_MEMBER_WHERE, ...(instituteId ? { instituteId } : {}) },
     include: { ...MEMBER_INCLUDE, institute: { select: { name: true } } },
     orderBy: [{ institute: { name: "asc" } }, { createdAt: "asc" }],
   })
@@ -371,4 +379,73 @@ export async function listPlatformMembers(
     instituteId: m.instituteId,
     instituteName: m.institute.name,
   }))
+}
+
+export type InstituteDetail = {
+  id: string
+  name: string
+  slug: string
+  logoUrl: string | null
+  email: string | null
+  phone: string | null
+  addressLine: string | null
+  city: string | null
+  state: string | null
+  country: string
+  currency: string
+  locale: string
+  timezone: string
+  status: InstituteStatus
+  createdAt: string
+  students: number
+  members: number
+  openTickets: number
+  revenue: number
+}
+
+/**
+ * One institute's profile + headline counts (the super-admin detail view). The
+ * four counts mirror getPlatformStats' per-institute filters exactly, so they
+ * match the institutes-list row. Returns null when the id doesn't exist → the
+ * page 404s.
+ */
+export async function getInstituteDetail(
+  ctx: SuperAdminContext,
+  id: string
+): Promise<InstituteDetail | null> {
+  requireSuperAdmin(ctx)
+
+  const institute = await prisma.institute.findUnique({ where: { id } })
+  if (!institute) return null
+
+  const [students, members, openTickets, revenueAgg] = await Promise.all([
+    prisma.student.count({
+      where: { instituteId: id, status: "ACTIVE", archivedAt: null },
+    }),
+    prisma.membership.count({ where: { ...REAL_MEMBER_WHERE, instituteId: id } }),
+    prisma.ticket.count({ where: { instituteId: id, status: "OPEN" } }),
+    prisma.feePayment.aggregate({ where: { instituteId: id }, _sum: { amount: true } }),
+  ])
+
+  return {
+    id: institute.id,
+    name: institute.name,
+    slug: institute.slug,
+    logoUrl: institute.logoUrl,
+    email: institute.email,
+    phone: institute.phone,
+    addressLine: institute.addressLine,
+    city: institute.city,
+    state: institute.state,
+    country: institute.country,
+    currency: institute.currency,
+    locale: institute.locale,
+    timezone: institute.timezone,
+    status: institute.status,
+    createdAt: institute.createdAt.toISOString(),
+    students,
+    members,
+    openTickets,
+    revenue: Number(revenueAgg._sum.amount ?? 0),
+  }
 }
