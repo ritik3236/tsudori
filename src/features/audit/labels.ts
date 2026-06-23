@@ -6,6 +6,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "fee.payment.reverse": "Reversed a payment",
   "fee.waiver.reverse": "Reversed a waiver",
   "fee.waive": "Waived a fee",
+  "member.add": "Added a member",
   "member.remove": "Removed a member",
   "member.restore": "Restored a member",
   "member.role_change": "Changed a member's role",

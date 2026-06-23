@@ -83,7 +83,7 @@ export async function addInstituteMemberAction(
   instituteId: string,
   input: InstituteMemberAddInput
 ): Promise<MemberListItem> {
-  await getSuperAdminContext() // gate: throws for non-super-admins
+  const ctx = await getSuperAdminContext() // gate: throws for non-super-admins
   const data = instituteMemberAddSchema.parse(input)
 
   // Role must belong to this institute (a super admin may grant any of them).
@@ -120,6 +120,20 @@ export async function addInstituteMemberAction(
   }
 
   const member = await addMembership(instituteId, userId, data.roleId)
+  await recordAudit(prisma, {
+    instituteId,
+    actorId: ctx.user.id,
+    action: AUDIT_ACTIONS.MEMBER_ADD,
+    entityType: "Membership",
+    entityId: member.membershipId,
+    metadata: {
+      userId,
+      memberName: member.name,
+      role: member.roleName,
+      email: data.email,
+      mode: existing ? "attached" : "created",
+    },
+  })
   revalidatePath(`/platform/institutes/${instituteId}`)
   revalidatePath("/platform/institutes")
   revalidatePath("/platform")

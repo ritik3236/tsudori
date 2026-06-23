@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = {
   FEE_PAYMENT_REVERSE: "fee.payment.reverse",
   FEE_WAIVER_REVERSE: "fee.waiver.reverse",
   FEE_WAIVE: "fee.waive",
+  MEMBER_ADD: "member.add",
   MEMBER_REMOVE: "member.remove",
   MEMBER_RESTORE: "member.restore",
   MEMBER_ROLE_CHANGE: "member.role_change",

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors"
 import { roleWeight } from "@/lib/rbac"
 import { nowDate, nowPlus } from "@/lib/date-helper"
+import { AUDIT_ACTIONS, recordAudit } from "@/features/audit/service"
 import type { InviteCreateInput } from "@/features/invitations/schema"
 import type { InvitationPreview } from "@/features/invitations/types"
 
@@ -132,14 +133,33 @@ export async function acceptInvitation(token: string, userId: string): Promise<v
     })
     if (!inv) throw new NotFoundError("This invite is invalid or has expired.")
 
-    await tx.membership.upsert({
+    const membership = await tx.membership.upsert({
       where: { userId_instituteId: { userId, instituteId: inv.instituteId } },
       create: { userId, instituteId: inv.instituteId, roleId: inv.roleId },
       update: { roleId: inv.roleId },
+      include: {
+        user: { select: { name: true } },
+        role: { select: { name: true } },
+      },
     })
     await tx.invitation.update({
       where: { id: inv.id },
       data: { status: "ACCEPTED", acceptedAt: nowDate() },
+    })
+    // Attribute the join to the admin who invited them (the invitee just completed
+    // it); reads "{inviter} Added a member" in the activity feed.
+    await recordAudit(tx, {
+      instituteId: inv.instituteId,
+      actorId: inv.invitedById,
+      action: AUDIT_ACTIONS.MEMBER_ADD,
+      entityType: "Membership",
+      entityId: membership.id,
+      metadata: {
+        userId,
+        memberName: membership.user.name,
+        role: membership.role.name,
+        via: "invite",
+      },
     })
   })
 }
