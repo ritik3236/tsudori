@@ -18,6 +18,10 @@ export const THEMES: ThemeMeta[] = [
 
 export const THEME_VALUES = THEMES.map((t) => t.value)
 
+// App default — the SSR fallback only. The actual theme is device-local
+// (next-themes / localStorage), not synced per user or institute.
+export const DEFAULT_THEME = "light"
+
 // next-themes applies value[theme] as the <html> class. light/dark keep their
 // bare class (matches :root/.dark); the rest get a `theme-` prefix so the class
 // can't collide with a utility class.

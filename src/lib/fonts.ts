@@ -21,6 +21,10 @@ export const FONTS: FontMeta[] = [
 
 export const FONT_VALUES = FONTS.map((f) => f.value)
 
+// App default — the SSR fallback only. The actual font is device-local
+// (localStorage), not synced per user or institute.
+export const DEFAULT_FONT = "geist"
+
 // geist is the default (:root), so it carries no class. The rest map to a
 // `.font-*` class. MUST be literal strings so Tailwind's scanner keeps the rules
 // — see [tailwind-v4-prunes-dynamic-classes]; classes are safelisted in globals.css.

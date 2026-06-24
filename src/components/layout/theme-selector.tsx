@@ -12,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { THEMES } from "@/lib/themes"
-import { saveMyAppearance } from "@/features/appearance/actions"
 
 // Header icon-button that opens the theme picker. Each row shows the theme's
 // accent dot, its name, and a check on the active one. The fuller theme + font
@@ -36,10 +35,7 @@ export function ThemeSelector() {
         {THEMES.map((t) => (
           <DropdownMenuItem
             key={t.value}
-            onClick={() => {
-              setTheme(t.value)
-              void saveMyAppearance({ theme: t.value }).catch(() => {})
-            }}
+            onClick={() => setTheme(t.value)}
             className="gap-2"
           >
             <span

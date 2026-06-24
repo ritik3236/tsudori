@@ -3,12 +3,11 @@
 import { createContext, useContext, useEffect, useState } from "react"
 
 import { FONT_CLASS_MAP, FONT_VALUES } from "@/lib/fonts"
-import { saveMyAppearance } from "@/features/appearance/actions"
 
 // Font is a second, independent axis from theme — next-themes only manages one,
-// so this is a small custom provider: it persists the choice and toggles the
-// `.font-*` class on <html>. An inline script in layout.tsx applies the stored
-// class before paint (no flash); this keeps it in sync on change.
+// so this is a small custom provider: it stores the choice in localStorage and
+// toggles the `.font-*` class on <html>. Device-local (not synced per user); an
+// inline script in layout.tsx applies the stored class before paint (no flash).
 
 type FontContextValue = { font: string; setFont: (f: string) => void }
 
@@ -54,8 +53,6 @@ export function FontProvider({
     } catch {
       // private mode / storage disabled — the class still applies for this session
     }
-    // Persist cross-device; fire-and-forget (the local change already applied).
-    void saveMyAppearance({ font: f }).catch(() => {})
   }
 
   return <FontContext.Provider value={{ font, setFont }}>{children}</FontContext.Provider>

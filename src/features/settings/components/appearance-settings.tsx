@@ -8,12 +8,11 @@ import { cn } from "@/lib/utils"
 import { THEMES } from "@/lib/themes"
 import { FONTS } from "@/lib/fonts"
 import { useFont } from "@/components/providers/font-provider"
-import { saveMyAppearance } from "@/features/appearance/actions"
 
 // Theme + font pickers for the Settings → Appearance page. The theme also lives
-// as a quick icon in the nav; this is the fuller "main" home. Changes apply
-// instantly (localStorage) and persist to your profile, so they follow you across
-// devices; a brand-new device inherits the institute default until you choose.
+// as a quick icon in the nav; this is the fuller "main" home. Both are
+// device-local (localStorage) — they apply instantly and stay on this device,
+// not synced to your account, so any login on a device shares the same look.
 export function AppearanceSettings() {
   const { theme, setTheme } = useTheme()
   const { font, setFont } = useFont()
@@ -42,10 +41,7 @@ export function AppearanceSettings() {
               <button
                 key={t.value}
                 type="button"
-                onClick={() => {
-                  setTheme(t.value)
-                  void saveMyAppearance({ theme: t.value }).catch(() => {})
-                }}
+                onClick={() => setTheme(t.value)}
                 className={cn(
                   "bg-card flex items-center gap-2.5 rounded-xl border p-3 text-left transition-colors hover:bg-muted/50",
                   active && "border-primary ring-primary ring-2"

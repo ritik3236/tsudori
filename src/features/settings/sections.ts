@@ -89,13 +89,6 @@ export const ADMIN_SETTINGS_SECTIONS: SettingsSection[] = [
     permission: PERMISSIONS.INSTITUTE_READ,
   },
   {
-    label: "Appearance",
-    description: "Default theme and font new members inherit.",
-    href: "/admin/settings/appearance",
-    icon: Palette,
-    permission: PERMISSIONS.INSTITUTE_MANAGE,
-  },
-  {
     label: "Attendance",
     description: "Weekly off and holidays — which days attendance is taken.",
     href: "/admin/settings/attendance",

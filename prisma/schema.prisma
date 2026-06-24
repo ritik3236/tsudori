@@ -51,26 +51,9 @@ model User {
   tickets          Ticket[]        @relation("TicketRequester")
   ticketComments   TicketComment[] @relation("TicketCommentAuthor")
   auditLogs        AuditLog[]      @relation("AuditActor")
-  preference       UserPreference?
 
   @@map("user")
   @@schema("neon_auth")
-}
-
-/// Per-user appearance preference (theme + font), global across the user's
-/// devices and institutes. Lives in `public` — neon_auth.user is Neon-owned, so
-/// we can't add columns there. Null fields fall back to the institute default,
-/// then the app default. One row per user.
-model UserPreference {
-  userId    String   @id @db.Uuid
-  theme     String?
-  font      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@schema("public")
 }
 
 enum InstituteStatus {

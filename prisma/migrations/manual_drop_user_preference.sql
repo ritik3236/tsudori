@@ -1,0 +1,11 @@
+-- Drop the UserPreference table (theme + font).
+--
+-- Theme and font are now DEVICE-LOCAL (next-themes + FontProvider, both
+-- localStorage-backed) and no longer synced per user. The app no longer
+-- references this table — resolveEffectiveAppearance + the appearance service
+-- were removed, and the pickers persist only to localStorage.
+--
+-- ORDERING: this is a destructive drop, so apply it to PROD only AFTER the code
+-- that stops using the table is deployed (the old prod build still queries it on
+-- every render). Dev (sandbox) can be dropped any time.
+DROP TABLE IF EXISTS public."UserPreference";

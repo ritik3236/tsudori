@@ -16,8 +16,8 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 import { APP_NAME, APP_TAGLINE } from "@/lib/constants"
-import { FONT_CLASS_MAP } from "@/lib/fonts"
-import { resolveEffectiveAppearance } from "@/features/appearance/resolve"
+import { DEFAULT_FONT, FONT_CLASS_MAP } from "@/lib/fonts"
+import { DEFAULT_THEME } from "@/lib/themes"
 import "./globals.css"
 
 // Geist is the default; the rest are optional picker fonts — not preloaded, so
@@ -67,14 +67,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Server-resolve the effective theme/font (user → institute → app default) so a
-  // fresh device paints the right look on first load, before any client JS runs.
-  const { theme, font } = await resolveEffectiveAppearance()
+  // Theme and font are device-local (next-themes + FontProvider, both
+  // localStorage-backed), not synced per user — every login on a device shares the
+  // same look. The server renders the app defaults; the inline script below and the
+  // providers swap in any saved choice before paint.
+  const theme = DEFAULT_THEME
+  const font = DEFAULT_FONT
 
   return (
     <html
