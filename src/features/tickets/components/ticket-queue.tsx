@@ -91,14 +91,14 @@ export function TicketQueue() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search subject, institute, or requester…"
-            className="pl-9"
+            className="h-8 pl-9"
           />
         </div>
         <Select
           value={priority}
           onValueChange={(v) => setPriority((v as TicketPriorityValue | typeof ALL) ?? ALL)}
         >
-          <SelectTrigger className="w-36 shrink-0">
+          <SelectTrigger className="w-36 shrink-0 data-[size=default]:h-8">
             <SelectValue placeholder="Priority">
               {(v: string) =>
                 v === ALL

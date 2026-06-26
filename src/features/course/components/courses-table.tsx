@@ -62,22 +62,23 @@ export function CoursesTable({ canManage }: CoursesTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Compact control row: search + status filter + create, all on one line. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+      {/* Search + status share one row (single filter); New course is the FAB. The
+          h-8 controls match the fee page so heights line up across pages. */}
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
           <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search courses…"
-            className="h-9 pl-9"
+            className="h-8 pl-9"
           />
         </div>
         <Select
           value={statusFilter}
           onValueChange={(v) => setStatusFilter((v as StatusFilter) ?? "ALL")}
         >
-          <SelectTrigger className="h-9 w-[130px]">
+          <SelectTrigger className="w-[130px] data-[size=default]:h-8">
             <SelectValue>
               {(v: string) => STATUS_OPTIONS.find((o) => o.value === v)?.label ?? "All status"}
             </SelectValue>
@@ -90,11 +91,6 @@ export function CoursesTable({ canManage }: CoursesTableProps) {
             ))}
           </SelectContent>
         </Select>
-        {canManage && (
-          <Button size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" /> New course
-          </Button>
-        )}
       </div>
 
       {/* Desktop table */}
@@ -217,7 +213,20 @@ export function CoursesTable({ canManage }: CoursesTableProps) {
         )}
       </div>
 
-      {canManage && <CreateCourseDialog open={createOpen} onOpenChange={setCreateOpen} />}
+      {canManage && (
+        <>
+          {/* Canonical FAB (matches "Add class"): lifted clear of the mobile bottom
+              nav + safe area; corner on desktop. */}
+          <Button
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+            className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
+          >
+            <Plus className="size-4" /> New course
+          </Button>
+          <CreateCourseDialog open={createOpen} onOpenChange={setCreateOpen} />
+        </>
+      )}
     </div>
   )
 }
