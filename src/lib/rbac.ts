@@ -11,6 +11,7 @@ export const PERMISSION_MODULES = [
   "course",
   "enrollment",
   "report",
+  "ai",
   "institute",
   "member",
   "role",
@@ -46,6 +47,10 @@ export const PERMISSIONS = {
   ENROLLMENT_MANAGE: "enrollment:manage",
 
   REPORT_VIEW: "report:view",
+
+  // AI report insights. Admin-only: granted to full-access roles
+  // (INSTITUTE_ADMIN/SUPER_ADMIN) at runtime; not in the Teacher/Auditor templates.
+  AI_VIEW: "ai:view",
 
   INSTITUTE_READ: "institute:read",
   INSTITUTE_MANAGE: "institute:manage",
