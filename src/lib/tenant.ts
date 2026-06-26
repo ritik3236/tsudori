@@ -13,6 +13,7 @@ import {
   ADMIN_PERMISSIONS,
   ALL_PERMISSIONS,
   hasPermission,
+  isFullAccessRole,
   ROLE_KEYS,
   type Permission,
 } from "@/lib/rbac"
@@ -124,11 +125,15 @@ export const getTenantContext = cache(async (): Promise<TenantContext> => {
       throw new ForbiddenError("This institute has been suspended.")
     }
 
-    const permissions = isSuperAdmin
-      ? new Set<Permission>(ALL_PERMISSIONS)
-      : new Set<Permission>(
-          membership.role.permissions.map((rp) => rp.permission.key as Permission)
-        )
+    // Full-access system roles (INSTITUTE_ADMIN, SUPER_ADMIN) resolve to every
+    // permission at runtime — so new capabilities reach them on deploy without a
+    // re-seed. Custom roles keep their explicit DB grants.
+    const permissions =
+      isSuperAdmin || isFullAccessRole(membership.role.key)
+        ? new Set<Permission>(ALL_PERMISSIONS)
+        : new Set<Permission>(
+            membership.role.permissions.map((rp) => rp.permission.key as Permission)
+          )
 
     return { user, institute, membership, permissions, isSuperAdmin, myInstitutes, activeSource }
   }

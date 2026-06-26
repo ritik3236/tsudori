@@ -150,6 +150,19 @@ export function resolveRolePermissions(template: RoleTemplate): Permission[] {
   return template.permissions === "*" ? ALL_PERMISSIONS : template.permissions
 }
 
+// Role keys whose system template grants every permission ("*"). Their effective
+// permissions are resolved to ALL_PERMISSIONS at RUNTIME (like a super admin),
+// NOT read from the materialized DB grants — so a newly-added permission reaches
+// them the moment code deploys, with no re-seed/re-grant and no code↔DB drift.
+// Custom (admin-defined) roles are unaffected: they keep their explicit DB grants.
+export const FULL_ACCESS_ROLE_KEYS: ReadonlySet<string> = new Set(
+  SYSTEM_ROLES.filter((r) => r.permissions === "*").map((r) => r.key)
+)
+
+export function isFullAccessRole(roleKey: string): boolean {
+  return FULL_ACCESS_ROLE_KEYS.has(roleKey)
+}
+
 /**
  * Sort weight (seniority) for roles — higher = more privileged, shown first.
  * Custom roles aren't in this map; callers fall back to breadth-of-access
