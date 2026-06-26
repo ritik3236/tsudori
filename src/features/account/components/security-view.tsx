@@ -185,8 +185,7 @@ export function SecurityView() {
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-muted-foreground text-sm">
-            Change your account password — the option to sign out of other devices
-            is offered there too.
+            Keep your account secure with a strong password.
           </p>
           <ChangePasswordDialog />
         </CardContent>
