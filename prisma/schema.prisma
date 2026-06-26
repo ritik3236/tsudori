@@ -235,9 +235,7 @@ model Class {
   // makes uniqueness case- and space-insensitive: "Class 2"+"B" == "class2"+"b".
   // Kept in sync by normalizeClassKey() in src/features/classes/schema.ts.
   nameKey           String
-  defaultMonthlyFee Decimal?    @db.Decimal(10, 2)
-  /// The course this batch runs (drives fees via enrolments). Nullable during the
-  /// fee-ledger transition; the Course catalog supersedes defaultMonthlyFee.
+  /// The course this batch runs — the single source of the class's monthly fee.
   courseId          String?
   status            ClassStatus @default(ACTIVE)
   // Per-class weekly-off override: a JSON array of Luxon weekdays (1=Mon..7=Sun),
@@ -282,7 +280,6 @@ model Student {
   /// Profile photo — a Vercel Blob URL (a small resized webp). Null → initials.
   photoUrl      String?
   admissionDate DateTime      @db.Timestamptz(3)
-  monthlyFee    Decimal       @db.Decimal(10, 2)
   status        StudentStatus @default(ACTIVE)
   notes         String?
   /// Soft-archive: archived students drop out of active lists but keep history.

@@ -122,7 +122,6 @@ async function seedDemoData(instituteId: string) {
         name: c.name,
         section: c.section,
         nameKey,
-        defaultMonthlyFee: c.defaultMonthlyFee,
       },
       update: {},
     })
@@ -149,10 +148,11 @@ async function seedDemoData(instituteId: string) {
         guardianName: s.guardianName,
         contactNumber: s.contactNumber,
         admissionDate,
-        monthlyFee: s.monthlyFee,
         status: "ACTIVE",
       },
     })
+    // NOTE: fees now live on the Course→Enrollment ledger. This demo seed creates
+    // students only (no Course/Enrollment), so seeded students show ₹0 until enrolled.
 
     // Attendance for the last 10 days (skip weekends), mostly present.
     const attendance: { instituteId: string; studentId: string; date: Date; status: AttendanceStatus }[] = []

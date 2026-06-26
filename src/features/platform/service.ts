@@ -14,6 +14,32 @@ import {
 } from "@/lib/rbac"
 import { AUDIT_ACTIONS, recordAudit } from "@/features/audit/service"
 import { MEMBER_INCLUDE, toMemberListItem } from "@/features/members/service"
+import { effectiveFee } from "@/features/fees/logic"
+
+// Cross-tenant: a student's monthly fee = sum of their ACTIVE enrolments' effective
+// fee (the ledger). studentId is a global cuid, so no instituteId filter is needed.
+async function feesByStudent(ids: string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map()
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId: { in: ids }, status: "ACTIVE" },
+    select: {
+      studentId: true,
+      feeOverride: true,
+      discountPercent: true,
+      course: { select: { monthlyFee: true } },
+    },
+  })
+  const map = new Map<string, number>()
+  for (const e of enrollments) {
+    const fee = effectiveFee(
+      Number(e.course.monthlyFee),
+      e.feeOverride != null ? Number(e.feeOverride) : null,
+      e.discountPercent != null ? Number(e.discountPercent) : null
+    )
+    map.set(e.studentId, (map.get(e.studentId) ?? 0) + fee)
+  }
+  return map
+}
 import type { MemberListItem } from "@/features/members/types"
 import type { StudentListItem } from "@/features/students/types"
 import type {
@@ -328,8 +354,10 @@ export async function listPlatformStudents(
   ])
 
   const hasMore = rows.length > DEFAULT_PAGE_SIZE
+  const page = rows.slice(0, DEFAULT_PAGE_SIZE)
+  const feeMap = await feesByStudent(page.map((s) => s.id))
   return {
-    items: rows.slice(0, DEFAULT_PAGE_SIZE).map((s) => ({
+    items: page.map((s) => ({
       id: s.id,
       serialNo: s.serialNo,
       rollNumber: s.rollNumber,
@@ -339,7 +367,7 @@ export async function listPlatformStudents(
       classId: s.classId,
       guardianName: s.guardianName,
       contactNumber: s.contactNumber,
-      monthlyFee: Number(s.monthlyFee),
+      monthlyFee: feeMap.get(s.id) ?? 0,
       status: s.status,
       admissionDate: s.admissionDate.toISOString(),
       photoUrl: s.photoUrl,

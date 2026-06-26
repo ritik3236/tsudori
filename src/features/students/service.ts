@@ -10,6 +10,7 @@ import {
   syncStudentEnrollmentTx,
 } from "@/features/enrollment/service"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
+import { effectiveFee } from "@/features/fees/logic"
 import { nowDate } from "@/lib/date-helper"
 import type {
   StudentDetail,
@@ -33,6 +34,35 @@ async function assertClassInInstitute(tx: Tx, instituteId: string, classId: stri
     select: { id: true },
   })
   if (!cls) throw new ValidationError("Selected class doesn't belong to this institute.")
+}
+
+// A student's current monthly fee = the sum of their ACTIVE enrolments' effective
+// fee. The ledger is the source of truth now that the legacy Student.monthlyFee
+// column is gone; this powers the list + profile "monthly fee" display.
+async function feesForStudents(
+  instituteId: string,
+  ids: string[]
+): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map()
+  const enrollments = await prisma.enrollment.findMany({
+    where: { instituteId, studentId: { in: ids }, status: "ACTIVE" },
+    select: {
+      studentId: true,
+      feeOverride: true,
+      discountPercent: true,
+      course: { select: { monthlyFee: true } },
+    },
+  })
+  const map = new Map<string, number>()
+  for (const e of enrollments) {
+    const fee = effectiveFee(
+      Number(e.course.monthlyFee),
+      e.feeOverride != null ? Number(e.feeOverride) : null,
+      e.discountPercent != null ? Number(e.discountPercent) : null
+    )
+    map.set(e.studentId, (map.get(e.studentId) ?? 0) + fee)
+  }
+  return map
 }
 
 export async function listStudents(
@@ -75,8 +105,10 @@ export async function listStudents(
   ])
 
   const hasMore = rows.length > DEFAULT_PAGE_SIZE
+  const page = rows.slice(0, DEFAULT_PAGE_SIZE)
+  const feeMap = await feesForStudents(instituteId, page.map((s) => s.id))
   return {
-    items: rows.slice(0, DEFAULT_PAGE_SIZE).map(toListItem),
+    items: page.map((s) => toListItem(s, feeMap.get(s.id) ?? 0)),
     nextOffset: hasMore ? query.offset + DEFAULT_PAGE_SIZE : null,
     total,
   }
@@ -96,7 +128,7 @@ export async function getStudent(
   })
   if (!student) throw new NotFoundError("Student not found.")
 
-  const [attendanceGroups, financials] = await Promise.all([
+  const [attendanceGroups, financials, feeMap] = await Promise.all([
     prisma.attendance.groupBy({
       by: ["status"],
       where: { studentId: id, instituteId },
@@ -133,19 +165,21 @@ export async function getStudent(
           }
         })()
       : Promise.resolve(null),
+    feesForStudents(instituteId, [id]),
   ])
+  const monthlyFee = feeMap.get(id) ?? 0
 
   const att = (s: "PRESENT" | "ABSENT" | "LEAVE") =>
     attendanceGroups.find((g) => g.status === s)?._count._all ?? 0
 
   return {
-    ...toListItem(student),
+    ...toListItem(student, monthlyFee),
     email: student.email,
     notes: student.notes,
     archivedAt: student.archivedAt?.toISOString() ?? null,
     createdAt: student.createdAt.toISOString(),
     fees: {
-      monthlyFee: Number(student.monthlyFee),
+      monthlyFee,
       totalPaid: financials?.totalPaid ?? null,
       paymentsCount: financials?.paymentsCount ?? null,
     },
@@ -188,21 +222,19 @@ export async function createStudent(
         contactNumber: input.contactNumber ?? null,
         email: input.email ?? null,
         admissionDate: input.admissionDate,
-        monthlyFee: 0, // overwritten with the course fee below (legacy snapshot)
         status: input.status,
         notes: input.notes ?? null,
       },
     })
 
-    // Auto-enrol into the class's course (or General) at the course rate; the
-    // returned fee snapshots onto the legacy monthlyFee (dropped in Phase 5).
-    const courseFee = await enrollStudentInClassCourseTx(tx, {
+    // Auto-enrol into the class's course (or General) at the course rate. The
+    // student's fee now lives entirely on the enrolment ledger.
+    await enrollStudentInClassCourseTx(tx, {
       instituteId,
       studentId: student.id,
       classId: input.classId ?? null,
       startDate: input.admissionDate,
     })
-    await tx.student.update({ where: { id: student.id }, data: { monthlyFee: courseFee } })
 
     return student
   })
@@ -244,17 +276,15 @@ export async function updateStudent(
   await prisma.$transaction(async (tx) => {
     await tx.student.update({ where: { id }, data })
     // On a class change, re-point the class-derived enrolment to the new course
-    // (its fee/% scholarship is preserved) and snapshot the new course fee onto
-    // the legacy monthlyFee. Manual enrolments are untouched.
+    // (its fee/% scholarship is preserved). Manual enrolments are untouched.
     if (classChanged) {
-      const courseFee = await syncStudentEnrollmentTx(tx, {
+      await syncStudentEnrollmentTx(tx, {
         instituteId,
         studentId: id,
         oldClassId: existing.classId,
         newClassId: input.classId ?? null,
         newFee: null,
       })
-      await tx.student.update({ where: { id }, data: { monthlyFee: courseFee } })
     }
   })
 
@@ -324,7 +354,7 @@ export async function restoreStudent(
 
 type StudentWithClass = Student & { class: { name: string; section: string } | null }
 
-function toListItem(student: StudentWithClass): StudentListItem {
+function toListItem(student: StudentWithClass, monthlyFee: number): StudentListItem {
   return {
     id: student.id,
     serialNo: student.serialNo,
@@ -335,7 +365,7 @@ function toListItem(student: StudentWithClass): StudentListItem {
     classId: student.classId,
     guardianName: student.guardianName,
     contactNumber: student.contactNumber,
-    monthlyFee: Number(student.monthlyFee),
+    monthlyFee,
     status: student.status,
     admissionDate: student.admissionDate.toISOString(),
     photoUrl: student.photoUrl,

@@ -280,12 +280,11 @@ async function resolveCourseForClass(
 
 /** Auto-enrol a freshly-created student into their class's course (or General) at
  * the course rate (custom rates / scholarships are set per-enrolment afterwards).
- * Runs inside createStudent's transaction so student + enrolment commit together;
- * returns the course fee for the legacy Student.monthlyFee snapshot. */
+ * Runs inside createStudent's transaction so student + enrolment commit together. */
 export async function enrollStudentInClassCourseTx(
   tx: Tx,
   p: { instituteId: string; studentId: string; classId: string | null; startDate: Date }
-): Promise<number> {
+): Promise<void> {
   const course = await resolveCourseForClass(tx, p.instituteId, p.classId)
   await enrollInTx(tx, {
     instituteId: p.instituteId,
@@ -297,8 +296,6 @@ export async function enrollStudentInClassCourseTx(
     discountPercent: null,
     status: "ACTIVE",
   })
-  // The course fee, for the legacy Student.monthlyFee snapshot (dropped in Phase 5).
-  return Number(course.monthlyFee)
 }
 
 /**
@@ -320,7 +317,7 @@ export async function syncStudentEnrollmentTx(
     // null to leave the fee/discount untouched (e.g. a class move with no fee change).
     newFee: number | null
   }
-): Promise<number> {
+): Promise<void> {
   const oldCourse = await resolveCourseForClass(tx, p.instituteId, p.oldClassId)
   const newCourse = await resolveCourseForClass(tx, p.instituteId, p.newClassId)
   const primaries = await tx.enrollment.findMany({
@@ -349,8 +346,6 @@ export async function syncStudentEnrollmentTx(
       effectiveFee(Number(newCourse.monthlyFee), fo, dp)
     )
   }
-  // The new course's fee, for the legacy Student.monthlyFee snapshot.
-  return Number(newCourse.monthlyFee)
 }
 
 export async function createEnrollment(
