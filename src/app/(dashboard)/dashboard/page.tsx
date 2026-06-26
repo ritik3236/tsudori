@@ -58,7 +58,7 @@ export default async function DashboardPage() {
       { label: "Fees", href: "/fees", icon: Wallet, perm: PERMISSIONS.FEE_READ, tint: "amber" },
       { label: "Reports", href: "/reports", icon: BarChart3, perm: PERMISSIONS.REPORT_VIEW, tint: "sky" },
       { label: "Time table", href: "/attendance", icon: CalendarDays, perm: PERMISSIONS.ATTENDANCE_READ, tint: "rose" },
-      { label: "Add student", href: "/students/new", icon: UserPlus, perm: PERMISSIONS.STUDENT_CREATE, tint: "violet" },
+      { label: "Add student", href: "/students?new=1", icon: UserPlus, perm: PERMISSIONS.STUDENT_CREATE, tint: "violet" },
     ] as const
   ).filter((s) => can(ctx, s.perm))
 

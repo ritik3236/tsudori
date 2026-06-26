@@ -1,6 +1,4 @@
 import type { Metadata } from "next"
-import Link from "next/link"
-import { Plus } from "lucide-react"
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
@@ -8,16 +6,22 @@ import { PERMISSIONS } from "@/lib/rbac"
 import { makeServerQueryClient } from "@/lib/query"
 import { studentKeys } from "@/features/students/api"
 import { listStudents } from "@/features/students/service"
-import { Button } from "@/components/ui/button"
 import { StudentsTable } from "@/features/students/components/students-table"
+import { AddStudentButton } from "@/features/students/components/add-student-button"
 
 export const metadata: Metadata = { title: "Students" }
 
-export default async function StudentsPage() {
+export default async function StudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ new?: string }>
+}) {
   const ctx = await getTenantContext()
   requirePagePermission(ctx, PERMISSIONS.STUDENT_READ)
 
   const canCreate = can(ctx, PERMISSIONS.STUDENT_CREATE)
+  // Deep link (e.g. the dashboard "Add student") opens the create modal directly.
+  const openCreate = canCreate && (await searchParams).new === "1"
 
   // Prefetch the first page server-side so the list renders with data instead of
   // a skeleton + client round-trip. Key must match StudentsTable's first-render
@@ -34,18 +38,8 @@ export default async function StudentsPage() {
       <div className="space-y-4">
         <StudentsTable />
 
-        {/* Primary action floats bottom-right (mobile + desktop), like "Add class". */}
-        {canCreate && (
-          <Button
-            size="sm"
-            className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
-            render={
-              <Link href="/students/new">
-                <Plus className="size-4" /> Add student
-              </Link>
-            }
-          />
-        )}
+        {/* Primary action: a FAB that opens the create-student modal (no page nav). */}
+        {canCreate && <AddStudentButton defaultOpen={openCreate} />}
       </div>
     </HydrationBoundary>
   )
