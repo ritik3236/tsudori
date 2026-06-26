@@ -16,7 +16,17 @@ const HIGHLIGHTS = [
 export const dynamic = "force-dynamic"
 
 export default async function LandingPage() {
-  const { data: session } = await auth.getSession()
+  // getSession can re-mint the session_data cookie when it's cold (stale/expired),
+  // but a Server Component render may not write cookies — that throws on the rare
+  // cold-session hit to "/". Swallow it and fall through to the public landing
+  // (the user can sign in from here); the middleware refreshes the cookie on the
+  // gated routes. NB: keep redirect() OUTSIDE the try — it signals via a throw.
+  let session: Awaited<ReturnType<typeof auth.getSession>>["data"] = null
+  try {
+    session = (await auth.getSession()).data
+  } catch {
+    session = null
+  }
   if (session?.user) redirect("/dashboard")
 
   return (
