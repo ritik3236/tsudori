@@ -26,11 +26,14 @@ import {
 type Props = {
   /** Omit for institute-wide holidays; pass a class id for class-specific ones. */
   classId?: string
+  /** Read-only: hides the add form + delete actions (e.g. showing institute
+   *  holidays on a class page, where they're managed in institute settings). */
+  readOnly?: boolean
 }
 
 /** Month-scoped add/list/remove of holidays + working-day overrides. Reused by
  *  the institute settings page (no classId) and the per-class config. */
-export function HolidayManager({ classId }: Props) {
+export function HolidayManager({ classId, readOnly = false }: Props) {
   const [month, setMonth] = useState(() => todayInAppTz().slice(0, 7))
   const { data: holidays, isLoading } = useHolidays(month, classId)
   const upsert = useUpsertHoliday()
@@ -74,6 +77,7 @@ export function HolidayManager({ classId }: Props) {
       </div>
 
       {/* Add */}
+      {!readOnly && (
       <div className="flex flex-wrap items-end gap-2 rounded-xl border p-3">
         <div className="w-40">
           <label className="text-muted-foreground mb-1 block text-xs">Date</label>
@@ -101,6 +105,7 @@ export function HolidayManager({ classId }: Props) {
           <Plus className="size-4" /> Add
         </Button>
       </div>
+      )}
 
       {/* List */}
       {isLoading ? (
@@ -116,15 +121,17 @@ export function HolidayManager({ classId }: Props) {
               {h.name && (
                 <span className="text-muted-foreground truncate text-sm">{h.name}</span>
               )}
-              <button
-                type="button"
-                onClick={() => del.mutate(h.id)}
-                disabled={del.isPending}
-                className="text-muted-foreground hover:text-destructive ml-auto disabled:opacity-60"
-                aria-label="Remove holiday"
-              >
-                <Trash2 className="size-4" />
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => del.mutate(h.id)}
+                  disabled={del.isPending}
+                  className="text-muted-foreground hover:text-destructive ml-auto disabled:opacity-60"
+                  aria-label="Remove holiday"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>

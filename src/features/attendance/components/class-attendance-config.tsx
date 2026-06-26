@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { WEEKDAY_LABELS, WEEKDAYS_IN_ORDER } from "@/lib/working-day"
@@ -15,20 +16,48 @@ function labelDays(days: number[]): string {
 }
 
 export function ClassAttendanceConfig({ cls }: { cls: ClassListItem }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="bg-card space-y-6 rounded-xl border p-4">
-      <div>
-        <h2 className="text-base font-semibold">Attendance</h2>
-        <p className="text-muted-foreground text-sm">
-          Weekly off and holidays for this class. Anything left unset follows the
-          institute.
-        </p>
-      </div>
-      <ClassWeeklyOff classId={cls.id} initial={cls.weeklyOffOverride} />
-      <div className="space-y-2.5">
-        <h3 className="text-sm font-medium">Class holidays</h3>
-        <HolidayManager classId={cls.id} />
-      </div>
+    <div className="bg-card rounded-xl border">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+      >
+        <div>
+          <h2 className="text-base font-semibold">Attendance</h2>
+          <p className="text-muted-foreground text-sm">
+            Weekly off and holidays for this class. Anything left unset follows the
+            institute.
+          </p>
+        </div>
+        <ChevronDown
+          className={cn(
+            "text-muted-foreground size-5 shrink-0 transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="space-y-6 p-4 pt-0">
+          <ClassWeeklyOff classId={cls.id} initial={cls.weeklyOffOverride} />
+          <div className="space-y-2.5">
+            <h3 className="text-sm font-medium">Class holidays</h3>
+            <HolidayManager classId={cls.id} />
+          </div>
+          {/* Institute-wide closures that also apply here — read-only. */}
+          <div className="space-y-2.5">
+            <h3 className="text-sm font-medium">Institute holidays</h3>
+            <p className="text-muted-foreground text-xs">
+              Institute-wide closures that also apply to this class — managed in
+              institute settings.
+            </p>
+            <HolidayManager readOnly />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -88,28 +117,34 @@ function ClassWeeklyOff({
       </div>
 
       {isCustom ? (
-        <div className="flex flex-wrap gap-1.5">
-          {WEEKDAYS_IN_ORDER.map((day) => {
-            const on = override!.includes(day)
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(day)}
-                disabled={update.isPending}
-                aria-pressed={on}
-                className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60",
-                  on
-                    ? "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
-                    : "hover:bg-muted"
-                )}
-              >
-                {WEEKDAY_LABELS[day]}
-              </button>
-            )
-          })}
-        </div>
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {WEEKDAYS_IN_ORDER.map((day) => {
+              const on = override!.includes(day)
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => toggleDay(day)}
+                  disabled={update.isPending}
+                  aria-pressed={on}
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60",
+                    on
+                      ? "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  {WEEKDAY_LABELS[day]}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Institute default:{" "}
+            <span className="text-foreground font-medium">{labelDays(instituteDefault)}</span>
+          </p>
+        </>
       ) : (
         <p className="text-muted-foreground text-sm">
           Inherits institute weekly off:{" "}
