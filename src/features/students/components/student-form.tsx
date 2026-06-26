@@ -119,12 +119,12 @@ export function StudentForm({
     <Form {...form}>
       <form onSubmit={submit} className="space-y-8">
         <FormSection title="Student details">
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="space-y-5">
             <FormField
               control={form.control}
               name="fullName"
               render={({ field }) => (
-                <FormItem className="sm:col-span-2">
+                <FormItem>
                   <FormLabel>
                     Full name
                     <Req />
@@ -137,6 +137,7 @@ export function StudentForm({
               )}
             />
 
+            <div className="grid grid-cols-2 gap-5">
             <FormField
               control={form.control}
               name="classId"
@@ -196,6 +197,8 @@ export function StudentForm({
               )}
             />
 
+            </div>
+            <div className="grid grid-cols-2 gap-5">
             <FormField
               control={form.control}
               name="admissionDate"
@@ -239,6 +242,7 @@ export function StudentForm({
                 </FormItem>
               )}
             />
+            </div>
           </div>
         </FormSection>
 
