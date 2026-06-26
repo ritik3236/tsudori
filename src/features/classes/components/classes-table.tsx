@@ -44,13 +44,13 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-xs">
+      <div className="relative">
         <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search classes…"
-          className="pl-9"
+          className="h-8 pl-9"
         />
       </div>
 

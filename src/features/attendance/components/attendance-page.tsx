@@ -69,7 +69,7 @@ export function AttendancePage({ canMark, instituteName }: Props) {
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <Select value={classId} onValueChange={(v) => setClassId(v ?? ALL_CLASSES)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full data-[size=default]:h-8">
                 <SelectValue>{() => selectedName}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -86,7 +86,7 @@ export function AttendancePage({ canMark, instituteName }: Props) {
           {tab === "mark" && (
             <div className="w-36 shrink-0">
               {/* Can't take attendance for a day that hasn't happened — cap at today. */}
-              <DatePicker value={date} onChange={setDate} max={todayStr()} />
+              <DatePicker value={date} onChange={setDate} max={todayStr()} className="h-8" />
             </div>
           )}
 

@@ -20,6 +20,8 @@ type DatePickerProps = {
   value?: string
   onChange?: (value: string) => void
   placeholder?: string
+  /** Extra classes for the trigger button (e.g. `h-8` to match a filter bar). */
+  className?: string
   /** Latest selectable date ("yyyy-MM-dd"); later days are disabled and months
    *  past it can't be navigated to. Used to block future dates (e.g. attendance). */
   max?: string
@@ -38,6 +40,7 @@ export function DatePicker({
   value,
   onChange,
   placeholder = "Pick a date",
+  className,
   max,
   ...triggerProps
 }: DatePickerProps) {
@@ -54,7 +57,8 @@ export function DatePicker({
             variant="outline"
             className={cn(
               "w-full justify-between font-normal",
-              !selected && "text-muted-foreground"
+              !selected && "text-muted-foreground",
+              className
             )}
             {...triggerProps}
           >
