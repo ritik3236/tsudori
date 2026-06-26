@@ -164,37 +164,20 @@ export default async function StudentFeesPage({
             </span>
           </p>
         </div>
-        {/* Waive + Record side by side here; Record also floats bottom-right
-            (the FAB below) for quick thumb access while scrolling. */}
-        {(canRecord || canWaive) && (
+        {/* Waive lives here; recording a payment is the floating button
+            (bottom-right) only. */}
+        {canWaive && waiveTarget && (
           <div className="flex gap-2">
-            {canWaive && waiveTarget && (
-              <WaiveFeeButton
-                studentId={fee.studentId}
-                studentName={fee.fullName}
-                remainingDue={fee.totalOutstanding}
-                periodMonth={waiveTarget.month}
-                periodYear={waiveTarget.year}
-                variant="outline"
-                size="default"
-                className="flex-1 sm:flex-none"
-              />
-            )}
-            {canRecord && (
-              <RecordPaymentButton
-                studentId={fee.studentId}
-                studentName={fee.fullName}
-                monthlyFee={fee.monthlyFee}
-                remainingDue={fee.pendingThisMonth}
-                canWaive={canWaive}
-                allocationContext={{
-                  admission: fee.admission,
-                  paidByMonth: fee.paidByMonth,
-                  waivedByMonth: fee.waivedByMonth,
-                }}
-                className="flex-1 sm:flex-none"
-              />
-            )}
+            <WaiveFeeButton
+              studentId={fee.studentId}
+              studentName={fee.fullName}
+              remainingDue={fee.totalOutstanding}
+              periodMonth={waiveTarget.month}
+              periodYear={waiveTarget.year}
+              variant="outline"
+              size="default"
+              className="flex-1 sm:flex-none"
+            />
           </div>
         )}
       </div>
@@ -326,7 +309,7 @@ export default async function StudentFeesPage({
                     )}
                   </div>
                   {e.kind === "payment" && (
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-1">
                       {canReverse && e.remaining > 0 && (
                         <ReversePaymentButton
                           paymentId={e.id}
@@ -336,9 +319,11 @@ export default async function StudentFeesPage({
                       )}
                       <Link
                         href={`/fees/receipt/${e.id}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-violet-600 hover:underline dark:text-violet-300"
+                        title="View receipt"
+                        aria-label="View receipt"
+                        className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-violet-600 transition-colors hover:bg-violet-100 dark:text-violet-300 dark:hover:bg-violet-500/15"
                       >
-                        <Printer className="size-3.5" /> Receipt
+                        <Printer className="size-4" />
                       </Link>
                     </div>
                   )}

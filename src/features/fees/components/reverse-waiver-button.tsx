@@ -24,9 +24,11 @@ export function ReverseWaiverButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-muted-foreground inline-flex shrink-0 items-center gap-1 text-sm font-medium transition-colors hover:text-rose-600 dark:hover:text-rose-400"
+        title="Reverse waiver"
+        aria-label="Reverse waiver"
+        className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-rose-600 transition-colors hover:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-500/15"
       >
-        <Undo2 className="size-3.5" /> Reverse
+        <Undo2 className="size-4" />
       </button>
       <ReverseWaiverDialog
         open={open}
