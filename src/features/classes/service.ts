@@ -25,7 +25,7 @@ export const getClass = cache(
     const cls = await prisma.class.findFirst({
       where: { id, instituteId },
       include: {
-      course: { select: { name: true } },
+      course: { select: { name: true, monthlyFee: true } },
       _count: { select: { students: { where: { archivedAt: null } } } },
     },
     })
@@ -38,7 +38,7 @@ export async function listClasses(instituteId: string): Promise<ClassListItem[]>
   const rows = await prisma.class.findMany({
     where: { instituteId },
     include: {
-      course: { select: { name: true } },
+      course: { select: { name: true, monthlyFee: true } },
       _count: { select: { students: { where: { archivedAt: null } } } },
     },
   })
@@ -64,12 +64,11 @@ export async function createClass(
       name: input.name,
       section: input.section,
       nameKey,
-      defaultMonthlyFee: input.defaultMonthlyFee,
       courseId: input.courseId ?? null,
       status: input.status,
     },
     include: {
-      course: { select: { name: true } },
+      course: { select: { name: true, monthlyFee: true } },
       _count: { select: { students: { where: { archivedAt: null } } } },
     },
   })
@@ -106,9 +105,6 @@ export async function updateClass(
       ...(input.name !== undefined && { name: input.name }),
       ...(input.section !== undefined && { section: input.section }),
       ...(identityChanged && { nameKey }),
-      ...(input.defaultMonthlyFee !== undefined && {
-        defaultMonthlyFee: input.defaultMonthlyFee,
-      }),
       ...(input.status !== undefined && { status: input.status }),
       ...(input.courseId !== undefined && { courseId: input.courseId ?? null }),
       // null → store SQL NULL (inherit the institute default); an array (incl. [])
@@ -119,7 +115,7 @@ export async function updateClass(
       }),
     },
     include: {
-      course: { select: { name: true } },
+      course: { select: { name: true, monthlyFee: true } },
       _count: { select: { students: { where: { archivedAt: null } } } },
     },
   })
@@ -128,7 +124,7 @@ export async function updateClass(
 
 type ClassWithCount = Class & {
   _count: { students: number }
-  course: { name: string } | null
+  course: { name: string; monthlyFee: Prisma.Decimal } | null
 }
 
 function toListItem(cls: ClassWithCount): ClassListItem {
@@ -136,9 +132,9 @@ function toListItem(cls: ClassWithCount): ClassListItem {
     id: cls.id,
     name: cls.name,
     section: cls.section,
-    defaultMonthlyFee: Number(cls.defaultMonthlyFee),
     courseId: cls.courseId,
     courseName: cls.course?.name ?? null,
+    courseMonthlyFee: cls.course ? Number(cls.course.monthlyFee) : null,
     status: cls.status,
     studentCount: cls._count.students,
     weeklyOffOverride: parseWeeklyOff(cls.weeklyOffOverride),

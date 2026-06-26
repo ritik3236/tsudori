@@ -60,7 +60,7 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead className="text-right">Default Fee</TableHead>
+              <TableHead className="text-right">Monthly fee</TableHead>
               <TableHead className="text-right">Students</TableHead>
               <TableHead>Status</TableHead>
               {canManage && <TableHead className="w-12" />}
@@ -94,7 +94,11 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
                     )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatCurrency(cls.defaultMonthlyFee)}
+                    {cls.courseMonthlyFee != null ? (
+                      formatCurrency(cls.courseMonthlyFee)
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {cls.studentCount}
@@ -149,7 +153,9 @@ export function ClassesTable({ canManage }: ClassesTableProps) {
                   </div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-muted-foreground text-xs tabular-nums">
-                      {formatCurrency(cls.defaultMonthlyFee)}/mo
+                      {cls.courseMonthlyFee != null
+                        ? `${formatCurrency(cls.courseMonthlyFee)}/mo`
+                        : "No course"}
                     </span>
                     <span className="text-muted-foreground text-xs tabular-nums">
                       {cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}

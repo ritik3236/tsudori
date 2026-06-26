@@ -40,14 +40,13 @@ type ClassFormProps = {
 }
 
 function emptyValues(): ClassFormValues {
-  return { name: "", section: "", defaultMonthlyFee: "", courseId: NO_COURSE, status: "ACTIVE" }
+  return { name: "", section: "", courseId: NO_COURSE, status: "ACTIVE" }
 }
 
 function classToFormValues(cls: ClassListItem): ClassFormValues {
   return {
     name: cls.name,
     section: cls.section ?? "",
-    defaultMonthlyFee: String(cls.defaultMonthlyFee),
     courseId: cls.courseId ?? NO_COURSE,
     status: cls.status,
   }
@@ -103,26 +102,6 @@ export function ClassForm({
 
         <FormField
           control={form.control}
-          name="defaultMonthlyFee"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Default monthly fee</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder={formatCurrency(0)}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
           name="courseId"
           render={({ field }) => (
             <FormItem>
@@ -143,11 +122,14 @@ export function ClassForm({
                   <SelectItem value={NO_COURSE}>No course</SelectItem>
                   {courses?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name}
+                      {c.name} · {formatCurrency(c.monthlyFee)}/mo
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-muted-foreground text-xs">
+                The course sets this class&apos;s monthly fee — no course means no fee is billed.
+              </p>
               <FormMessage />
             </FormItem>
           )}

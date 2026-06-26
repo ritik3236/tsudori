@@ -31,7 +31,22 @@ export function ClassDetail({ cls, canManage, canConfigureAttendance }: ClassDet
             {cls.section && <Badge variant="secondary">{cls.section}</Badge>}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <span>Default fee: <span className="font-medium text-foreground">{formatCurrency(cls.defaultMonthlyFee)}/mo</span></span>
+            <span>
+              {cls.courseName ? (
+                <>
+                  Course:{" "}
+                  <span className="font-medium text-foreground">{cls.courseName}</span>
+                  {cls.courseMonthlyFee != null && (
+                    <span className="font-medium text-foreground">
+                      {" · "}
+                      {formatCurrency(cls.courseMonthlyFee)}/mo
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-foreground">No course — no fee billed</span>
+              )}
+            </span>
             <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
             <StatusBadge active={cls.status === "ACTIVE"} />
           </div>

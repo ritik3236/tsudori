@@ -35,11 +35,7 @@ export const classCreateSchema = z.object({
     .min(1, "Section is required.")
     .max(10)
     .transform(tidySpaces),
-  defaultMonthlyFee: z.coerce
-    .number({ message: "Enter a valid amount." })
-    .min(0, "Fee can't be negative.")
-    .max(10_000_000),
-  // The course this batch runs (drives fees via enrolments). Optional.
+  // The course this batch runs — the single source of the class's monthly fee.
   courseId: z.string().trim().min(1).nullish(),
   status: z.enum(CLASS_STATUSES).default("ACTIVE"),
 })
@@ -61,13 +57,6 @@ export const NO_COURSE = "none"
 export const classFormSchema = z.object({
   name: z.string().trim().min(1, "Class name is required.").max(50),
   section: z.string().trim().min(1, "Section is required.").max(10),
-  defaultMonthlyFee: z
-    .string()
-    .min(1, "Monthly fee is required.")
-    .refine(
-      (v) => !Number.isNaN(Number(v)) && Number(v) >= 0,
-      "Enter a valid amount."
-    ),
   courseId: z.string(),
   status: z.enum(CLASS_STATUSES),
 })
@@ -78,7 +67,6 @@ export function formValuesToInput(values: ClassFormValues): ClassCreateInput {
   return {
     name: values.name,
     section: values.section,
-    defaultMonthlyFee: Number(values.defaultMonthlyFee),
     courseId: values.courseId && values.courseId !== NO_COURSE ? values.courseId : null,
     status: values.status,
   }
