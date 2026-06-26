@@ -2,11 +2,29 @@ import { describe, it, expect } from "vitest"
 
 import {
   deriveMonth,
+  effectiveFee,
   planPayment,
-  planWaiver,
   resolveReversal,
   type Period,
 } from "@/features/fees/logic"
+
+describe("effectiveFee", () => {
+  it("uses the course rate when there's no override", () => {
+    expect(effectiveFee(1800, null)).toBe(1800)
+  })
+  it("uses the override when set (incl. a scholarship to zero)", () => {
+    expect(effectiveFee(1800, 1000)).toBe(1000)
+    expect(effectiveFee(1800, 0)).toBe(0)
+  })
+  it("applies a percentage discount that tracks the course rate", () => {
+    expect(effectiveFee(2000, null, 25)).toBe(1500)
+    expect(effectiveFee(2200, null, 25)).toBe(1650) // same % → higher fee tracks
+  })
+  it("percentage wins over a (stale) override and rounds to 2dp", () => {
+    expect(effectiveFee(1000, 999, 50)).toBe(500)
+    expect(effectiveFee(1000, null, 33.33)).toBe(666.7)
+  })
+})
 
 describe("deriveMonth", () => {
   it("UNPAID when nothing paid or waived", () => {
@@ -171,70 +189,5 @@ describe("planPayment", () => {
     const p = plan({ fee: 5000, admission: { year: 2026, month: 1 }, amount: 17_500 })
     const total = p.allocations.reduce((s, a) => s + a.amount, 0)
     expect(total).toBe(17_500)
-  })
-})
-
-describe("planWaiver", () => {
-  // now is June 2026 throughout; admission Feb 2026 → Feb..Jun are billable.
-  const base = {
-    fee: 1000,
-    admission: { year: 2026, month: 2 } as Period,
-    now: { year: 2026, month: 6 } as Period,
-    amount: 0,
-  }
-  const plan = (over: Partial<Parameters<typeof planWaiver>[0]>) =>
-    planWaiver({ paid: new Map(), waived: new Map(), ...base, ...over })
-
-  it("clears outstanding months oldest-first", () => {
-    const p = plan({ amount: 2500 })
-    expect(p.allocations).toEqual([
-      { year: 2026, month: 2, amount: 1000 },
-      { year: 2026, month: 3, amount: 1000 },
-      { year: 2026, month: 4, amount: 500 },
-    ])
-    expect(p.unallocated).toBe(0)
-  })
-
-  it("full outstanding clears every owed month", () => {
-    const p = plan({ amount: 5000 }) // Feb..Jun = 5 × 1000
-    expect(p.allocations).toHaveLength(5)
-    expect(p.allocations.reduce((s, a) => s + a.amount, 0)).toBe(5000)
-    expect(p.unallocated).toBe(0)
-  })
-
-  it("skips already-paid months and caps at each month's remaining due", () => {
-    const p = plan({
-      amount: 1500,
-      paid: new Map([["2026-2", 1000], ["2026-3", 400]]),
-    })
-    // Feb fully paid → skipped; Mar owes 600; Apr takes the rest.
-    expect(p.allocations).toEqual([
-      { year: 2026, month: 3, amount: 600 },
-      { year: 2026, month: 4, amount: 900 },
-    ])
-    expect(p.unallocated).toBe(0)
-  })
-
-  it("nets prior waivers so the same month isn't waived twice", () => {
-    const p = plan({ amount: 1000, waived: new Map([["2026-2", 1000]]) })
-    expect(p.allocations).toEqual([{ year: 2026, month: 3, amount: 1000 }])
-  })
-
-  it("reports the overflow when amount exceeds total outstanding", () => {
-    const p = plan({ amount: 6000 }) // only 5000 is owed
-    expect(p.allocations.reduce((s, a) => s + a.amount, 0)).toBe(5000)
-    expect(p.unallocated).toBe(1000)
-  })
-
-  it("never prepays the future — nothing owed means nothing allocated", () => {
-    const p = plan({
-      amount: 1000,
-      paid: new Map([
-        ["2026-2", 1000], ["2026-3", 1000], ["2026-4", 1000],
-        ["2026-5", 1000], ["2026-6", 1000],
-      ]),
-    })
-    expect(p.allocations).toEqual([])
-    expect(p.unallocated).toBe(1000)
   })
 })

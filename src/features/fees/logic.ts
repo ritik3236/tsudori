@@ -18,6 +18,20 @@ export function deriveMonth(monthlyFee: number, paid: number, waived: number) {
   return { netDue, pending, advance, status }
 }
 
+// The monthly fee that actually bills an enrolment. Scholarships come in two
+// mutually-exclusive forms: a fixed `feeOverride` (a flat rate), or a
+// `discountPercent` off the course rate (which tracks course-fee changes). With
+// neither, it's the course's catalog rate. Single source of truth for the
+// effective-fee rule — used by charge generation and every fee read.
+export function effectiveFee(
+  courseMonthlyFee: number,
+  feeOverride: number | null,
+  discountPercent: number | null = null
+): number {
+  if (discountPercent != null) return round2(courseMonthlyFee * (1 - discountPercent / 100))
+  return feeOverride ?? courseMonthlyFee
+}
+
 // Two-decimal rounding so money comparisons don't trip on float noise.
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -47,52 +61,6 @@ export function resolveReversal(
 }
 
 export type Period = { year: number; month: number }
-
-export type WaiverPlan = {
-  // One entry per outstanding month the waiver clears, oldest first.
-  allocations: { year: number; month: number; amount: number }[]
-  // Requested amount that couldn't be placed (i.e. exceeds total outstanding).
-  unallocated: number
-}
-
-// Distributes a concession across outstanding fee months WITHOUT touching the DB.
-// Unlike a payment, a waiver can't prepay the future — it only clears real dues,
-// so it fills outstanding months oldest-first (admission..now) and stops. Any
-// requested amount beyond total outstanding is reported as `unallocated` for the
-// caller to reject. `paid`/`waived` are keyed `${year}-${month}`.
-export function planWaiver(input: {
-  fee: number
-  paid: Map<string, number>
-  waived: Map<string, number>
-  admission: Period
-  now: Period
-  amount: number
-}): WaiverPlan {
-  const { fee, paid, waived, admission, now, amount } = input
-  const key = (y: number, m: number) => `${y}-${m}`
-  const dueOf = (y: number, m: number) =>
-    Math.max(0, fee - (paid.get(key(y, m)) ?? 0) - (waived.get(key(y, m)) ?? 0))
-
-  const allocations: WaiverPlan["allocations"] = []
-  let remaining = round2(amount)
-  let y = admission.year
-  let m = admission.month
-  while (remaining > 0 && (y < now.year || (y === now.year && m <= now.month))) {
-    const d = dueOf(y, m)
-    if (d > 0) {
-      const take = Math.min(remaining, d)
-      allocations.push({ year: y, month: m, amount: round2(take) })
-      remaining = round2(remaining - take)
-    }
-    if (m === 12) {
-      y += 1
-      m = 1
-    } else {
-      m += 1
-    }
-  }
-  return { allocations, unallocated: round2(Math.max(0, remaining)) }
-}
 
 export type PaymentPlan = {
   // One entry per month the cash touches, in allocation order.

@@ -2,6 +2,7 @@ import "server-only"
 
 import { prisma } from "@/lib/prisma"
 import { todayInAppTz, appDayBounds, appMonthBounds } from "@/lib/date-helper"
+import { effectiveFee } from "@/features/fees/logic"
 
 export type DashboardFinance = {
   feeCollectedThisMonth: number
@@ -55,15 +56,26 @@ export async function getDashboardStats(
   // otherwise `finance` resolves to null and nothing financial is ever fetched.
   const financeWork: Promise<DashboardFinance | null> = opts.includeFinancials
     ? (async () => {
-        const [collectedAgg, expectedAgg, collectedForOutstanding, recentPayments] =
+        const [collectedAgg, expectedEnrollments, collectedForOutstanding, recentPayments] =
           await Promise.all([
             prisma.feePayment.aggregate({
               where: { instituteId, paidAt: { gte: monthStart, lt: monthEnd } },
               _sum: { amount: true },
             }),
-            prisma.student.aggregate({
-              where: activeWhere,
-              _sum: { monthlyFee: true },
+            // Expected this month = Σ active enrolments' effective fee (started by
+            // this month), for active students — the charge ledger's monthly rate.
+            prisma.enrollment.findMany({
+              where: {
+                instituteId,
+                status: "ACTIVE",
+                startDate: { lt: monthEnd },
+                student: { status: "ACTIVE", archivedAt: null },
+              },
+              select: {
+                feeOverride: true,
+                discountPercent: true,
+                course: { select: { monthlyFee: true } },
+              },
             }),
             prisma.feePayment.aggregate({
               where: { instituteId, periodMonth: tm, periodYear: ty },
@@ -83,7 +95,16 @@ export async function getDashboardStats(
               },
             }),
           ])
-        const expected = Number(expectedAgg._sum.monthlyFee ?? 0)
+        const expected = expectedEnrollments.reduce(
+          (sum, e) =>
+            sum +
+            effectiveFee(
+              Number(e.course.monthlyFee),
+              e.feeOverride != null ? Number(e.feeOverride) : null,
+              e.discountPercent != null ? Number(e.discountPercent) : null
+            ),
+          0
+        )
         const collectedForMonth = Number(collectedForOutstanding._sum.amount ?? 0)
         return {
           feeCollectedThisMonth: Number(collectedAgg._sum.amount ?? 0),

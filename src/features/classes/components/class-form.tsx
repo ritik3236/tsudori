@@ -7,10 +7,12 @@ import { formatCurrency } from "@/lib/format"
 import {
   classFormSchema,
   formValuesToInput,
+  NO_COURSE,
   type ClassFormValues,
   type ClassCreateInput,
 } from "@/features/classes/schema"
 import type { ClassListItem } from "@/features/classes/types"
+import { useCourses } from "@/features/course/hooks"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -38,7 +40,7 @@ type ClassFormProps = {
 }
 
 function emptyValues(): ClassFormValues {
-  return { name: "", section: "", defaultMonthlyFee: "", status: "ACTIVE" }
+  return { name: "", section: "", defaultMonthlyFee: "", courseId: NO_COURSE, status: "ACTIVE" }
 }
 
 function classToFormValues(cls: ClassListItem): ClassFormValues {
@@ -46,6 +48,7 @@ function classToFormValues(cls: ClassListItem): ClassFormValues {
     name: cls.name,
     section: cls.section ?? "",
     defaultMonthlyFee: String(cls.defaultMonthlyFee),
+    courseId: cls.courseId ?? NO_COURSE,
     status: cls.status,
   }
 }
@@ -61,6 +64,7 @@ export function ClassForm({
     resolver: zodResolver(classFormSchema),
     defaultValues: defaultValues ? classToFormValues(defaultValues) : emptyValues(),
   })
+  const { data: courses } = useCourses()
 
   return (
     <Form {...form}>
@@ -112,6 +116,38 @@ export function ClassForm({
                   {...field}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="courseId"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Course</FormLabel>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(v: string) =>
+                        v === NO_COURSE
+                          ? "No course"
+                          : (courses?.find((c) => c.id === v)?.name ?? "Select course")
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value={NO_COURSE}>No course</SelectItem>
+                  {courses?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

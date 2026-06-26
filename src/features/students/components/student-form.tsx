@@ -44,7 +44,6 @@ type StudentFormProps = {
   defaultValues?: Partial<StudentFormValues>
   submitLabel: string
   submitting?: boolean
-  syncClassFee?: boolean
   /** Require a class (create flow). Edit leaves it optional so legacy
    *  class-less students stay editable. */
   requireClass?: boolean
@@ -61,7 +60,6 @@ function emptyValues(): StudentFormValues {
     contactNumber: "",
     email: "",
     admissionDate: toDateInputValue(nowDate()),
-    monthlyFee: "",
     status: "ACTIVE",
     notes: "",
   }
@@ -77,7 +75,6 @@ export function studentToFormValues(student: StudentDetail): StudentFormValues {
     contactNumber: student.contactNumber ?? "",
     email: student.email ?? "",
     admissionDate: toDateInputValue(student.admissionDate),
-    monthlyFee: String(student.monthlyFee),
     status: student.status,
     notes: student.notes ?? "",
   }
@@ -105,7 +102,6 @@ export function StudentForm({
   defaultValues,
   submitLabel,
   submitting,
-  syncClassFee,
   requireClass,
   onSubmit,
   onCancel,
@@ -152,13 +148,7 @@ export function StudentForm({
                   </FormLabel>
                   <Select
                     value={field.value}
-                    onValueChange={(value) => {
-                      field.onChange(value)
-                      if (syncClassFee && value !== NO_CLASS) {
-                        const cls = classes?.find((c) => c.id === value)
-                        if (cls) form.setValue("monthlyFee", String(cls.defaultMonthlyFee))
-                      }
-                    }}
+                    onValueChange={field.onChange}
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -290,27 +280,6 @@ export function StudentForm({
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </FormSection>
-
-        <FormSection title="Fees">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="monthlyFee"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Monthly fee (₹)
-                    <Req />
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="number" min={0} step={1} placeholder="0" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

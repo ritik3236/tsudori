@@ -2,6 +2,7 @@ import {
   BarChart3,
   Building2,
   CalendarCheck,
+  GraduationCap,
   LayoutDashboard,
   School,
   Settings,
@@ -68,6 +69,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: School,
     activeColor: "text-orange-600 dark:text-orange-400",
     permission: PERMISSIONS.CLASS_READ,
+  },
+  {
+    label: "Courses",
+    href: "/courses",
+    icon: GraduationCap,
+    activeColor: "text-fuchsia-600 dark:text-fuchsia-400",
+    permission: PERMISSIONS.COURSE_READ,
   },
   {
     label: "Reports",

@@ -21,17 +21,26 @@ export function normalizeClassKey(name: string, section: string): string {
   return `${normalizePart(name)}|${normalizePart(section)}`
 }
 
+/** Tidies a display string: trims, then collapses internal whitespace runs to a
+ *  single space — so "Class  6" is stored as "Class 6". */
+function tidySpaces(value: string): string {
+  return value.trim().replace(/\s+/g, " ")
+}
+
 export const classCreateSchema = z.object({
-  name: z.string().trim().min(1, "Class name is required.").max(50),
+  name: z.string().trim().min(1, "Class name is required.").max(50).transform(tidySpaces),
   section: z
     .string({ message: "Section is required." })
     .trim()
     .min(1, "Section is required.")
-    .max(10),
+    .max(10)
+    .transform(tidySpaces),
   defaultMonthlyFee: z.coerce
     .number({ message: "Enter a valid amount." })
     .min(0, "Fee can't be negative.")
     .max(10_000_000),
+  // The course this batch runs (drives fees via enrolments). Optional.
+  courseId: z.string().trim().min(1).nullish(),
   status: z.enum(CLASS_STATUSES).default("ACTIVE"),
 })
 
@@ -46,6 +55,9 @@ export type ClassUpdateInput = z.infer<typeof classUpdateSchema>
 
 // ─── Client form model ────────────────────────────────────────────────────────
 
+// Sentinel for "no course" in the form select (Base UI selects dislike "").
+export const NO_COURSE = "none"
+
 export const classFormSchema = z.object({
   name: z.string().trim().min(1, "Class name is required.").max(50),
   section: z.string().trim().min(1, "Section is required.").max(10),
@@ -56,6 +68,7 @@ export const classFormSchema = z.object({
       (v) => !Number.isNaN(Number(v)) && Number(v) >= 0,
       "Enter a valid amount."
     ),
+  courseId: z.string(),
   status: z.enum(CLASS_STATUSES),
 })
 
@@ -66,6 +79,7 @@ export function formValuesToInput(values: ClassFormValues): ClassCreateInput {
     name: values.name,
     section: values.section,
     defaultMonthlyFee: Number(values.defaultMonthlyFee),
+    courseId: values.courseId && values.courseId !== NO_COURSE ? values.courseId : null,
     status: values.status,
   }
 }

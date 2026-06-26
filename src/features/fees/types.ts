@@ -93,6 +93,15 @@ export type StudentFeeDetail = {
   admission: { year: number; month: number }
   paidByMonth: Record<string, number>
   waivedByMonth: Record<string, number>
+  /** One-time charges (admission/exam/…) with their settlement, shown as distinct
+   *  line items separate from the monthly tuition. */
+  oneTimeCharges: {
+    id: string
+    label: string
+    amount: number
+    paid: number
+    outstanding: number
+  }[]
 }
 
 export type FeeMonthlyOverview = {

@@ -24,7 +24,10 @@ export const getClass = cache(
   async (instituteId: string, id: string): Promise<ClassListItem> => {
     const cls = await prisma.class.findFirst({
       where: { id, instituteId },
-      include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+      include: {
+      course: { select: { name: true } },
+      _count: { select: { students: { where: { archivedAt: null } } } },
+    },
     })
     if (!cls) throw new NotFoundError("Class not found.")
     return toListItem(cls)
@@ -34,7 +37,10 @@ export const getClass = cache(
 export async function listClasses(instituteId: string): Promise<ClassListItem[]> {
   const rows = await prisma.class.findMany({
     where: { instituteId },
-    include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+    include: {
+      course: { select: { name: true } },
+      _count: { select: { students: { where: { archivedAt: null } } } },
+    },
   })
   return rows.map(toListItem).sort(compareClasses)
 }
@@ -59,9 +65,13 @@ export async function createClass(
       section: input.section,
       nameKey,
       defaultMonthlyFee: input.defaultMonthlyFee,
+      courseId: input.courseId ?? null,
       status: input.status,
     },
-    include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+    include: {
+      course: { select: { name: true } },
+      _count: { select: { students: { where: { archivedAt: null } } } },
+    },
   })
   return toListItem(cls)
 }
@@ -100,6 +110,7 @@ export async function updateClass(
         defaultMonthlyFee: input.defaultMonthlyFee,
       }),
       ...(input.status !== undefined && { status: input.status }),
+      ...(input.courseId !== undefined && { courseId: input.courseId ?? null }),
       // null → store SQL NULL (inherit the institute default); an array (incl. [])
       // is an explicit per-class override.
       ...(input.weeklyOffOverride !== undefined && {
@@ -107,12 +118,18 @@ export async function updateClass(
           input.weeklyOffOverride === null ? Prisma.DbNull : input.weeklyOffOverride,
       }),
     },
-    include: { _count: { select: { students: { where: { archivedAt: null } } } } },
+    include: {
+      course: { select: { name: true } },
+      _count: { select: { students: { where: { archivedAt: null } } } },
+    },
   })
   return toListItem(cls)
 }
 
-type ClassWithCount = Class & { _count: { students: number } }
+type ClassWithCount = Class & {
+  _count: { students: number }
+  course: { name: string } | null
+}
 
 function toListItem(cls: ClassWithCount): ClassListItem {
   return {
@@ -120,6 +137,8 @@ function toListItem(cls: ClassWithCount): ClassListItem {
     name: cls.name,
     section: cls.section,
     defaultMonthlyFee: Number(cls.defaultMonthlyFee),
+    courseId: cls.courseId,
+    courseName: cls.course?.name ?? null,
     status: cls.status,
     studentCount: cls._count.students,
     weeklyOffOverride: parseWeeklyOff(cls.weeklyOffOverride),

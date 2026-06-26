@@ -92,6 +92,9 @@ model Institute {
   holidays    Holiday[]
   payments    FeePayment[]
   waivers     FeeWaiver[]
+  courses     Course[]
+  enrollments Enrollment[]
+  feeCharges  FeeCharge[]
   notes       Note[]
   settings    Setting[]
   invitations Invitation[]
@@ -233,6 +236,9 @@ model Class {
   // Kept in sync by normalizeClassKey() in src/features/classes/schema.ts.
   nameKey           String
   defaultMonthlyFee Decimal?    @db.Decimal(10, 2)
+  /// The course this batch runs (drives fees via enrolments). Nullable during the
+  /// fee-ledger transition; the Course catalog supersedes defaultMonthlyFee.
+  courseId          String?
   status            ClassStatus @default(ACTIVE)
   // Per-class weekly-off override: a JSON array of Luxon weekdays (1=Mon..7=Sun),
   // or NULL to inherit the institute default (Setting "attendance.weeklyOff").
@@ -242,11 +248,13 @@ model Class {
   updatedAt         DateTime    @updatedAt
 
   institute Institute  @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  course    Course?    @relation(fields: [courseId], references: [id], onDelete: SetNull)
   students  Student[]
   holidays  Holiday[]
 
   @@unique([instituteId, nameKey])
   @@index([instituteId])
+  @@index([courseId])
   @@schema("public")
 }
 
@@ -284,9 +292,11 @@ model Student {
 
   institute  Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
   class      Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
-  attendance Attendance[]
-  payments   FeePayment[]
-  waivers    FeeWaiver[]
+  attendance  Attendance[]
+  payments    FeePayment[]
+  waivers     FeeWaiver[]
+  enrollments Enrollment[]
+  feeCharges  FeeCharge[]
 
   @@unique([instituteId, serialNo])
   @@index([instituteId, status])
@@ -390,6 +400,10 @@ model FeePayment {
   recordedById String?       @db.Uuid
   /// When set, this row reverses (fully or partly) the referenced payment.
   reversalOfId String?
+  /// Ledger links (fee-charge architecture): the enrolment this payment is for,
+  /// and the specific charge it pays. Nullable for legacy rows pre-migration.
+  enrollmentId String?
+  chargeId     String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -398,11 +412,15 @@ model FeePayment {
   recordedBy User?        @relation("PaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
   reversalOf FeePayment?  @relation("FeeReversals", fields: [reversalOfId], references: [id], onDelete: Cascade)
   reversals  FeePayment[] @relation("FeeReversals")
+  enrollment Enrollment?  @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  charge     FeeCharge?   @relation(fields: [chargeId], references: [id], onDelete: SetNull)
 
   @@unique([instituteId, receiptNo])
   @@index([instituteId, paidAt])
   @@index([studentId])
   @@index([reversalOfId])
+  @@index([enrollmentId])
+  @@index([chargeId])
   @@schema("public")
 }
 
@@ -421,6 +439,10 @@ model FeeWaiver {
   waivedById  String?  @db.Uuid
   /// When set, this row reverses the referenced waiver.
   reversalOfId String?
+  /// Ledger links (fee-charge architecture): the enrolment + the specific charge
+  /// this concession reduces. Nullable for legacy rows pre-migration.
+  enrollmentId String?
+  chargeId     String?
   createdAt   DateTime @default(now())
 
   institute  Institute   @relation(fields: [instituteId], references: [id], onDelete: Cascade)
@@ -428,10 +450,170 @@ model FeeWaiver {
   waivedBy   User?       @relation("WaiverBy", fields: [waivedById], references: [id], onDelete: SetNull)
   reversalOf FeeWaiver?  @relation("WaiverReversals", fields: [reversalOfId], references: [id], onDelete: Cascade)
   reversals  FeeWaiver[] @relation("WaiverReversals")
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  charge     FeeCharge?  @relation(fields: [chargeId], references: [id], onDelete: SetNull)
 
   @@index([instituteId, periodYear, periodMonth])
   @@index([studentId])
   @@index([reversalOfId])
+  @@index([enrollmentId])
+  @@index([chargeId])
+  @@schema("public")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fee catalog & ledger (Course → Enrollment → FeeCharge)
+//
+// Billing is accrual-based: a Course defines the price (recurring tuition +
+// one-time components), an Enrollment links a student to a course (with an
+// optional per-student fee override), and FeeCharge rows are the immutable debit
+// ledger. Outstanding = Σ charges − Σ payments − Σ waivers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CourseStatus {
+  ACTIVE
+  INACTIVE
+
+  @@schema("public")
+}
+
+/// A course/program the institute offers: a recurring monthly tuition over a fixed
+/// duration, plus optional one-time fee components (admission, exam, …). Assigned
+/// to classes and to enrolments — the catalog that drives all fees.
+model Course {
+  id             String       @id @default(cuid())
+  instituteId    String
+  name           String
+  /// Normalized name (lower-cased, whitespace-stripped) for case/space-insensitive
+  /// uniqueness — kept in sync by normalizeCourseKey() in the course feature.
+  nameKey        String
+  durationMonths Int
+  monthlyFee     Decimal      @db.Decimal(10, 2)
+  status         CourseStatus @default(ACTIVE)
+  /// A bundle packages other courses under one combined fee (billed as a single
+  /// charge at this course's monthlyFee). Members are tracked via CourseBundleItem.
+  isBundle       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  institute   Institute            @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  components  CourseFeeComponent[]
+  classes     Class[]
+  enrollments Enrollment[]
+  bundleItems CourseBundleItem[]   @relation("BundleItems")
+  memberOf    CourseBundleItem[]   @relation("MemberOf")
+
+  @@unique([instituteId, nameKey])
+  @@index([instituteId, status])
+  @@schema("public")
+}
+
+/// Links a bundle course to a course it includes. Display/reference only — the
+/// bundle's own monthlyFee is what bills.
+model CourseBundleItem {
+  id             String @id @default(cuid())
+  bundleCourseId String
+  memberCourseId String
+
+  bundle Course @relation("BundleItems", fields: [bundleCourseId], references: [id], onDelete: Cascade)
+  member Course @relation("MemberOf", fields: [memberCourseId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleCourseId, memberCourseId])
+  @@index([bundleCourseId])
+  @@index([memberCourseId])
+  @@schema("public")
+}
+
+/// A one-time fee on a course (e.g. "Admission fee", "Exam fee"). Charged once per
+/// enrolment, when a student enrols on the course.
+model CourseFeeComponent {
+  id        String   @id @default(cuid())
+  courseId  String
+  name      String
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@schema("public")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+
+  @@schema("public")
+}
+
+/// A student's enrolment on a course — the billing relationship. A student may
+/// hold several at once. `feeOverride` (when set) wins over the course's monthlyFee
+/// (scholarship/custom rate); null inherits the course fee live.
+model Enrollment {
+  id          String           @id @default(cuid())
+  instituteId String
+  studentId   String
+  courseId    String
+  /// Billing anchor — the month tuition starts accruing (seeded from admissionDate).
+  startDate   DateTime         @db.Timestamptz(3)
+  /// A fixed monthly rate for this enrolment (scholarship/custom). Null → not a
+  /// fixed override. At most one of feeOverride / discountPercent is set.
+  feeOverride Decimal?         @db.Decimal(10, 2)
+  /// Percent off the course fee (0–100) — the alternative scholarship form. Null →
+  /// no percentage discount. effectiveFee = course.monthlyFee × (1 − pct/100).
+  discountPercent Decimal?     @db.Decimal(5, 2)
+  status      EnrollmentStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  institute Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course    Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  charges   FeeCharge[]
+  payments  FeePayment[]
+  waivers   FeeWaiver[]
+
+  @@index([instituteId, studentId])
+  @@index([courseId])
+  @@schema("public")
+}
+
+enum ChargeType {
+  TUITION
+  ONE_TIME
+
+  @@schema("public")
+}
+
+/// The debit side of the fee ledger: one immutable charge a student owes. TUITION
+/// rows are one-per-month (deduped by the unique index); ONE_TIME rows are
+/// admission/exam/etc. Balances net via Σ charges − Σ payments − Σ waivers.
+model FeeCharge {
+  id           String     @id @default(cuid())
+  instituteId  String
+  enrollmentId String
+  /// Denormalized from the enrolment for fast per-student ledger queries.
+  studentId    String
+  type         ChargeType @default(TUITION)
+  /// For ONE_TIME charges: the label (e.g. "Admission fee"). Null for tuition.
+  label        String?
+  /// The fee period for TUITION (the month it covers); null for ONE_TIME.
+  periodMonth  Int?
+  periodYear   Int?
+  amount       Decimal    @db.Decimal(10, 2)
+  dueDate      DateTime   @db.Timestamptz(3)
+  createdAt    DateTime   @default(now())
+
+  institute  Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  enrollment Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  payments   FeePayment[]
+  waivers    FeeWaiver[]
+
+  @@unique([enrollmentId, type, periodYear, periodMonth])
+  @@index([instituteId, studentId])
+  @@index([enrollmentId])
   @@schema("public")
 }
 

@@ -5,6 +5,10 @@ import type { Prisma, PrismaClient, Student } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
+import {
+  enrollStudentInClassCourseTx,
+  syncStudentEnrollmentTx,
+} from "@/features/enrollment/service"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import { nowDate } from "@/lib/date-helper"
 import type {
@@ -173,7 +177,7 @@ export async function createStudent(
       select: { serialNo: true },
     })
 
-    return tx.student.create({
+    const student = await tx.student.create({
       data: {
         instituteId,
         serialNo: (last?.serialNo ?? 0) + 1,
@@ -184,11 +188,23 @@ export async function createStudent(
         contactNumber: input.contactNumber ?? null,
         email: input.email ?? null,
         admissionDate: input.admissionDate,
-        monthlyFee: input.monthlyFee,
+        monthlyFee: 0, // overwritten with the course fee below (legacy snapshot)
         status: input.status,
         notes: input.notes ?? null,
       },
     })
+
+    // Auto-enrol into the class's course (or General) at the course rate; the
+    // returned fee snapshots onto the legacy monthlyFee (dropped in Phase 5).
+    const courseFee = await enrollStudentInClassCourseTx(tx, {
+      instituteId,
+      studentId: student.id,
+      classId: input.classId ?? null,
+      startDate: input.admissionDate,
+    })
+    await tx.student.update({ where: { id: student.id }, data: { monthlyFee: courseFee } })
+
+    return student
   })
 
   return getStudent(instituteId, created.id)
@@ -201,7 +217,7 @@ export async function updateStudent(
 ): Promise<StudentDetail> {
   const existing = await prisma.student.findFirst({
     where: { id, instituteId },
-    select: { id: true },
+    select: { id: true, classId: true },
   })
   if (!existing) throw new NotFoundError("Student not found.")
 
@@ -214,7 +230,6 @@ export async function updateStudent(
   if (input.contactNumber !== undefined) data.contactNumber = input.contactNumber ?? null
   if (input.email !== undefined) data.email = input.email ?? null
   if (input.admissionDate !== undefined) data.admissionDate = input.admissionDate
-  if (input.monthlyFee !== undefined) data.monthlyFee = input.monthlyFee
   if (input.status !== undefined) data.status = input.status
   if (input.notes !== undefined) data.notes = input.notes ?? null
   if (input.classId !== undefined) {
@@ -223,7 +238,26 @@ export async function updateStudent(
       : { disconnect: true }
   }
 
-  await prisma.student.update({ where: { id }, data })
+  const classChanged =
+    input.classId !== undefined && (input.classId ?? null) !== existing.classId
+
+  await prisma.$transaction(async (tx) => {
+    await tx.student.update({ where: { id }, data })
+    // On a class change, re-point the class-derived enrolment to the new course
+    // (its fee/% scholarship is preserved) and snapshot the new course fee onto
+    // the legacy monthlyFee. Manual enrolments are untouched.
+    if (classChanged) {
+      const courseFee = await syncStudentEnrollmentTx(tx, {
+        instituteId,
+        studentId: id,
+        oldClassId: existing.classId,
+        newClassId: input.classId ?? null,
+        newFee: null,
+      })
+      await tx.student.update({ where: { id }, data: { monthlyFee: courseFee } })
+    }
+  })
+
   return getStudent(instituteId, id)
 }
 

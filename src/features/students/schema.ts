@@ -24,10 +24,8 @@ export const studentCreateSchema = z.object({
     .nullish()
     .transform((v) => (v ? v : null)),
   admissionDate: z.coerce.date({ message: "Enter a valid admission date." }),
-  monthlyFee: z.coerce
-    .number({ message: "Enter a valid amount." })
-    .min(0, "Fee can't be negative.")
-    .max(10_000_000),
+  // No fee here — a student inherits their class's course fee via the enrolment;
+  // custom rates / scholarships are set per-enrolment on the fee page.
   status: z.enum(STUDENT_STATUSES).default("ACTIVE"),
   notes: nullableText(2000),
 })
@@ -63,10 +61,6 @@ export const studentFormSchema = z.object({
   contactNumber: z.string().trim().max(20),
   email: z.union([z.literal(""), z.string().trim().email("Enter a valid email.")]),
   admissionDate: z.string().min(1, "Admission date is required."),
-  monthlyFee: z
-    .string()
-    .min(1, "Monthly fee is required.")
-    .refine((v) => !Number.isNaN(Number(v)) && Number(v) >= 0, "Enter a valid amount."),
   status: z.enum(STUDENT_STATUSES),
   notes: z.string().trim().max(2000),
 })
@@ -93,7 +87,6 @@ export function formValuesToInput(values: StudentFormValues): StudentCreateInput
     contactNumber: values.contactNumber || null,
     email: values.email || null,
     admissionDate: appDateToUtc(values.admissionDate),
-    monthlyFee: Number(values.monthlyFee),
     status: values.status,
     notes: values.notes || null,
   }

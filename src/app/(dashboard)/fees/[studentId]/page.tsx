@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query"
 import { HandCoins, Printer, Receipt, Undo2 } from "lucide-react"
 
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
@@ -10,7 +11,10 @@ import { cn } from "@/lib/utils"
 import { MONTHS_SHORT as MONTHS } from "@/lib/constants"
 import { formatClassName, formatCurrency, formatDateLong } from "@/lib/format"
 import { appYearMonth, nowDate } from "@/lib/date-helper"
+import { makeServerQueryClient } from "@/lib/query"
 import { getStudentFee } from "@/features/fees/service"
+import { listEnrollments } from "@/features/enrollment/service"
+import { enrollmentKeys } from "@/features/enrollment/api"
 import { METHOD_LABELS } from "@/features/fees/schema"
 import { BackLink } from "@/components/shared/back-link"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -19,6 +23,7 @@ import { RecordPaymentButton } from "@/features/fees/components/record-payment-b
 import { ReversePaymentButton } from "@/features/fees/components/reverse-payment-button"
 import { ReverseWaiverButton } from "@/features/fees/components/reverse-waiver-button"
 import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
+import { EnrollmentsPanel } from "@/features/enrollment/components/enrollments-panel"
 
 export const metadata: Metadata = { title: "Student fees" }
 
@@ -42,6 +47,19 @@ export default async function StudentFeesPage({
   const canRecord = can(ctx, PERMISSIONS.FEE_RECORD)
   const canWaive = can(ctx, PERMISSIONS.FEE_WAIVE)
   const canReverse = can(ctx, PERMISSIONS.FEE_REVERSE)
+  const canViewEnrollments = can(ctx, PERMISSIONS.ENROLLMENT_READ)
+  const canManageEnrollments = can(ctx, PERMISSIONS.ENROLLMENT_MANAGE)
+
+  // Prefetch the enrolment ledger so the panel paints with the page (no skeleton
+  // flash). Key matches EnrollmentsPanel's useEnrollments(studentId).
+  const qc = makeServerQueryClient()
+  if (canViewEnrollments) {
+    await qc.prefetchQuery({
+      queryKey: enrollmentKeys.byStudent(studentId),
+      queryFn: () => listEnrollments(ctx.institute.id, studentId),
+    })
+  }
+
   const { year: periodYear, month: periodMonth } = appYearMonth(nowDate())
 
   // Three core KPIs — the actionable current-period figure first (advance when
@@ -193,6 +211,48 @@ export default async function StudentFeesPage({
           <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} />
         ))}
       </div>
+
+      {canViewEnrollments && (
+        <HydrationBoundary state={dehydrate(qc)}>
+          <EnrollmentsPanel studentId={fee.studentId} canManage={canManageEnrollments} />
+        </HydrationBoundary>
+      )}
+
+      {fee.oneTimeCharges.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 className="text-muted-foreground text-sm font-medium">One-time fees</h2>
+            <span className="text-muted-foreground/70 text-[11px]">
+              included in the outstanding total
+            </span>
+          </div>
+          <div className="bg-card overflow-hidden rounded-xl border">
+            <ul className="divide-y">
+              {fee.oneTimeCharges.map((c) => (
+                <li key={c.id} className="flex items-center justify-between p-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{c.label}</p>
+                    <p className="text-muted-foreground text-xs tabular-nums">
+                      {formatCurrency(c.amount)}
+                      {c.paid > 0 ? ` · ${formatCurrency(c.paid)} paid` : ""}
+                    </p>
+                  </div>
+                  <p
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      c.outstanding > 0
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    )}
+                  >
+                    {c.outstanding > 0 ? `${formatCurrency(c.outstanding)} due` : "Paid"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-muted-foreground mb-3 text-sm font-medium">

@@ -8,6 +8,8 @@ export const PERMISSION_MODULES = [
   "attendance",
   "fee",
   "class",
+  "course",
+  "enrollment",
   "report",
   "institute",
   "member",
@@ -36,6 +38,12 @@ export const PERMISSIONS = {
 
   CLASS_READ: "class:read",
   CLASS_MANAGE: "class:manage",
+
+  COURSE_READ: "course:read",
+  COURSE_MANAGE: "course:manage",
+
+  ENROLLMENT_READ: "enrollment:read",
+  ENROLLMENT_MANAGE: "enrollment:manage",
 
   REPORT_VIEW: "report:view",
 
@@ -129,6 +137,8 @@ export const SYSTEM_ROLES: RoleTemplate[] = [
       PERMISSIONS.ATTENDANCE_READ,
       PERMISSIONS.FEE_READ,
       PERMISSIONS.CLASS_READ,
+      PERMISSIONS.COURSE_READ,
+      PERMISSIONS.ENROLLMENT_READ,
       PERMISSIONS.MEMBER_READ,
       PERMISSIONS.REPORT_VIEW,
       PERMISSIONS.AUDIT_READ,

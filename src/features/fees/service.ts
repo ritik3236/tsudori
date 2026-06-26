@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma"
 import { appYearMonth, appMonthStartUtc, nowDate } from "@/lib/date-helper"
 import { NotFoundError, ValidationError } from "@/lib/errors"
 import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
-import { deriveMonth, planPayment, planWaiver, resolveReversal } from "@/features/fees/logic"
+import { deriveMonth, effectiveFee, resolveReversal } from "@/features/fees/logic"
+import { ensureChargesForStudent } from "@/features/enrollment/service"
 import { FEE_PAGE_SIZE } from "@/features/fees/schema"
 import type {
   FeeQuery,
@@ -36,6 +37,9 @@ import type {
 const WAIVER_REASON_DEFAULT = "Fee concession"
 const WAIVER_REASON_SETTLE = "Balance waived to settle dues"
 const WAIVER_REASON_REVERSED = "Waiver reversed"
+
+// Two-decimal rounding so money comparisons don't trip on float noise.
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 function currentPeriod() {
   const { year, month } = appYearMonth(nowDate())
@@ -121,7 +125,6 @@ async function loadMonthFeeRows(
       id: true,
       serialNo: true,
       fullName: true,
-      monthlyFee: true,
       contactNumber: true,
       class: { select: { name: true, section: true } },
     },
@@ -145,8 +148,36 @@ async function loadMonthFeeRows(
     waiverGroups.map((g) => [g.studentId, Number(g._sum.amount ?? 0)])
   )
 
+  // Per-month tuition fee per student = sum of their active enrolments' effective
+  // fee that had started by this month (matches how charges are generated).
+  const enrollments = ids.length
+    ? await prisma.enrollment.findMany({
+        where: {
+          instituteId,
+          studentId: { in: ids },
+          status: "ACTIVE",
+          startDate: { lt: appMonthStartUtc(year, month + 1) },
+        },
+        select: {
+          studentId: true,
+          feeOverride: true,
+          discountPercent: true,
+          course: { select: { monthlyFee: true } },
+        },
+      })
+    : []
+  const feeMap = new Map<string, number>()
+  for (const e of enrollments) {
+    const fee = effectiveFee(
+      Number(e.course.monthlyFee),
+      e.feeOverride != null ? Number(e.feeOverride) : null,
+      e.discountPercent != null ? Number(e.discountPercent) : null
+    )
+    feeMap.set(e.studentId, (feeMap.get(e.studentId) ?? 0) + fee)
+  }
+
   return students.map((s) => {
-    const monthlyFee = Number(s.monthlyFee)
+    const monthlyFee = feeMap.get(s.id) ?? 0
     const paid = paidMap.get(s.id) ?? 0
     const waived = waivedMap.get(s.id) ?? 0
     const { pending, advance, status } = deriveMonth(monthlyFee, paid, waived)
@@ -262,110 +293,103 @@ export async function getStudentFee(
       fullName: true,
       guardianName: true,
       contactNumber: true,
-      monthlyFee: true,
       admissionDate: true,
       class: { select: { name: true, section: true } },
     },
   })
   if (!student) throw new NotFoundError("Student not found.")
 
+  // Keep the charge ledger current, then read every figure from it.
+  await ensureChargesForStudent(instituteId, studentId)
+
   const { month, year } = currentPeriod()
-  const [totalAgg, monthAgg, payments, totalWaivedAgg, monthWaivedAgg, waivers] =
-    await Promise.all([
-      prisma.feePayment.aggregate({
-        where: { studentId, instituteId },
-        _sum: { amount: true },
-      }),
-      prisma.feePayment.aggregate({
-        where: { studentId, instituteId, periodMonth: month, periodYear: year },
-        _sum: { amount: true },
-      }),
-      prisma.feePayment.findMany({
-        where: { studentId, instituteId },
-        orderBy: { paidAt: "desc" },
-        include: { recordedBy: { select: { name: true } } },
-      }),
-      prisma.feeWaiver.aggregate({
-        where: { studentId, instituteId },
-        _sum: { amount: true },
-      }),
-      prisma.feeWaiver.aggregate({
-        where: { studentId, instituteId, periodMonth: month, periodYear: year },
-        _sum: { amount: true },
-      }),
-      prisma.feeWaiver.findMany({
-        where: { studentId, instituteId },
-        orderBy: { createdAt: "desc" },
-        include: { waivedBy: { select: { name: true } } },
-      }),
-    ])
+  const nowKey = `${year}-${month}`
+  const [charges, payments, waivers] = await Promise.all([
+    prisma.feeCharge.findMany({
+      where: { studentId, instituteId },
+      select: { id: true, type: true, label: true, periodMonth: true, periodYear: true, amount: true },
+    }),
+    prisma.feePayment.findMany({
+      where: { studentId, instituteId },
+      orderBy: { paidAt: "desc" },
+      include: { recordedBy: { select: { name: true } } },
+    }),
+    prisma.feeWaiver.findMany({
+      where: { studentId, instituteId },
+      orderBy: { createdAt: "desc" },
+      include: { waivedBy: { select: { name: true } } },
+    }),
+  ])
 
-  const monthlyFee = Number(student.monthlyFee)
-  const paidThisMonth = Number(monthAgg._sum.amount ?? 0)
-  const waivedThisMonth = Number(monthWaivedAgg._sum.amount ?? 0)
+  // The per-month tuition fee (summed across enrolments) comes from the TUITION
+  // charges — NOT student.monthlyFee. One-time charges are a separate bucket.
+  const feeByPeriod = new Map<string, number>()
+  const oneTime: { id: string; label: string; amount: number }[] = []
+  for (const c of charges) {
+    if (c.type === "TUITION" && c.periodYear != null && c.periodMonth != null) {
+      const k = `${c.periodYear}-${c.periodMonth}`
+      feeByPeriod.set(k, (feeByPeriod.get(k) ?? 0) + Number(c.amount))
+    } else {
+      oneTime.push({ id: c.id, label: c.label ?? "One-time fee", amount: Number(c.amount) })
+    }
+  }
 
-  // How much of each original payment has been reversed. Reversal rows hold a
-  // negative amount, so the reversed total is the negation of their sum.
+  // Paid/waived per period (tuition) and per charge (one-time). Reversal rows are
+  // negative, so these sums are already net.
+  const paidByPeriod = new Map<string, number>()
+  const paidByCharge = new Map<string, number>()
+  for (const p of payments) {
+    if (p.periodYear != null && p.periodMonth != null) {
+      const k = `${p.periodYear}-${p.periodMonth}`
+      paidByPeriod.set(k, (paidByPeriod.get(k) ?? 0) + Number(p.amount))
+    }
+    if (p.chargeId) paidByCharge.set(p.chargeId, (paidByCharge.get(p.chargeId) ?? 0) + Number(p.amount))
+  }
+  const waivedByPeriod = new Map<string, number>()
+  const waivedByCharge = new Map<string, number>()
+  for (const w of waivers) {
+    const k = `${w.periodYear}-${w.periodMonth}`
+    waivedByPeriod.set(k, (waivedByPeriod.get(k) ?? 0) + Number(w.amount))
+    if (w.chargeId) waivedByCharge.set(w.chargeId, (waivedByCharge.get(w.chargeId) ?? 0) + Number(w.amount))
+  }
+
+  // How much of each original payment/waiver has been reversed (negative rows).
   const reversedByPayment = new Map<string, number>()
   for (const p of payments) {
     if (p.reversalOfId == null) continue
-    reversedByPayment.set(
-      p.reversalOfId,
-      (reversedByPayment.get(p.reversalOfId) ?? 0) - Number(p.amount)
-    )
+    reversedByPayment.set(p.reversalOfId, (reversedByPayment.get(p.reversalOfId) ?? 0) - Number(p.amount))
   }
-
-  // Same for waivers: reversal rows hold a negative amount, so reversed-so-far is
-  // the negation of their sum.
   const reversedByWaiver = new Map<string, number>()
   for (const w of waivers) {
     if (w.reversalOfId == null) continue
-    reversedByWaiver.set(
-      w.reversalOfId,
-      (reversedByWaiver.get(w.reversalOfId) ?? 0) - Number(w.amount)
-    )
+    reversedByWaiver.set(w.reversalOfId, (reversedByWaiver.get(w.reversalOfId) ?? 0) - Number(w.amount))
   }
+
+  const monthlyFee = feeByPeriod.get(nowKey) ?? 0
+  const paidThisMonth = paidByPeriod.get(nowKey) ?? 0
+  const waivedThisMonth = waivedByPeriod.get(nowKey) ?? 0
 
   const futurePaid = payments.reduce((sum, p) => {
     const isFuture =
       p.periodYear != null &&
-      (p.periodYear > year ||
-        (p.periodYear === year && (p.periodMonth ?? 0) > month))
+      (p.periodYear > year || (p.periodYear === year && (p.periodMonth ?? 0) > month))
     return isFuture ? sum + Number(p.amount) : sum
   }, 0)
   const month0 = deriveMonth(monthlyFee, paidThisMonth, waivedThisMonth)
   const advance = month0.advance + futurePaid
   const status: FeeStatus = advance > 0 ? "ADVANCE" : month0.status
 
-  // Lifetime outstanding: walk every billable month from admission through the
-  // current period and sum each month's unmet due, capped per month so an
-  // overpaid/prepaid month can't cancel out another month's shortfall.
-  const paidByPeriod = new Map<string, number>()
-  for (const p of payments) {
-    if (p.periodYear == null || p.periodMonth == null) continue
-    const k = `${p.periodYear}-${p.periodMonth}`
-    paidByPeriod.set(k, (paidByPeriod.get(k) ?? 0) + Number(p.amount))
-  }
-  const waivedByPeriod = new Map<string, number>()
-  for (const w of waivers) {
-    const k = `${w.periodYear}-${w.periodMonth}`
-    waivedByPeriod.set(k, (waivedByPeriod.get(k) ?? 0) + Number(w.amount))
-  }
+  // Lifetime outstanding = every tuition month's unmet due (capped per month) plus
+  // every one-time charge's unmet due. Caps stop an overpaid item cancelling another.
   let totalOutstanding = 0
-  const adm = appYearMonth(student.admissionDate)
-  let wy = adm.year
-  let wm = adm.month
-  while (wy < year || (wy === year && wm <= month)) {
-    const k = `${wy}-${wm}`
-    const paidM = paidByPeriod.get(k) ?? 0
-    const waivedM = waivedByPeriod.get(k) ?? 0
-    totalOutstanding += Math.max(0, monthlyFee - waivedM - paidM)
-    wm += 1
-    if (wm > 12) {
-      wm = 1
-      wy += 1
-    }
+  for (const [k, fee] of feeByPeriod) {
+    totalOutstanding += Math.max(0, fee - (waivedByPeriod.get(k) ?? 0) - (paidByPeriod.get(k) ?? 0))
   }
+  for (const c of oneTime) {
+    totalOutstanding += Math.max(0, c.amount - (waivedByCharge.get(c.id) ?? 0) - (paidByCharge.get(c.id) ?? 0))
+  }
+
+  const adm = appYearMonth(student.admissionDate)
 
   return {
     studentId: student.id,
@@ -376,21 +400,30 @@ export async function getStudentFee(
     guardianName: student.guardianName,
     contactNumber: student.contactNumber,
     monthlyFee,
-    totalPaid: Number(totalAgg._sum.amount ?? 0),
-    totalWaived: Number(totalWaivedAgg._sum.amount ?? 0),
+    totalPaid: payments.reduce((s, p) => s + Number(p.amount), 0),
+    totalWaived: waivers.reduce((s, w) => s + Number(w.amount), 0),
     paidThisMonth,
     waivedThisMonth,
     pendingThisMonth: month0.pending,
     totalOutstanding,
     advance,
     status,
-    payments: payments.map((p) =>
-      toPaymentItem(p, reversedByPayment.get(p.id) ?? 0)
-    ),
+    payments: payments.map((p) => toPaymentItem(p, reversedByPayment.get(p.id) ?? 0)),
     waivers: waivers.map((w) => toWaiverItem(w, reversedByWaiver.get(w.id) ?? 0)),
     admission: { year: adm.year, month: adm.month },
     paidByMonth: Object.fromEntries(paidByPeriod),
     waivedByMonth: Object.fromEntries(waivedByPeriod),
+    oneTimeCharges: oneTime.map((c) => {
+      const paid = paidByCharge.get(c.id) ?? 0
+      const waived = waivedByCharge.get(c.id) ?? 0
+      return {
+        id: c.id,
+        label: c.label,
+        amount: c.amount,
+        paid,
+        outstanding: Math.max(0, round2(c.amount - waived - paid)),
+      }
+    }),
   }
 }
 
@@ -407,59 +440,144 @@ export async function recordPayment(
   recordedById: string | null,
   input: RecordPaymentInput
 ): Promise<{ payments: PaymentItem[]; waivedAmount: number }> {
+  // Top up tuition charges to now first, so the cash has real charges to land on.
+  await ensureChargesForStudent(instituteId, input.studentId)
+
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true, fullName: true, monthlyFee: true, admissionDate: true },
+      select: { id: true, fullName: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
 
-    const fee = Number(student.monthlyFee)
-    const now = appYearMonth(nowDate())
-
-    // What's already settled per month, so we only ever fill the unmet due.
+    // Existing charges + what's already settled on each (net of reversals).
+    const charges = await tx.feeCharge.findMany({
+      where: { instituteId, studentId: student.id },
+      select: {
+        id: true,
+        type: true,
+        enrollmentId: true,
+        periodMonth: true,
+        periodYear: true,
+        amount: true,
+      },
+      orderBy: { dueDate: "asc" },
+    })
     const [paidGroups, waiverGroups] = await Promise.all([
       tx.feePayment.groupBy({
-        by: ["periodYear", "periodMonth"],
-        where: { instituteId, studentId: student.id, periodYear: { not: null } },
+        by: ["chargeId"],
+        where: { instituteId, studentId: student.id, chargeId: { not: null } },
         _sum: { amount: true },
       }),
       tx.feeWaiver.groupBy({
-        by: ["periodYear", "periodMonth"],
-        where: { instituteId, studentId: student.id },
+        by: ["chargeId"],
+        where: { instituteId, studentId: student.id, chargeId: { not: null } },
         _sum: { amount: true },
       }),
     ])
-    const key = (y: number, m: number) => `${y}-${m}`
-    const paid = new Map<string, number>()
-    for (const g of paidGroups) {
-      if (g.periodYear == null || g.periodMonth == null) continue
-      paid.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
+    const paidByCharge = new Map<string, number>()
+    for (const g of paidGroups) if (g.chargeId) paidByCharge.set(g.chargeId, Number(g._sum.amount ?? 0))
+    const waivedByCharge = new Map<string, number>()
+    for (const g of waiverGroups) if (g.chargeId) waivedByCharge.set(g.chargeId, Number(g._sum.amount ?? 0))
+    const dueOf = (c: { id: string; amount: Prisma.Decimal }) =>
+      round2(Number(c.amount) - (paidByCharge.get(c.id) ?? 0) - (waivedByCharge.get(c.id) ?? 0))
+
+    type ChargeRef = {
+      id: string
+      enrollmentId: string
+      periodMonth: number | null
+      periodYear: number | null
     }
-    const waived = new Map<string, number>()
-    for (const g of waiverGroups) {
-      waived.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
+    const allocs: { charge: ChargeRef; amount: number }[] = []
+    let remaining = round2(input.amount)
+
+    // 1) Fill existing unpaid charges, oldest due-date first.
+    for (const c of charges) {
+      if (remaining <= 0) break
+      const due = dueOf(c)
+      if (due <= 0) continue
+      const take = Math.min(remaining, due)
+      allocs.push({ charge: c, amount: round2(take) })
+      remaining = round2(remaining - take)
     }
 
-    // Pure allocation: which months get how much, plus any months to waive so the
-    // student is fully settled (when waiveRemaining is set).
-    const plan = planPayment({
-      fee,
-      paid,
-      waived,
-      // Allocation is oldest-first; this anchor only feeds the fee=0 safety net.
-      selected: {
-        year: input.periodYear ?? now.year,
-        month: input.periodMonth ?? now.month,
-      },
-      admission: appYearMonth(student.admissionDate),
-      now,
-      amount: input.amount,
-      waiveRemaining: input.waiveRemaining,
-    })
+    // 2) Prepay forward: mint future TUITION charges for active enrolments and keep
+    //    allocating, oldest month first, until the cash is spent (bounded).
+    if (remaining > 0) {
+      const active = await tx.enrollment.findMany({
+        where: { instituteId, studentId: student.id, status: "ACTIVE" },
+        include: { course: { select: { monthlyFee: true } } },
+      })
+      const now = appYearMonth(nowDate())
+      // Latest existing TUITION period per enrolment, so we mint AFTER it and never
+      // collide with an already-minted future charge (the @@unique on period) — which
+      // would otherwise 500 the whole payment on a second prepayment.
+      const latestTuition = new Map<string, { y: number; m: number }>()
+      for (const c of charges) {
+        if (c.type !== "TUITION" || c.periodYear == null || c.periodMonth == null) continue
+        const cur = latestTuition.get(c.enrollmentId)
+        if (!cur || c.periodYear > cur.y || (c.periodYear === cur.y && c.periodMonth > cur.m)) {
+          latestTuition.set(c.enrollmentId, { y: c.periodYear, m: c.periodMonth })
+        }
+      }
+      const cursor = new Map<string, { y: number; m: number; fee: number }>()
+      for (const e of active) {
+        const fee = effectiveFee(
+          Number(e.course.monthlyFee),
+          e.feeOverride != null ? Number(e.feeOverride) : null,
+          e.discountPercent != null ? Number(e.discountPercent) : null
+        )
+        if (fee <= 0) continue
+        // Start one month past the later of "now" and the newest existing charge.
+        let baseY = now.year
+        let baseM = now.month
+        const latest = latestTuition.get(e.id)
+        if (latest && (latest.y > baseY || (latest.y === baseY && latest.m > baseM))) {
+          baseY = latest.y
+          baseM = latest.m
+        }
+        let ny = baseY
+        let nm = baseM + 1
+        if (nm > 12) { nm = 1; ny += 1 }
+        cursor.set(e.id, { y: ny, m: nm, fee })
+      }
+      let guard = 0
+      while (remaining > 0 && cursor.size > 0 && guard < 1200) {
+        guard += 1
+        let pickId: string | null = null
+        let pick: { y: number; m: number; fee: number } | null = null
+        for (const [eid, c] of cursor) {
+          if (!pick || c.y < pick.y || (c.y === pick.y && c.m < pick.m)) {
+            pick = c
+            pickId = eid
+          }
+        }
+        if (!pickId || !pick) break
+        const charge = await tx.feeCharge.create({
+          data: {
+            instituteId,
+            enrollmentId: pickId,
+            studentId: student.id,
+            type: "TUITION",
+            periodMonth: pick.m,
+            periodYear: pick.y,
+            amount: pick.fee,
+            dueDate: appMonthStartUtc(pick.y, pick.m),
+          },
+          select: { id: true, enrollmentId: true, periodMonth: true, periodYear: true },
+        })
+        const take = Math.min(remaining, pick.fee)
+        allocs.push({ charge, amount: round2(take) })
+        remaining = round2(remaining - take)
+        let ny = pick.y
+        let nm = pick.m + 1
+        if (nm > 12) { nm = 1; ny += 1 }
+        cursor.set(pickId, { y: ny, m: nm, fee: pick.fee })
+      }
+    }
 
-    // Persist: one FeePayment row (+ sequential receipt) per allocated month.
-    // Ignore reversal rows (receiptNo NULL) so the sequence stays gap-free.
+    // Persist: one FeePayment (+ sequential receipt) per allocation, linked to its
+    // charge + enrolment. Reversal rows (receiptNo NULL) are skipped for the seq.
     const last = await tx.feePayment.findFirst({
       where: { instituteId, receiptNo: { not: null } },
       orderBy: { receiptNo: "desc" },
@@ -467,14 +585,16 @@ export async function recordPayment(
     })
     let receiptNo = (last?.receiptNo ?? 0) + 1
     const rows: PaymentWithRecorder[] = []
-    for (const a of plan.allocations) {
+    for (const a of allocs) {
       const row = await tx.feePayment.create({
         data: {
           instituteId,
           studentId: student.id,
+          enrollmentId: a.charge.enrollmentId,
+          chargeId: a.charge.id,
           amount: a.amount,
-          periodMonth: a.month,
-          periodYear: a.year,
+          periodMonth: a.charge.periodMonth,
+          periodYear: a.charge.periodYear,
           method: input.method,
           paidAt: input.paidAt,
           receiptNo: receiptNo++,
@@ -486,26 +606,35 @@ export async function recordPayment(
       rows.push(row)
     }
 
-    // Clear whatever still owes after the cash, one waiver row per month.
+    // waiveRemaining: clear whatever still owes on TUITION charges after the cash
+    // (one-time charges can't be waived — a waiver row requires a period).
     let waivedAmount = 0
-    for (const w of plan.waiveAllocations) {
-      await tx.feeWaiver.create({
-        data: {
-          instituteId,
-          studentId: student.id,
-          amount: w.amount,
-          periodMonth: w.month,
-          periodYear: w.year,
-          reason: WAIVER_REASON_SETTLE,
-          waivedById: recordedById,
-        },
-      })
-      waivedAmount += w.amount
+    if (input.waiveRemaining) {
+      const allocByCharge = new Map<string, number>()
+      for (const a of allocs) allocByCharge.set(a.charge.id, (allocByCharge.get(a.charge.id) ?? 0) + a.amount)
+      for (const c of charges) {
+        if (c.type !== "TUITION" || c.periodMonth == null || c.periodYear == null) continue
+        const due = round2(dueOf(c) - (allocByCharge.get(c.id) ?? 0))
+        if (due > 0) {
+          await tx.feeWaiver.create({
+            data: {
+              instituteId,
+              studentId: student.id,
+              enrollmentId: c.enrollmentId,
+              chargeId: c.id,
+              amount: due,
+              periodMonth: c.periodMonth,
+              periodYear: c.periodYear,
+              reason: WAIVER_REASON_SETTLE,
+              waivedById: recordedById,
+            },
+          })
+          waivedAmount += due
+        }
+      }
     }
 
-    // Activity trail: who collected the fee. One row summarising the whole
-    // payment (it may span several months/receipts). Logged in-tx so it commits
-    // with the payment. Skipped for system writes with no actor.
+    // Activity trail: one row summarising the whole payment. Logged in-tx.
     const collected = rows.reduce((sum, r) => sum + Number(r.amount), 0)
     if (recordedById && rows.length > 0) {
       await recordAudit(tx, {
@@ -519,7 +648,7 @@ export async function recordPayment(
           studentName: student.fullName,
           amount: collected,
           receiptNo: rows[0].receiptNo,
-          months: rows.length,
+          charges: rows.length,
         },
       })
     }
@@ -588,6 +717,11 @@ export async function reversePayment(
       data: {
         instituteId,
         studentId: original.studentId,
+        // Carry the charge + enrolment link so per-charge and per-enrolment netting
+        // (one-time charges, the enrolment ledger) see this credit note — without it
+        // a reversed one-time charge stays counted as paid.
+        enrollmentId: original.enrollmentId,
+        chargeId: original.chargeId,
         amount: -plan.amount,
         periodMonth: original.periodMonth,
         periodYear: original.periodYear,
@@ -676,6 +810,9 @@ export async function reverseWaiver(
       data: {
         instituteId,
         studentId: original.studentId,
+        // Carry the charge + enrolment link so per-charge netting sees this reversal.
+        enrollmentId: original.enrollmentId,
+        chargeId: original.chargeId,
         amount: -plan.amount,
         periodMonth: original.periodMonth,
         periodYear: original.periodYear,
@@ -720,71 +857,68 @@ export async function recordWaiver(
   waivedById: string | null,
   input: WaiveFeeInput
 ): Promise<{ waivers: WaiverItem[]; total: number }> {
+  await ensureChargesForStudent(instituteId, input.studentId)
+
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true, fullName: true, monthlyFee: true, admissionDate: true },
+      select: { id: true, fullName: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
 
-    const fee = Number(student.monthlyFee)
-    const now = appYearMonth(nowDate())
-
-    // What's already settled per month, so we only ever waive the unmet due.
+    // Outstanding per TUITION charge, oldest-first — a waiver only clears real dues,
+    // never prepays the future, and can't touch one-time charges (no period).
+    const charges = await tx.feeCharge.findMany({
+      where: { instituteId, studentId: student.id, type: "TUITION" },
+      select: { id: true, enrollmentId: true, periodMonth: true, periodYear: true, amount: true },
+      orderBy: { dueDate: "asc" },
+    })
     const [paidGroups, waiverGroups] = await Promise.all([
       tx.feePayment.groupBy({
-        by: ["periodYear", "periodMonth"],
-        where: { instituteId, studentId: student.id, periodYear: { not: null } },
+        by: ["chargeId"],
+        where: { instituteId, studentId: student.id, chargeId: { not: null } },
         _sum: { amount: true },
       }),
       tx.feeWaiver.groupBy({
-        by: ["periodYear", "periodMonth"],
-        where: { instituteId, studentId: student.id },
+        by: ["chargeId"],
+        where: { instituteId, studentId: student.id, chargeId: { not: null } },
         _sum: { amount: true },
       }),
     ])
-    const key = (y: number, m: number) => `${y}-${m}`
-    const paid = new Map<string, number>()
-    for (const g of paidGroups) {
-      if (g.periodYear == null || g.periodMonth == null) continue
-      paid.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
-    }
-    const waived = new Map<string, number>()
-    for (const g of waiverGroups) {
-      waived.set(key(g.periodYear, g.periodMonth), Number(g._sum.amount ?? 0))
-    }
-
-    const plan = planWaiver({
-      fee,
-      paid,
-      waived,
-      admission: appYearMonth(student.admissionDate),
-      now,
-      amount: input.amount,
-    })
-    // Can't waive more than is actually owed.
-    if (plan.unallocated > 0 || plan.allocations.length === 0) {
-      throw new ValidationError(
-        "That's more than this student's total outstanding."
-      )
-    }
+    const paidByCharge = new Map<string, number>()
+    for (const g of paidGroups) if (g.chargeId) paidByCharge.set(g.chargeId, Number(g._sum.amount ?? 0))
+    const waivedByCharge = new Map<string, number>()
+    for (const g of waiverGroups) if (g.chargeId) waivedByCharge.set(g.chargeId, Number(g._sum.amount ?? 0))
 
     const reason = input.reason ?? WAIVER_REASON_DEFAULT
+    let remaining = round2(input.amount)
     const rows: WaiverWithGranter[] = []
-    for (const a of plan.allocations) {
+    for (const c of charges) {
+      if (remaining <= 0) break
+      if (c.periodMonth == null || c.periodYear == null) continue
+      const due = round2(Number(c.amount) - (paidByCharge.get(c.id) ?? 0) - (waivedByCharge.get(c.id) ?? 0))
+      if (due <= 0) continue
+      const take = Math.min(remaining, due)
       const row = await tx.feeWaiver.create({
         data: {
           instituteId,
           studentId: student.id,
-          amount: a.amount,
-          periodMonth: a.month,
-          periodYear: a.year,
+          enrollmentId: c.enrollmentId,
+          chargeId: c.id,
+          amount: round2(take),
+          periodMonth: c.periodMonth,
+          periodYear: c.periodYear,
           reason,
           waivedById,
         },
         include: { waivedBy: { select: { name: true } } },
       })
       rows.push(row)
+      remaining = round2(remaining - take)
+    }
+    // Can't waive more than is actually owed.
+    if (remaining > 0 || rows.length === 0) {
+      throw new ValidationError("That's more than this student's total outstanding.")
     }
 
     await recordAudit(tx, {
@@ -795,7 +929,7 @@ export async function recordWaiver(
       entityId: student.id,
       metadata: {
         amount: rows.reduce((sum, r) => sum + Number(r.amount), 0),
-        months: rows.length,
+        charges: rows.length,
         reason,
       },
     })
@@ -876,9 +1010,43 @@ export async function feeMonthlyOverview(
       status: "ACTIVE",
       ...(classId ? { classId } : {}),
     },
-    select: { id: true, monthlyFee: true, admissionDate: true },
+    select: {
+      id: true,
+      enrollments: {
+        where: { status: "ACTIVE" },
+        select: {
+          startDate: true,
+          feeOverride: true,
+          discountPercent: true,
+          course: { select: { monthlyFee: true } },
+        },
+      },
+    },
   })
-  const feeMap = new Map(students.map((s) => [s.id, Number(s.monthlyFee)]))
+  // Each student's active enrolments as { startDate, fee }, so a given month only
+  // counts enrolments that had started by then — mirrors loadMonthFeeRows and the
+  // charge generator (a 2nd course added mid-year isn't billed for earlier months).
+  const enrolByStudent = new Map<string, { startDate: Date; fee: number }[]>()
+  for (const s of students) {
+    enrolByStudent.set(
+      s.id,
+      s.enrollments.map((e) => ({
+        startDate: e.startDate,
+        fee: effectiveFee(
+          Number(e.course.monthlyFee),
+          e.feeOverride != null ? Number(e.feeOverride) : null,
+          e.discountPercent != null ? Number(e.discountPercent) : null
+        ),
+      }))
+    )
+  }
+  const feeForMonth = (sid: string, y: number, m: number) => {
+    const cutoff = appMonthStartUtc(y, m + 1)
+    return (enrolByStudent.get(sid) ?? []).reduce(
+      (sum, e) => (e.startDate < cutoff ? sum + e.fee : sum),
+      0
+    )
+  }
   const ids = students.map((s) => s.id)
 
   const [groups, waiverGroups] = ids.length
@@ -906,7 +1074,7 @@ export async function feeMonthlyOverview(
   const collectedByMonth: Record<string, number> = {}
   for (const g of groups) {
     if (g.periodYear == null || g.periodMonth == null) continue
-    const fee = feeMap.get(g.studentId) ?? 0
+    const fee = feeForMonth(g.studentId, g.periodYear, g.periodMonth)
     const waived = waivedMap.get(wKey(g.studentId, g.periodYear, g.periodMonth)) ?? 0
     const netDue = Math.max(0, fee - waived)
     const cover = Math.min(Number(g._sum.amount ?? 0), netDue)
@@ -914,23 +1082,20 @@ export async function feeMonthlyOverview(
     collectedByMonth[key] = (collectedByMonth[key] ?? 0) + cover
   }
 
-  // A window of months around now. Expected for each month only counts students
-  // already enrolled by then (admissionDate before the next month begins), and is
-  // net of waivers — a waived month lowers what's expected to be collected in cash.
+  // A window of months around now. Expected for each month counts only enrolments
+  // that had started by then (per-enrolment startDate), net of waivers — a waived
+  // month lowers what's expected to be collected in cash.
   const nowYM = appYearMonth(nowDate())
   const byMonth: Record<string, { collected: number; expected: number }> = {}
   for (let off = -5; off <= 1; off++) {
     const { year: y, month: m } = appYearMonth(
       appMonthStartUtc(nowYM.year, nowYM.month + off)
     )
-    const firstOfNext = appMonthStartUtc(y, m + 1)
     const key = `${y}-${m}`
-    const expected = students
-      .filter((s) => s.admissionDate < firstOfNext)
-      .reduce((sum, s) => {
-        const waived = waivedMap.get(wKey(s.id, y, m)) ?? 0
-        return sum + Math.max(0, Number(s.monthlyFee) - waived)
-      }, 0)
+    const expected = students.reduce((sum, s) => {
+      const waived = waivedMap.get(wKey(s.id, y, m)) ?? 0
+      return sum + Math.max(0, feeForMonth(s.id, y, m) - waived)
+    }, 0)
     byMonth[key] = { collected: collectedByMonth[key] ?? 0, expected }
   }
   return { byMonth }
