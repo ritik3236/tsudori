@@ -120,7 +120,7 @@ function EditEnrollmentDialog({ enrollment, open, onOpenChange }: DialogProps) {
                   <FormLabel>Status</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue>
                           {(v: string) =>
                             ENROLLMENT_STATUS_LABEL[v as EnrollmentStatus] ?? v

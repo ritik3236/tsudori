@@ -129,7 +129,7 @@ export function ClassForm({
               <FormLabel>Course</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue>
                       {(v: string) =>
                         v === NO_COURSE
@@ -161,7 +161,7 @@ export function ClassForm({
               <FormLabel>Status</FormLabel>
               <Select value={field.value} onValueChange={field.onChange}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                 </FormControl>

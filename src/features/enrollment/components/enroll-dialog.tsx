@@ -85,7 +85,7 @@ export function EnrollDialog({ studentId, open, onOpenChange }: Props) {
                   <FormLabel>Course</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a course">
                           {(v: string) =>
                             activeCourses.find((c) => c.id === v)?.name ?? "Select a course"
