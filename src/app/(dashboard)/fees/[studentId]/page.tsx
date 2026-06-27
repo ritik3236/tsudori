@@ -422,7 +422,7 @@ function Stat({
         {value}
         {waived ? (
           <span className="text-indigo-600 dark:text-indigo-300 ml-1 align-middle text-xs font-semibold">
-            +{formatCurrency(waived)} waived
+            +{formatCurrency(waived)}
           </span>
         ) : null}
       </p>
