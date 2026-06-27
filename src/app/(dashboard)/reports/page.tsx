@@ -1,10 +1,12 @@
 import type { Metadata } from "next"
-import { BarChart3 } from "lucide-react"
+import Link from "next/link"
+import { BarChart3, Sparkles } from "lucide-react"
 
 import { can, getTenantContext, requirePagePermission } from "@/lib/tenant"
 import { PERMISSIONS } from "@/lib/rbac"
 import { ModulePlaceholder } from "@/components/shared/module-placeholder"
 import { PageHeader } from "@/components/shared/page-header"
+import { Button } from "@/components/ui/button"
 import { InsightsCard } from "@/features/ai/components/insights-card"
 
 export const metadata: Metadata = { title: "Reports" }
@@ -35,6 +37,12 @@ export default async function ReportsPage() {
       <PageHeader
         title="Reports"
         description="An AI summary of collections, dues, and attendance for your institute."
+        actions={
+          <Button variant="outline" size="sm" render={<Link href="/reports/builder" />}>
+            <Sparkles className="size-3.5" />
+            Report builder
+          </Button>
+        }
       />
       <div className="max-w-3xl">
         <InsightsCard />
