@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tsudori.app",
+      "sha256_cert_fingerprints": [
+        "B2:BB:B3:C3:64:22:B0:A0:8E:23:44:9E:63:EB:CD:1D:A7:D1:6D:D3:EF:3E:CC:FA:40:2E:77:7F:45:72:29:DA"
+      ]
+    }
+  }
+]
