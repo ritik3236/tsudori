@@ -50,7 +50,7 @@ export function EnrollmentsPanel({ studentId, canManage, isInstallment }: Props)
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-muted-foreground text-sm font-medium">Course enrolments</h2>
         {canManage && (
-          <Button size="sm" variant="outline" onClick={() => setEnrollOpen(true)}>
+          <Button size="xs" variant="outline" onClick={() => setEnrollOpen(true)}>
             <Plus className="size-4" /> Add course
           </Button>
         )}

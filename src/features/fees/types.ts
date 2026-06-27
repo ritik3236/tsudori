@@ -81,8 +81,9 @@ export type StudentFeeDetail = {
   monthlyFee: number
   /** Lifetime total across all periods. */
   totalPaid: number
-  /** Total billed across all charges — the student's total course/plan fee. */
-  totalCharged: number
+  /** The student's total course/program fee — Σ(course fee × duration), or the plan
+   *  total for installment students. The "of ₹X" denominator + conversion basis. */
+  totalFee: number
   /** Lifetime total waived across all periods. */
   totalWaived: number
   paidThisMonth: number

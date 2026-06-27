@@ -140,9 +140,34 @@ export async function saveInstallmentPlan(
   await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: studentId, instituteId },
-      select: { id: true },
+      select: { id: true, billingMode: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
+
+    // Converting a MONTHLY student → INSTALLMENT: void their fully-unpaid TUITION
+    // charges so the already-billed months don't double-count against the new plan
+    // (the plan is seeded with the remaining program fee = total − paid − waived).
+    // Paid/partially-paid tuition stays as history. Mirrors switch-to-monthly's void
+    // of unpaid installments. No-op when re-editing an existing installment plan.
+    if (student.billingMode === "MONTHLY") {
+      const tuition = await tx.feeCharge.findMany({
+        where: { instituteId, studentId, type: "TUITION" },
+        select: {
+          id: true,
+          payments: { select: { amount: true } },
+          waivers: { select: { amount: true } },
+        },
+      })
+      const unpaidIds = tuition
+        .filter((c) => {
+          const settled =
+            c.payments.reduce((s, p) => s + Number(p.amount), 0) +
+            c.waivers.reduce((s, w) => s + Number(w.amount), 0)
+          return settled <= 0.001
+        })
+        .map((c) => c.id)
+      if (unpaidIds.length) await tx.feeCharge.deleteMany({ where: { id: { in: unpaidIds } } })
+    }
 
     const existing = await tx.studentInstallment.findMany({
       where: { instituteId, studentId },

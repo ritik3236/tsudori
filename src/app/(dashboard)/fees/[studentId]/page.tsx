@@ -73,12 +73,13 @@ export default async function StudentFeesPage({
   // Three core KPIs — the actionable current-period figure first (advance when
   // in credit, else pending), then lifetime owed and lifetime collected. The
   // per-month status lives in the badge by the name, so no "paid this month"
-  // card. A waiver total is appended only when concessions exist.
+  // card. Any waiver folds into the Total-paid card (in blue), not its own card.
   type Kpi = {
     label: string
     value: string
     tone?: "amber" | "emerald" | "indigo"
     sub?: string
+    waived?: number
   }
   const kpis: Kpi[] = [
     fee.advance > 0
@@ -96,16 +97,10 @@ export default async function StudentFeesPage({
     {
       label: "Total paid",
       value: formatCurrency(fee.totalPaid),
-      sub: fee.totalCharged > 0 ? `of ${formatCurrency(fee.totalCharged)} fee` : undefined,
+      waived: fee.totalWaived > 0 ? fee.totalWaived : undefined,
+      sub: fee.totalFee > 0 ? `of ${formatCurrency(fee.totalFee)} fee` : undefined,
     },
   ]
-  if (fee.totalWaived > 0) {
-    kpis.push({
-      label: "Total waived",
-      value: formatCurrency(fee.totalWaived),
-      tone: "indigo",
-    })
-  }
 
   // The oldest month still owing (admission → now), so "Waive" can clear
   // back-dues — not just the current month. Mirrors oldest-first payment
@@ -205,19 +200,27 @@ export default async function StudentFeesPage({
 
       <div
         className={cn(
-          "grid gap-3",
-          // Three core KPIs sit in a clean 3-up; a waiver total (when present)
-          // makes it four, so fall back to a 2/4 grid then.
-          kpis.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"
+          "grid grid-cols-3 gap-3"
         )}
       >
         {kpis.map((k) => (
-          <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} sub={k.sub} />
+          <Stat
+            key={k.label}
+            label={k.label}
+            value={k.value}
+            tone={k.tone}
+            sub={k.sub}
+            waived={k.waived}
+          />
         ))}
       </div>
 
       <HydrationBoundary state={dehydrate(qc)}>
-        <InstallmentPlanPanel studentId={fee.studentId} canManage={canRecord} outstanding={fee.totalOutstanding} />
+        <InstallmentPlanPanel
+          studentId={fee.studentId}
+          canManage={canRecord}
+          remaining={Math.max(0, fee.totalFee - fee.totalPaid - fee.totalWaived)}
+        />
         {canViewEnrollments && (
           <EnrollmentsPanel
             studentId={fee.studentId}
@@ -397,11 +400,13 @@ function Stat({
   value,
   tone,
   sub,
+  waived,
 }: {
   label: string
   value: string
   tone?: "amber" | "emerald" | "indigo"
   sub?: string
+  waived?: number
 }) {
   return (
     <div className="bg-card rounded-2xl border p-4">
@@ -415,6 +420,11 @@ function Stat({
         )}
       >
         {value}
+        {waived ? (
+          <span className="text-indigo-600 dark:text-indigo-300 ml-1 align-middle text-xs font-semibold">
+            +{formatCurrency(waived)} waived
+          </span>
+        ) : null}
       </p>
       {sub && <p className="text-muted-foreground/70 mt-0.5 text-[11px] tabular-nums">{sub}</p>}
     </div>

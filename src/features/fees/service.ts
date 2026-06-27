@@ -324,7 +324,7 @@ export async function getStudentFee(
 
   const { month, year } = currentPeriod()
   const nowKey = `${year}-${month}`
-  const [charges, payments, waivers] = await Promise.all([
+  const [charges, payments, waivers, enrollments] = await Promise.all([
     prisma.feeCharge.findMany({
       where: { studentId, instituteId },
       select: { id: true, type: true, label: true, periodMonth: true, periodYear: true, amount: true, dueDate: true },
@@ -338,6 +338,15 @@ export async function getStudentFee(
       where: { studentId, instituteId },
       orderBy: { createdAt: "desc" },
       include: { waivedBy: { select: { name: true } } },
+    }),
+    // Active enrolments — for the full program fee (Σ effectiveFee × durationMonths).
+    prisma.enrollment.findMany({
+      where: { instituteId, studentId, status: "ACTIVE" },
+      select: {
+        feeOverride: true,
+        discountPercent: true,
+        course: { select: { monthlyFee: true, durationMonths: true } },
+      },
     }),
   ])
 
@@ -432,6 +441,28 @@ export async function getStudentFee(
     totalOutstanding += Math.max(0, c.amount - (waivedByCharge.get(c.id) ?? 0) - (paidByCharge.get(c.id) ?? 0))
   }
 
+  // Full program fee = Σ active enrolments' effective fee × duration. For MONTHLY
+  // students it's the nominal program total (the "of ₹X fee" denominator + the
+  // installment-conversion basis), clamped to never read below what's already been
+  // charged (a student enrolled past their duration). For INSTALLMENT students their
+  // schedule IS the fee, so use what's actually billed.
+  const courseTotal = round2(
+    enrollments.reduce(
+      (s, e) =>
+        s +
+        effectiveFee(
+          Number(e.course.monthlyFee),
+          e.feeOverride != null ? Number(e.feeOverride) : null,
+          e.discountPercent != null ? Number(e.discountPercent) : null
+        ) *
+          e.course.durationMonths,
+      0
+    )
+  )
+  const totalCharged = round2(charges.reduce((s, c) => s + Number(c.amount), 0))
+  const totalFee =
+    student.billingMode === "INSTALLMENT" ? totalCharged : Math.max(courseTotal, totalCharged)
+
   const adm = appYearMonth(student.admissionDate)
 
   return {
@@ -444,8 +475,7 @@ export async function getStudentFee(
     contactNumber: student.contactNumber,
     monthlyFee,
     totalPaid: payments.reduce((s, p) => s + Number(p.amount), 0),
-    // Total billed across every charge — the student's total course/plan fee.
-    totalCharged: round2(charges.reduce((s, c) => s + Number(c.amount), 0)),
+    totalFee,
     totalWaived: waivers.reduce((s, w) => s + Number(w.amount), 0),
     paidThisMonth,
     waivedThisMonth,

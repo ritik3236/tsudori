@@ -39,8 +39,8 @@ function toRow(it: InstallmentPlanItem): Row {
 type Props = {
   studentId: string
   items: InstallmentPlanItem[]
-  /** The student's total outstanding — seeds the first row when starting fresh, so
-   *  the plan covers what they owe (then Add rows + Split evenly to break it up). */
+  /** Remaining course fee (total program − paid − waived) — seeds the first row when
+   *  starting fresh, then Add rows + Split evenly to break it up. */
   suggestedTotal: number
   onDone: () => void
 }
@@ -161,10 +161,10 @@ export function InstallmentScheduleEditor({ studentId, items, suggestedTotal, on
 
       <div className="flex items-center justify-between gap-2 border-t pt-2.5">
         <div className="flex gap-1.5">
-          <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          <Button type="button" variant="outline" size="xs" onClick={addRow}>
             <Plus className="size-4" /> Add
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={splitEven}>
+          <Button type="button" variant="ghost" size="xs" onClick={splitEven}>
             Split evenly
           </Button>
         </div>
@@ -174,10 +174,10 @@ export function InstallmentScheduleEditor({ studentId, items, suggestedTotal, on
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={onDone} disabled={save.isPending}>
+        <Button type="button" variant="outline" size="xs" onClick={onDone} disabled={save.isPending}>
           Cancel
         </Button>
-        <Button type="button" size="sm" onClick={submit} disabled={!canSave || save.isPending}>
+        <Button type="button" size="xs" onClick={submit} disabled={!canSave || save.isPending}>
           {save.isPending ? "Saving…" : "Save plan"}
         </Button>
       </div>

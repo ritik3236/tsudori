@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button"
 type Props = {
   studentId: string
   canManage: boolean
-  /** The student's total outstanding — seeds a fresh schedule's first row. */
-  outstanding: number
+  /** Remaining course fee (total program − paid − waived) — seeds a fresh schedule. */
+  remaining: number
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -26,7 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
   UPCOMING: "Upcoming",
 }
 
-export function InstallmentPlanPanel({ studentId, canManage, outstanding }: Props) {
+export function InstallmentPlanPanel({ studentId, canManage, remaining }: Props) {
   const { data } = useInstallmentPlan(studentId)
   const switchToMonthly = useSwitchToMonthly()
   const [editing, setEditing] = useState(false)
@@ -77,7 +77,7 @@ export function InstallmentPlanPanel({ studentId, canManage, outstanding }: Prop
         <InstallmentScheduleEditor
           studentId={studentId}
           items={plan.items}
-          suggestedTotal={outstanding}
+          suggestedTotal={remaining}
           onDone={() => setEditing(false)}
         />
       ) : (
