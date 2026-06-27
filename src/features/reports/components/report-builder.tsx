@@ -1,10 +1,12 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { AlertCircle, Sparkles } from "lucide-react"
+import { AlertCircle, Mic, Sparkles } from "lucide-react"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { ApiError } from "@/lib/http"
+import { useSpeechInput } from "@/lib/use-speech-input"
 import { Button } from "@/components/ui/button"
 import { STARTER_REPORTS } from "../registry"
 import { useRunReport } from "../hooks"
@@ -27,7 +29,21 @@ export function ReportBuilder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Voice-to-text fills the prompt as the user speaks; they review, then send
+  // (no auto-submit — a mis-hear shouldn't run the wrong report).
+  const voice = useSpeechInput({
+    onTranscript: setPrompt,
+    onError: (err) => {
+      if (err === "not-allowed" || err === "service-not-allowed") {
+        toast.error("Microphone access is blocked — enable it in your browser settings.")
+      } else if (err === "no-speech") {
+        toast("Didn't catch that. Try again.")
+      }
+    },
+  })
+
   const onGenerate = () => {
+    voice.stop()
     const p = prompt.trim()
     if (p) submit({ prompt: p })
   }
@@ -38,20 +54,36 @@ export function ReportBuilder() {
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <div className="bg-card focus-within:border-ring flex flex-1 items-center gap-2 rounded-2xl border px-3 transition-colors">
+        <div className="bg-card focus-within:border-ring flex h-10 flex-1 items-center gap-2 rounded-2xl border px-3 transition-colors sm:h-8">
           <Sparkles className="size-4 shrink-0 text-violet-500" />
           <input
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onGenerate()}
-            placeholder="Ask for a report…"
-            className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
+            placeholder={voice.listening ? "Listening…" : "Ask for a report…"}
+            className="h-full min-w-0 flex-1 bg-transparent text-sm outline-none"
           />
+          {voice.supported && (
+            <button
+              type="button"
+              onClick={voice.toggle}
+              aria-label={voice.listening ? "Stop voice input" : "Start voice input"}
+              aria-pressed={voice.listening}
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
+                voice.listening
+                  ? "bg-red-500/15 text-red-600 dark:text-red-400"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Mic className={cn("size-4", voice.listening && "animate-pulse")} />
+            </button>
+          )}
         </div>
         <Button
           onClick={onGenerate}
           disabled={run.isPending || !prompt.trim()}
-          className="rounded-2xl"
+          className="h-10 rounded-2xl"
         >
           Generate
         </Button>

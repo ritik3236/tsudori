@@ -54,10 +54,11 @@ export function ReportView({
           type="button"
           onClick={onRegenerate}
           disabled={busy}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+          aria-label="Regenerate"
+          title="Regenerate"
+          className="text-muted-foreground hover:text-foreground hover:bg-muted -mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
         >
-          <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
-          Regenerate
+          <RefreshCw className={cn("size-4", busy && "animate-spin")} />
         </button>
       </div>
 
