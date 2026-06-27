@@ -70,16 +70,15 @@ export default async function StudentFeesPage({
 
   const { year: periodYear, month: periodMonth } = appYearMonth(nowDate())
 
-  // Three core KPIs — the actionable current-period figure first (advance when
-  // in credit, else pending), then lifetime owed and lifetime collected. The
-  // per-month status lives in the badge by the name, so no "paid this month"
-  // card. Any waiver folds into the Total-paid card (in blue), not its own card.
+  // Two compact KPIs in a row — the actionable current-period figure first
+  // (advance when in credit, else pending), then lifetime owed. Three-up is too
+  // cramped on mobile, so "Total paid" gets its own full-width card below where
+  // paid + waived + program total lay out on one line. The per-month status
+  // lives in the badge by the name, so no "paid this month" card.
   type Kpi = {
     label: string
     value: string
     tone?: "amber" | "emerald" | "indigo"
-    sub?: string
-    waived?: number
   }
   const kpis: Kpi[] = [
     fee.advance > 0
@@ -93,12 +92,6 @@ export default async function StudentFeesPage({
       label: "Total outstanding",
       value: formatCurrency(fee.totalOutstanding),
       tone: fee.totalOutstanding > 0 ? "amber" : undefined,
-    },
-    {
-      label: "Total paid",
-      value: formatCurrency(fee.totalPaid),
-      waived: fee.totalWaived > 0 ? fee.totalWaived : undefined,
-      sub: fee.totalFee > 0 ? `of ${formatCurrency(fee.totalFee)} fee` : undefined,
     },
   ]
 
@@ -162,57 +155,65 @@ export default async function StudentFeesPage({
     <div className="mx-auto max-w-3xl space-y-6">
       <BackLink href="/fees" label="Fees" />
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{fee.fullName}</h1>
-            <FeeStatusBadge status={fee.status} />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            ID {fee.serialNo}
-            {fee.className ? ` · ${formatClassName(fee.className, fee.classSection)}` : ""}
-            {fee.guardianName ? ` · ${fee.guardianName}` : ""}
-            {` · `}
-            <span className="text-foreground font-medium">
-              {fee.billingMode === "INSTALLMENT"
-                ? "Installments"
-                : `${formatCurrency(fee.monthlyFee)}/mo`}
-            </span>
-          </p>
-        </div>
-        {/* Waive lives here; recording a payment is the floating button
-            (bottom-right) only. */}
-        {canWaive && waiveTarget && (
-          <div className="flex gap-2">
+      {/* Name + status, with Waive as the inline action on the title row
+          (recording a payment is the floating button, bottom-right, only). */}
+      <div>
+        <div className="flex items-center gap-2">
+          <h1 className="min-w-0 truncate text-2xl font-semibold tracking-tight">{fee.fullName}</h1>
+          <FeeStatusBadge status={fee.status} />
+          {canWaive && waiveTarget && (
             <WaiveFeeButton
               studentId={fee.studentId}
               studentName={fee.fullName}
               remainingDue={fee.totalOutstanding}
               periodMonth={waiveTarget.month}
               periodYear={waiveTarget.year}
-              variant="outline"
-              size="default"
-              className="flex-1 sm:flex-none"
+              variant="ghost"
+              size="sm"
+              className="shrink-0 border-0 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200"
             />
-          </div>
-        )}
+          )}
+        </div>
+        <p className="text-muted-foreground text-sm">
+          ID {fee.serialNo}
+          {fee.className ? ` · ${formatClassName(fee.className, fee.classSection)}` : ""}
+          {fee.guardianName ? ` · ${fee.guardianName}` : ""}
+          {` · `}
+          <span className="text-foreground font-medium">
+            {fee.billingMode === "INSTALLMENT"
+              ? "Installments"
+              : `${formatCurrency(fee.monthlyFee)}/mo`}
+          </span>
+        </p>
       </div>
 
-      <div
-        className={cn(
-          "grid grid-cols-3 gap-3"
-        )}
-      >
-        {kpis.map((k) => (
-          <Stat
-            key={k.label}
-            label={k.label}
-            value={k.value}
-            tone={k.tone}
-            sub={k.sub}
-            waived={k.waived}
-          />
-        ))}
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          {kpis.map((k) => (
+            <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} />
+          ))}
+        </div>
+
+        {/* Total paid spans full width so paid + waived + program total fit on
+            one line (a third grid column is too cramped on mobile). */}
+        <div className="bg-card flex items-baseline justify-between gap-3 rounded-2xl border p-4">
+          <div>
+            <p className="text-muted-foreground text-xs">Total paid</p>
+            <p className="mt-1 text-lg font-bold tracking-tight tabular-nums">
+              {formatCurrency(fee.totalPaid)}
+              {fee.totalWaived > 0 && (
+                <span className="text-indigo-600 dark:text-indigo-300 ml-1 align-middle text-xs font-semibold">
+                  +{formatCurrency(fee.totalWaived)}
+                </span>
+              )}
+            </p>
+          </div>
+          {fee.totalFee > 0 && (
+            <p className="text-muted-foreground/70 shrink-0 text-[11px] tabular-nums">
+              of {formatCurrency(fee.totalFee)} fee
+            </p>
+          )}
+        </div>
       </div>
 
       <HydrationBoundary state={dehydrate(qc)}>
@@ -399,14 +400,10 @@ function Stat({
   label,
   value,
   tone,
-  sub,
-  waived,
 }: {
   label: string
   value: string
   tone?: "amber" | "emerald" | "indigo"
-  sub?: string
-  waived?: number
 }) {
   return (
     <div className="bg-card rounded-2xl border p-4">
@@ -420,13 +417,7 @@ function Stat({
         )}
       >
         {value}
-        {waived ? (
-          <span className="text-indigo-600 dark:text-indigo-300 ml-1 align-middle text-xs font-semibold">
-            +{formatCurrency(waived)}
-          </span>
-        ) : null}
       </p>
-      {sub && <p className="text-muted-foreground/70 mt-0.5 text-[11px] tabular-nums">{sub}</p>}
     </div>
   )
 }
