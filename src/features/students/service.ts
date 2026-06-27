@@ -9,6 +9,7 @@ import {
   enrollStudentInClassCourseTx,
   syncStudentEnrollmentTx,
 } from "@/features/enrollment/service"
+import { voidUnpaidInstallmentsTx } from "@/features/installments/service"
 import { DEFAULT_PAGE_SIZE } from "@/lib/constants"
 import { effectiveFee } from "@/features/fees/logic"
 import { nowDate } from "@/lib/date-helper"
@@ -45,7 +46,14 @@ async function feesForStudents(
 ): Promise<Map<string, number>> {
   if (ids.length === 0) return new Map()
   const enrollments = await prisma.enrollment.findMany({
-    where: { instituteId, studentId: { in: ids }, status: "ACTIVE" },
+    where: {
+      instituteId,
+      studentId: { in: ids },
+      status: "ACTIVE",
+      // INSTALLMENT students have no monthly fee — exclude them so they read as
+      // "Installments" (0 here), not a misleading /mo figure.
+      student: { billingMode: "MONTHLY" },
+    },
     select: {
       studentId: true,
       feeOverride: true,
@@ -275,6 +283,12 @@ export async function updateStudent(
 
   await prisma.$transaction(async (tx) => {
     await tx.student.update({ where: { id }, data })
+    // A student leaving/finishing stops billing — drop their unpaid FUTURE
+    // installments so they don't keep coming due (paid/past kept). No-op for
+    // monthly students (R9).
+    if (input.status === "LEFT" || input.status === "COMPLETED") {
+      await voidUnpaidInstallmentsTx(tx, instituteId, id, { futureOnly: true })
+    }
     // On a class change, re-point the class-derived enrolment to the new course
     // (its fee/% scholarship is preserved). Manual enrolments are untouched.
     if (classChanged) {
@@ -311,6 +325,9 @@ export async function archiveStudent(
       // so a "Left"/"Completed" student keeps that status while archived.
       data: { archivedAt: nowDate() },
     })
+    // Archiving = leaving billing: drop unpaid future installments so an archived
+    // student doesn't read as "owed forever" (R9). No-op for monthly students.
+    await voidUnpaidInstallmentsTx(tx, instituteId, id, { futureOnly: true })
     await recordAudit(tx, {
       instituteId,
       actorId,
@@ -365,6 +382,7 @@ function toListItem(student: StudentWithClass, monthlyFee: number): StudentListI
     classId: student.classId,
     guardianName: student.guardianName,
     contactNumber: student.contactNumber,
+    billingMode: student.billingMode,
     monthlyFee,
     status: student.status,
     admissionDate: student.admissionDate.toISOString(),

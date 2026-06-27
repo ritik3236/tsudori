@@ -1,4 +1,6 @@
-import type { PaymentMethod } from "@prisma/client"
+import type { BillingMode, PaymentMethod } from "@prisma/client"
+
+import type { InstallmentStatus } from "@/features/installments/types"
 
 // Wire DTOs — Prisma Decimal/Date normalised to number/ISO-string, JSON-safe.
 
@@ -10,6 +12,8 @@ export type StudentFeeListItem = {
   fullName: string
   className: string | null
   classSection: string | null
+  /** MONTHLY students show a /mo fee; INSTALLMENT students bill via a schedule. */
+  billingMode: BillingMode
   monthlyFee: number
   /** Paid towards the current fee month. */
   paidThisMonth: number
@@ -72,9 +76,13 @@ export type StudentFeeDetail = {
   classSection: string | null
   guardianName: string | null
   contactNumber: string | null
+  /** MONTHLY = per-enrolment monthly accrual; INSTALLMENT = the schedule below. */
+  billingMode: BillingMode
   monthlyFee: number
   /** Lifetime total across all periods. */
   totalPaid: number
+  /** Total billed across all charges — the student's total course/plan fee. */
+  totalCharged: number
   /** Lifetime total waived across all periods. */
   totalWaived: number
   paidThisMonth: number
@@ -101,6 +109,23 @@ export type StudentFeeDetail = {
     amount: number
     paid: number
     outstanding: number
+  }[]
+  /** Per-period charged amount ("YYYY-M" → amount). Installment dues vary by month
+   *  (most are 0), so the detail page resolves the oldest owing month from this
+   *  rather than a flat monthly fee. */
+  expectedByMonth: Record<string, number>
+  /** The student's installment schedule (INSTALLMENT billing only; [] otherwise),
+   *  ordered by due date, with per-installment settlement + status. */
+  installments: {
+    id: string
+    seq: number
+    label: string | null
+    dueDate: string
+    amount: number
+    paid: number
+    waived: number
+    outstanding: number
+    status: InstallmentStatus
   }[]
 }
 

@@ -36,9 +36,12 @@ function StatusChip({ status }: { status: EnrollmentStatus }) {
 type Props = {
   studentId: string
   canManage: boolean
+  /** Forwarded to the add-course dialog so it can warn that an installment plan's
+   *  fee isn't auto-billed per course. */
+  isInstallment?: boolean
 }
 
-export function EnrollmentsPanel({ studentId, canManage }: Props) {
+export function EnrollmentsPanel({ studentId, canManage, isInstallment }: Props) {
   const { data: enrollments, isLoading } = useEnrollments(studentId)
   const [enrollOpen, setEnrollOpen] = useState(false)
 
@@ -108,7 +111,12 @@ export function EnrollmentsPanel({ studentId, canManage }: Props) {
       )}
 
       {canManage && (
-        <EnrollDialog studentId={studentId} open={enrollOpen} onOpenChange={setEnrollOpen} />
+        <EnrollDialog
+          studentId={studentId}
+          open={enrollOpen}
+          onOpenChange={setEnrollOpen}
+          isInstallment={isInstallment}
+        />
       )}
     </div>
   )

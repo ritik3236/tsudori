@@ -24,6 +24,8 @@ type RecordPaymentDialogProps = {
     paidByMonth: Record<string, number>
     waivedByMonth: Record<string, number>
   }
+  billingMode?: "MONTHLY" | "INSTALLMENT"
+  installments?: { id: string; label: string | null; dueDate: string; outstanding: number }[]
 }
 
 export function RecordPaymentDialog({
@@ -35,6 +37,8 @@ export function RecordPaymentDialog({
   remainingDue,
   canWaive,
   allocationContext,
+  billingMode,
+  installments,
 }: RecordPaymentDialogProps) {
   const record = useRecordPayment()
 
@@ -52,6 +56,8 @@ export function RecordPaymentDialog({
           remainingDue={remainingDue}
           canWaive={canWaive}
           allocationContext={allocationContext}
+          billingMode={billingMode}
+          installments={installments}
           submitting={record.isPending}
           onCancel={() => onOpenChange(false)}
           onSubmit={(values) =>

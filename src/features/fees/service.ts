@@ -8,6 +8,7 @@ import { NotFoundError, ValidationError } from "@/lib/errors"
 import { recordAudit, AUDIT_ACTIONS } from "@/features/audit/service"
 import { deriveMonth, effectiveFee, resolveReversal } from "@/features/fees/logic"
 import { ensureChargesForStudent } from "@/features/enrollment/service"
+import { installmentStatus } from "@/features/installments/logic"
 import { FEE_PAGE_SIZE } from "@/features/fees/schema"
 import type {
   FeeQuery,
@@ -126,12 +127,13 @@ async function loadMonthFeeRows(
       serialNo: true,
       fullName: true,
       contactNumber: true,
+      billingMode: true,
       class: { select: { name: true, section: true } },
     },
   })
 
   const ids = students.map((s) => s.id)
-  const [grouped, waiverGroups] = await Promise.all([
+  const [grouped, waiverGroups, installmentGroups] = await Promise.all([
     prisma.feePayment.groupBy({
       by: ["studentId"],
       where: { instituteId, periodMonth: month, periodYear: year, studentId: { in: ids } },
@@ -142,10 +144,20 @@ async function loadMonthFeeRows(
       where: { instituteId, periodMonth: month, periodYear: year, studentId: { in: ids } },
       _sum: { amount: true },
     }),
+    // Installment students' expected-this-month = their INSTALLMENT charges due this
+    // period (not effectiveFee). Period-keyed, so future installments don't leak in.
+    prisma.feeCharge.groupBy({
+      by: ["studentId"],
+      where: { instituteId, type: "INSTALLMENT", periodMonth: month, periodYear: year, studentId: { in: ids } },
+      _sum: { amount: true },
+    }),
   ])
   const paidMap = new Map(grouped.map((g) => [g.studentId, Number(g._sum.amount ?? 0)]))
   const waivedMap = new Map(
     waiverGroups.map((g) => [g.studentId, Number(g._sum.amount ?? 0)])
+  )
+  const installmentMap = new Map(
+    installmentGroups.map((g) => [g.studentId, Number(g._sum.amount ?? 0)])
   )
 
   // Per-month tuition fee per student = sum of their active enrolments' effective
@@ -157,6 +169,9 @@ async function loadMonthFeeRows(
           studentId: { in: ids },
           status: "ACTIVE",
           startDate: { lt: appMonthStartUtc(year, month + 1) },
+          // Only MONTHLY students accrue an effectiveFee-based expected; INSTALLMENT
+          // students' expected comes from installmentMap above.
+          student: { billingMode: "MONTHLY" },
         },
         select: {
           studentId: true,
@@ -177,7 +192,10 @@ async function loadMonthFeeRows(
   }
 
   return students.map((s) => {
-    const monthlyFee = feeMap.get(s.id) ?? 0
+    // Expected-this-month: INSTALLMENT → installments due this period; MONTHLY →
+    // Σ active effectiveFee (unchanged). Both flow through deriveMonth identically.
+    const monthlyFee =
+      s.billingMode === "INSTALLMENT" ? (installmentMap.get(s.id) ?? 0) : (feeMap.get(s.id) ?? 0)
     const paid = paidMap.get(s.id) ?? 0
     const waived = waivedMap.get(s.id) ?? 0
     const { pending, advance, status } = deriveMonth(monthlyFee, paid, waived)
@@ -187,6 +205,7 @@ async function loadMonthFeeRows(
       fullName: s.fullName,
       className: s.class?.name ?? null,
       classSection: s.class?.section ?? null,
+      billingMode: s.billingMode,
       monthlyFee,
       paidThisMonth: paid,
       waivedThisMonth: waived,
@@ -294,6 +313,7 @@ export async function getStudentFee(
       guardianName: true,
       contactNumber: true,
       admissionDate: true,
+      billingMode: true,
       class: { select: { name: true, section: true } },
     },
   })
@@ -307,7 +327,7 @@ export async function getStudentFee(
   const [charges, payments, waivers] = await Promise.all([
     prisma.feeCharge.findMany({
       where: { studentId, instituteId },
-      select: { id: true, type: true, label: true, periodMonth: true, periodYear: true, amount: true },
+      select: { id: true, type: true, label: true, periodMonth: true, periodYear: true, amount: true, dueDate: true },
     }),
     prisma.feePayment.findMany({
       where: { studentId, instituteId },
@@ -325,10 +345,19 @@ export async function getStudentFee(
   // charges — NOT student.monthlyFee. One-time charges are a separate bucket.
   const feeByPeriod = new Map<string, number>()
   const oneTime: { id: string; label: string; amount: number }[] = []
+  const installmentCharges: { id: string; label: string | null; dueDate: Date; amount: number }[] = []
+  // Periods carrying an INSTALLMENT charge — only these get the future-period gate
+  // below. A future TUITION period (a reversed monthly prepayment) must still count,
+  // so a monthly student's outstanding stays byte-identical.
+  const installmentPeriods = new Set<string>()
   for (const c of charges) {
-    if (c.type === "TUITION" && c.periodYear != null && c.periodMonth != null) {
+    if ((c.type === "TUITION" || c.type === "INSTALLMENT") && c.periodYear != null && c.periodMonth != null) {
       const k = `${c.periodYear}-${c.periodMonth}`
       feeByPeriod.set(k, (feeByPeriod.get(k) ?? 0) + Number(c.amount))
+      if (c.type === "INSTALLMENT") {
+        installmentPeriods.add(k)
+        installmentCharges.push({ id: c.id, label: c.label, dueDate: c.dueDate, amount: Number(c.amount) })
+      }
     } else {
       oneTime.push({ id: c.id, label: c.label ?? "One-time fee", amount: Number(c.amount) })
     }
@@ -369,20 +398,34 @@ export async function getStudentFee(
   const paidThisMonth = paidByPeriod.get(nowKey) ?? 0
   const waivedThisMonth = waivedByPeriod.get(nowKey) ?? 0
 
-  const futurePaid = payments.reduce((sum, p) => {
-    const isFuture =
-      p.periodYear != null &&
-      (p.periodYear > year || (p.periodYear === year && (p.periodMonth ?? 0) > month))
-    return isFuture ? sum + Number(p.amount) : sum
-  }, 0)
+  // For INSTALLMENT students, paying a scheduled installment early lands on a
+  // future-period charge — the normal flow, not a credit. Don't treat it as advance
+  // (else they'd read ADVANCE forever). Monthly prepayment still counts as advance.
+  const futurePaid =
+    student.billingMode === "INSTALLMENT"
+      ? 0
+      : payments.reduce((sum, p) => {
+          const isFuture =
+            p.periodYear != null &&
+            (p.periodYear > year || (p.periodYear === year && (p.periodMonth ?? 0) > month))
+          return isFuture ? sum + Number(p.amount) : sum
+        }, 0)
   const month0 = deriveMonth(monthlyFee, paidThisMonth, waivedThisMonth)
   const advance = month0.advance + futurePaid
   const status: FeeStatus = advance > 0 ? "ADVANCE" : month0.status
 
   // Lifetime outstanding = every tuition month's unmet due (capped per month) plus
   // every one-time charge's unmet due. Caps stop an overpaid item cancelling another.
+  // A not-yet-due INSTALLMENT period isn't outstanding (installments are minted
+  // upfront). TUITION only materializes the future via a (since-reversed) monthly
+  // prepayment, which MUST still count — so the gate is scoped to installment periods
+  // and a monthly student's outstanding stays byte-identical.
   let totalOutstanding = 0
   for (const [k, fee] of feeByPeriod) {
+    if (installmentPeriods.has(k)) {
+      const [py, pm] = k.split("-").map(Number)
+      if (py > year || (py === year && pm > month)) continue
+    }
     totalOutstanding += Math.max(0, fee - (waivedByPeriod.get(k) ?? 0) - (paidByPeriod.get(k) ?? 0))
   }
   for (const c of oneTime) {
@@ -401,6 +444,8 @@ export async function getStudentFee(
     contactNumber: student.contactNumber,
     monthlyFee,
     totalPaid: payments.reduce((s, p) => s + Number(p.amount), 0),
+    // Total billed across every charge — the student's total course/plan fee.
+    totalCharged: round2(charges.reduce((s, c) => s + Number(c.amount), 0)),
     totalWaived: waivers.reduce((s, w) => s + Number(w.amount), 0),
     paidThisMonth,
     waivedThisMonth,
@@ -411,8 +456,36 @@ export async function getStudentFee(
     payments: payments.map((p) => toPaymentItem(p, reversedByPayment.get(p.id) ?? 0)),
     waivers: waivers.map((w) => toWaiverItem(w, reversedByWaiver.get(w.id) ?? 0)),
     admission: { year: adm.year, month: adm.month },
+    billingMode: student.billingMode,
     paidByMonth: Object.fromEntries(paidByPeriod),
     waivedByMonth: Object.fromEntries(waivedByPeriod),
+    expectedByMonth: Object.fromEntries(feeByPeriod),
+    installments: installmentCharges
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+      .map((c, i) => {
+        const paid = round2(paidByCharge.get(c.id) ?? 0)
+        const waived = round2(waivedByCharge.get(c.id) ?? 0)
+        const due = appYearMonth(c.dueDate)
+        return {
+          id: c.id,
+          seq: i + 1,
+          label: c.label,
+          dueDate: c.dueDate.toISOString(),
+          amount: c.amount,
+          paid,
+          waived,
+          outstanding: Math.max(0, round2(c.amount - paid - waived)),
+          status: installmentStatus({
+            amount: c.amount,
+            paid,
+            waived,
+            dueYear: due.year,
+            dueMonth: due.month,
+            nowYear: year,
+            nowMonth: month,
+          }),
+        }
+      }),
     oneTimeCharges: oneTime.map((c) => {
       const paid = paidByCharge.get(c.id) ?? 0
       const waived = waivedByCharge.get(c.id) ?? 0
@@ -446,7 +519,7 @@ export async function recordPayment(
   const created = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true, fullName: true },
+      select: { id: true, fullName: true, billingMode: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
 
@@ -484,7 +557,9 @@ export async function recordPayment(
 
     type ChargeRef = {
       id: string
-      enrollmentId: string
+      // Null for INSTALLMENT charges (student-scoped). FeePayment.enrollmentId is
+      // also nullable, so a null flows through to the payment row fine.
+      enrollmentId: string | null
       periodMonth: number | null
       periodYear: number | null
     }
@@ -502,8 +577,11 @@ export async function recordPayment(
     }
 
     // 2) Prepay forward: mint future TUITION charges for active enrolments and keep
-    //    allocating, oldest month first, until the cash is spent (bounded).
-    if (remaining > 0) {
+    //    allocating, oldest month first, until the cash is spent (bounded). Skipped
+    //    for INSTALLMENT students — their whole schedule is already materialized, so
+    //    step 1 above prepays future installments directly; any true leftover becomes
+    //    an advance credit below (R8). Minting TUITION for them would be phantom.
+    if (remaining > 0 && student.billingMode !== "INSTALLMENT") {
       const active = await tx.enrollment.findMany({
         where: { instituteId, studentId: student.id, status: "ACTIVE" },
         include: { course: { select: { monthlyFee: true } } },
@@ -514,7 +592,7 @@ export async function recordPayment(
       // would otherwise 500 the whole payment on a second prepayment.
       const latestTuition = new Map<string, { y: number; m: number }>()
       for (const c of charges) {
-        if (c.type !== "TUITION" || c.periodYear == null || c.periodMonth == null) continue
+        if (c.type !== "TUITION" || c.enrollmentId == null || c.periodYear == null || c.periodMonth == null) continue
         const cur = latestTuition.get(c.enrollmentId)
         if (!cur || c.periodYear > cur.y || (c.periodYear === cur.y && c.periodMonth > cur.m)) {
           latestTuition.set(c.enrollmentId, { y: c.periodYear, m: c.periodMonth })
@@ -576,6 +654,13 @@ export async function recordPayment(
       }
     }
 
+    // Installment students: cash beyond their materialized schedule has nothing more
+    // to land on (no future months are minted for them), so receipt the leftover as a
+    // current-period advance credit — every rupee is accounted for (R8). Monthly
+    // students keep minting future months above, so they rarely reach here.
+    const creditAmount = student.billingMode === "INSTALLMENT" ? round2(remaining) : 0
+    if (creditAmount > 0) remaining = round2(remaining - creditAmount)
+
     // Persist: one FeePayment (+ sequential receipt) per allocation, linked to its
     // charge + enrolment. Reversal rows (receiptNo NULL) are skipped for the seq.
     const last = await tx.feePayment.findFirst({
@@ -606,14 +691,46 @@ export async function recordPayment(
       rows.push(row)
     }
 
-    // waiveRemaining: clear whatever still owes on TUITION charges after the cash
-    // (one-time charges can't be waived — a waiver row requires a period).
+    // R8: receipt any installment overpayment as a current-period advance credit.
+    if (creditAmount > 0) {
+      const now = appYearMonth(nowDate())
+      const credit = await tx.feePayment.create({
+        data: {
+          instituteId,
+          studentId: student.id,
+          enrollmentId: null,
+          chargeId: null,
+          amount: creditAmount,
+          periodMonth: now.month,
+          periodYear: now.year,
+          method: input.method,
+          paidAt: input.paidAt,
+          receiptNo: receiptNo++,
+          note: input.note ?? null,
+          recordedById,
+        },
+        include: { recordedBy: { select: { name: true } } },
+      })
+      rows.push(credit)
+    }
+
+    // waiveRemaining: clear whatever still owes on TUITION/INSTALLMENT charges after
+    // the cash (one-time charges can't be waived — a waiver row requires a period).
     let waivedAmount = 0
     if (input.waiveRemaining) {
+      const { month: wMonth, year: wYear } = currentPeriod()
       const allocByCharge = new Map<string, number>()
       for (const a of allocs) allocByCharge.set(a.charge.id, (allocByCharge.get(a.charge.id) ?? 0) + a.amount)
       for (const c of charges) {
-        if (c.type !== "TUITION" || c.periodMonth == null || c.periodYear == null) continue
+        if ((c.type !== "TUITION" && c.type !== "INSTALLMENT") || c.periodMonth == null || c.periodYear == null) continue
+        // Don't waive a not-yet-due future INSTALLMENT when "settling" a payment.
+        // Scoped to installments so a future TUITION period (a reversed monthly
+        // prepayment) stays waivable exactly as before — monthly path unchanged.
+        if (
+          c.type === "INSTALLMENT" &&
+          (c.periodYear > wYear || (c.periodYear === wYear && c.periodMonth > wMonth))
+        )
+          continue
         const due = round2(dueOf(c) - (allocByCharge.get(c.id) ?? 0))
         if (due > 0) {
           await tx.feeWaiver.create({
@@ -869,10 +986,11 @@ export async function recordWaiver(
     // Outstanding per TUITION charge, oldest-first — a waiver only clears real dues,
     // never prepays the future, and can't touch one-time charges (no period).
     const charges = await tx.feeCharge.findMany({
-      where: { instituteId, studentId: student.id, type: "TUITION" },
-      select: { id: true, enrollmentId: true, periodMonth: true, periodYear: true, amount: true },
+      where: { instituteId, studentId: student.id, type: { in: ["TUITION", "INSTALLMENT"] } },
+      select: { id: true, type: true, enrollmentId: true, periodMonth: true, periodYear: true, amount: true },
       orderBy: { dueDate: "asc" },
     })
+    const { month: nowMonth, year: nowYear } = currentPeriod()
     const [paidGroups, waiverGroups] = await Promise.all([
       tx.feePayment.groupBy({
         by: ["chargeId"],
@@ -896,6 +1014,14 @@ export async function recordWaiver(
     for (const c of charges) {
       if (remaining <= 0) break
       if (c.periodMonth == null || c.periodYear == null) continue
+      // A waiver never clears a not-yet-due future INSTALLMENT. Scoped to installments
+      // so a future TUITION period (a reversed monthly prepayment) stays waivable
+      // exactly as before — the monthly path is unchanged.
+      if (
+        c.type === "INSTALLMENT" &&
+        (c.periodYear > nowYear || (c.periodYear === nowYear && c.periodMonth > nowMonth))
+      )
+        continue
       const due = round2(Number(c.amount) - (paidByCharge.get(c.id) ?? 0) - (waivedByCharge.get(c.id) ?? 0))
       if (due <= 0) continue
       const take = Math.min(remaining, due)
@@ -1012,6 +1138,7 @@ export async function feeMonthlyOverview(
     },
     select: {
       id: true,
+      billingMode: true,
       enrollments: {
         where: { status: "ACTIVE" },
         select: {
@@ -1040,16 +1167,10 @@ export async function feeMonthlyOverview(
       }))
     )
   }
-  const feeForMonth = (sid: string, y: number, m: number) => {
-    const cutoff = appMonthStartUtc(y, m + 1)
-    return (enrolByStudent.get(sid) ?? []).reduce(
-      (sum, e) => (e.startDate < cutoff ? sum + e.fee : sum),
-      0
-    )
-  }
+  const modeById = new Map(students.map((s) => [s.id, s.billingMode]))
   const ids = students.map((s) => s.id)
 
-  const [groups, waiverGroups] = ids.length
+  const [groups, waiverGroups, installGroups] = ids.length
     ? await Promise.all([
         prisma.feePayment.groupBy({
           by: ["studentId", "periodYear", "periodMonth"],
@@ -1061,8 +1182,29 @@ export async function feeMonthlyOverview(
           where: { instituteId, studentId: { in: ids } },
           _sum: { amount: true },
         }),
+        prisma.feeCharge.groupBy({
+          by: ["studentId", "periodYear", "periodMonth"],
+          where: { instituteId, studentId: { in: ids }, type: "INSTALLMENT", periodYear: { not: null } },
+          _sum: { amount: true },
+        }),
       ])
-    : [[], []]
+    : [[], [], []]
+
+  // Installment students' expected/collected per month comes from their INSTALLMENT
+  // charges (not effectiveFee); monthly students keep the enrolment-fee path.
+  const installByKey = new Map<string, number>()
+  for (const g of installGroups) {
+    if (g.periodYear == null || g.periodMonth == null) continue
+    installByKey.set(`${g.studentId}:${g.periodYear}-${g.periodMonth}`, Number(g._sum.amount ?? 0))
+  }
+  const feeForMonth = (sid: string, y: number, m: number) => {
+    if (modeById.get(sid) === "INSTALLMENT") return installByKey.get(`${sid}:${y}-${m}`) ?? 0
+    const cutoff = appMonthStartUtc(y, m + 1)
+    return (enrolByStudent.get(sid) ?? []).reduce(
+      (sum, e) => (e.startDate < cutoff ? sum + e.fee : sum),
+      0
+    )
+  }
 
   // Per student-month waived amount, so net due = fee - waived everywhere.
   const wKey = (sid: string, y: number, m: number) => `${sid}:${y}-${m}`

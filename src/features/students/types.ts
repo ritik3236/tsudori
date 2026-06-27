@@ -1,4 +1,4 @@
-import type { StudentStatus } from "@prisma/client"
+import type { BillingMode, StudentStatus } from "@prisma/client"
 
 // Wire DTOs. Prisma Decimal/Date are normalised to number/ISO-string here so the
 // shapes are JSON-safe and identical on both sides of the API.
@@ -13,6 +13,8 @@ export type StudentListItem = {
   classId: string | null
   guardianName: string | null
   contactNumber: string | null
+  /** MONTHLY → show monthlyFee; INSTALLMENT → show an "Installments" label (no /mo). */
+  billingMode: BillingMode
   monthlyFee: number
   status: StudentStatus
   admissionDate: string

@@ -56,7 +56,7 @@ export async function getDashboardStats(
   // otherwise `finance` resolves to null and nothing financial is ever fetched.
   const financeWork: Promise<DashboardFinance | null> = opts.includeFinancials
     ? (async () => {
-        const [collectedAgg, expectedEnrollments, collectedForOutstanding, recentPayments] =
+        const [collectedAgg, expectedEnrollments, collectedForOutstanding, recentPayments, installmentExpectedAgg] =
           await Promise.all([
             prisma.feePayment.aggregate({
               where: { instituteId, paidAt: { gte: monthStart, lt: monthEnd } },
@@ -69,7 +69,7 @@ export async function getDashboardStats(
                 instituteId,
                 status: "ACTIVE",
                 startDate: { lt: monthEnd },
-                student: { status: "ACTIVE", archivedAt: null },
+                student: { status: "ACTIVE", archivedAt: null, billingMode: "MONTHLY" },
               },
               select: {
                 feeOverride: true,
@@ -94,17 +94,30 @@ export async function getDashboardStats(
                 reversals: { select: { amount: true } },
               },
             }),
+            // Installment students' expected-this-month = their INSTALLMENT charges
+            // due this period (excluded from the effectiveFee sum above).
+            prisma.feeCharge.aggregate({
+              where: {
+                instituteId,
+                type: "INSTALLMENT",
+                periodMonth: tm,
+                periodYear: ty,
+                student: { status: "ACTIVE", archivedAt: null },
+              },
+              _sum: { amount: true },
+            }),
           ])
-        const expected = expectedEnrollments.reduce(
-          (sum, e) =>
-            sum +
-            effectiveFee(
-              Number(e.course.monthlyFee),
-              e.feeOverride != null ? Number(e.feeOverride) : null,
-              e.discountPercent != null ? Number(e.discountPercent) : null
-            ),
-          0
-        )
+        const expected =
+          expectedEnrollments.reduce(
+            (sum, e) =>
+              sum +
+              effectiveFee(
+                Number(e.course.monthlyFee),
+                e.feeOverride != null ? Number(e.feeOverride) : null,
+                e.discountPercent != null ? Number(e.discountPercent) : null
+              ),
+            0
+          ) + Number(installmentExpectedAgg._sum.amount ?? 0)
         const collectedForMonth = Number(collectedForOutstanding._sum.amount ?? 0)
         return {
           feeCollectedThisMonth: Number(collectedAgg._sum.amount ?? 0),

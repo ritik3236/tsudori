@@ -95,6 +95,7 @@ model Institute {
   courses     Course[]
   enrollments Enrollment[]
   feeCharges  FeeCharge[]
+  studentInstallments StudentInstallment[]
   notes       Note[]
   settings    Setting[]
   invitations Invitation[]
@@ -265,6 +266,17 @@ enum StudentStatus {
   @@schema("public")
 }
 
+/// How a student's fees are billed. MONTHLY = the per-enrolment monthly accrual
+/// (the default, unchanged). INSTALLMENT = a per-student fixed schedule
+/// (StudentInstallment) that replaces monthly accrual entirely — a student is one
+/// or the other, never mixed across courses.
+enum BillingMode {
+  MONTHLY
+  INSTALLMENT
+
+  @@schema("public")
+}
+
 model Student {
   id            String        @id @default(cuid())
   instituteId   String
@@ -281,6 +293,9 @@ model Student {
   photoUrl      String?
   admissionDate DateTime      @db.Timestamptz(3)
   status        StudentStatus @default(ACTIVE)
+  /// MONTHLY (per-enrolment monthly accrual) or INSTALLMENT (a per-student
+  /// StudentInstallment schedule that replaces monthly billing). See BillingMode.
+  billingMode   BillingMode   @default(MONTHLY)
   notes         String?
   /// Soft-archive: archived students drop out of active lists but keep history.
   archivedAt    DateTime?
@@ -292,8 +307,9 @@ model Student {
   attendance  Attendance[]
   payments    FeePayment[]
   waivers     FeeWaiver[]
-  enrollments Enrollment[]
-  feeCharges  FeeCharge[]
+  enrollments  Enrollment[]
+  feeCharges   FeeCharge[]
+  installments StudentInstallment[]
 
   @@unique([instituteId, serialNo])
   @@index([instituteId, status])
@@ -579,6 +595,9 @@ model Enrollment {
 enum ChargeType {
   TUITION
   ONE_TIME
+  /// A student-level installment: a StudentInstallment plan row materialized as a
+  /// due-dated charge. Replaces TUITION for INSTALLMENT-billed students.
+  INSTALLMENT
 
   @@schema("public")
 }
@@ -589,28 +608,62 @@ enum ChargeType {
 model FeeCharge {
   id           String     @id @default(cuid())
   instituteId  String
-  enrollmentId String
+  /// Null for INSTALLMENT charges (student-scoped, not tied to one enrolment);
+  /// always set for TUITION and ONE_TIME.
+  enrollmentId String?
   /// Denormalized from the enrolment for fast per-student ledger queries.
   studentId    String
   type         ChargeType @default(TUITION)
-  /// For ONE_TIME charges: the label (e.g. "Admission fee"). Null for tuition.
+  /// For ONE_TIME charges: the label (e.g. "Admission fee"). For INSTALLMENT: the
+  /// installment label. Null for tuition.
   label        String?
-  /// The fee period for TUITION (the month it covers); null for ONE_TIME.
+  /// The fee period (month it covers): set for TUITION and INSTALLMENT (the
+  /// installment's due month); null for ONE_TIME.
   periodMonth  Int?
   periodYear   Int?
   amount       Decimal    @db.Decimal(10, 2)
   dueDate      DateTime   @db.Timestamptz(3)
   createdAt    DateTime   @default(now())
+  /// Set for INSTALLMENT charges: the StudentInstallment plan row this materializes.
+  /// Unique → re-minting the same plan row is a no-op, even when two installments
+  /// fall in the same due month (the period-tuple unique can't dedupe those).
+  studentInstallmentId String? @unique
 
-  institute  Institute    @relation(fields: [instituteId], references: [id], onDelete: Cascade)
-  enrollment Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  payments   FeePayment[]
-  waivers    FeeWaiver[]
+  institute          Institute           @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  enrollment         Enrollment?         @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student            Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentInstallment StudentInstallment? @relation(fields: [studentInstallmentId], references: [id], onDelete: SetNull)
+  payments           FeePayment[]
+  waivers            FeeWaiver[]
 
   @@unique([enrollmentId, type, periodYear, periodMonth])
   @@index([instituteId, studentId])
+  @@index([instituteId, studentId, type])
   @@index([enrollmentId])
+  @@schema("public")
+}
+
+/// One row of a student's installment schedule (INSTALLMENT-billed students only).
+/// Editable while unpaid; materializes exactly one immutable INSTALLMENT FeeCharge
+/// (via FeeCharge.studentInstallmentId). Replaces monthly accrual for the student.
+model StudentInstallment {
+  id          String   @id @default(cuid())
+  instituteId String
+  studentId   String
+  /// 1-based order within the student's schedule.
+  seq         Int
+  dueDate     DateTime @db.Timestamptz(3)
+  amount      Decimal  @db.Decimal(10, 2)
+  label       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  institute Institute  @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  charge    FeeCharge?
+
+  @@unique([studentId, seq])
+  @@index([instituteId, studentId])
   @@schema("public")
 }
 

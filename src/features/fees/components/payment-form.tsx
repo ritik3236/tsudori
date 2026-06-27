@@ -4,9 +4,9 @@ import { useEffect, useMemo } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { formatCurrency, toDateInputValue } from "@/lib/format"
+import { formatCurrency, formatDateLong, toDateInputValue } from "@/lib/format"
 import { appYearMonth, nowDate } from "@/lib/date-helper"
-import { planPayment } from "@/features/fees/logic"
+import { planPayment, planInstallmentPayment } from "@/features/fees/logic"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   METHOD_LABELS,
@@ -114,6 +114,10 @@ type PaymentFormProps = {
     paidByMonth: Record<string, number>
     waivedByMonth: Record<string, number>
   }
+  // INSTALLMENT students: the schedule (outstanding per installment). Drives the
+  // preview/totals instead of the monthly walk when billingMode is INSTALLMENT.
+  billingMode?: "MONTHLY" | "INSTALLMENT"
+  installments?: { id: string; label: string | null; dueDate: string; outstanding: number }[]
   submitting: boolean
   onSubmit: (values: PaymentFormValues) => void
   onCancel: () => void
@@ -124,10 +128,13 @@ export function PaymentForm({
   remainingDue,
   canWaive = false,
   allocationContext,
+  billingMode,
+  installments,
   submitting,
   onSubmit,
   onCancel,
 }: PaymentFormProps) {
+  const isInstallment = billingMode === "INSTALLMENT"
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: defaults(monthlyFee, remainingDue),
@@ -140,11 +147,16 @@ export function PaymentForm({
   // month — so a partial payment can fully settle a student who owes several
   // months. The waiver is total outstanding minus what this payment covers.
   const totalOutstanding = useMemo(
-    () => totalDue(monthlyFee, allocationContext, remainingDue),
-    [monthlyFee, allocationContext, remainingDue]
+    () =>
+      isInstallment
+        ? (installments ?? []).reduce((s, it) => s + it.outstanding, 0)
+        : totalDue(monthlyFee, allocationContext, remainingDue),
+    [isInstallment, installments, monthlyFee, allocationContext, remainingDue]
   )
   const waiveAmount = Math.max(0, totalOutstanding - amount)
-  const showWaiveOption = canWaive && amount > 0 && waiveAmount > 0
+  // Installment students settle per-installment; the pay-and-clear waive option is
+  // monthly-only.
+  const showWaiveOption = canWaive && amount > 0 && waiveAmount > 0 && !isInstallment
 
   // Don't leave a stale "waive" checked once there's nothing left to waive
   // (the amount now covers all dues, or the viewer lacks fee:waive).
@@ -165,7 +177,7 @@ export function PaymentForm({
   // is on, the months waived to clear the rest. Merged so a month that gets both
   // partial cash and a waiver shows both (e.g. Apr ₹300 + ₹1,200 waived).
   const breakdown = useMemo(() => {
-    if (!allocationContext || amount <= 0) return []
+    if (isInstallment || !allocationContext || amount <= 0) return []
     const plan = planPayment({
       fee: monthlyFee,
       paid: new Map(Object.entries(allocationContext.paidByMonth)),
@@ -194,7 +206,14 @@ export function PaymentForm({
     return [...byMonth.values()].sort(
       (a, b) => a.year - b.year || a.month - b.month
     )
-  }, [allocationContext, monthlyFee, amount, now, willWaive])
+  }, [allocationContext, monthlyFee, amount, now, willWaive, isInstallment])
+
+  // Installment preview: cash allocated oldest-due-first across the schedule, with
+  // any leftover shown as an advance credit (mirrors the server).
+  const installmentPreview = useMemo(() => {
+    if (!isInstallment || amount <= 0) return null
+    return planInstallmentPayment({ installments: installments ?? [], amount })
+  }, [isInstallment, installments, amount])
 
   // A month is a prepayment when it's later than the current period.
   const isPrepay = (e: { year: number; month: number }) =>
@@ -339,6 +358,40 @@ export function PaymentForm({
             </ul>
           </div>
         )}
+
+        {installmentPreview &&
+          (installmentPreview.allocations.length > 0 || installmentPreview.credit > 0) && (
+            <div className="bg-muted/40 rounded-lg border px-3 py-2.5">
+              <p className="text-muted-foreground text-xs">
+                This payment is applied to installments, oldest-first:
+              </p>
+              <ul className="mt-2 space-y-0.5">
+                {installmentPreview.allocations.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between text-xs tabular-nums"
+                  >
+                    <span>
+                      {a.label || "Installment"}
+                      <span className="text-muted-foreground"> · due {formatDateLong(a.dueDate)}</span>
+                    </span>
+                    <span className="font-medium">{formatCurrency(a.amount)}</span>
+                  </li>
+                ))}
+                {installmentPreview.credit > 0 && (
+                  <li className="flex items-center justify-between text-xs tabular-nums">
+                    <span>
+                      Advance / credit
+                      <span className="text-muted-foreground"> · beyond the schedule</span>
+                    </span>
+                    <span className="font-medium text-emerald-600 dark:text-emerald-300">
+                      {formatCurrency(installmentPreview.credit)}
+                    </span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <Button

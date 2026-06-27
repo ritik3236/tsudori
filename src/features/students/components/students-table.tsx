@@ -196,7 +196,7 @@ export function StudentsTable({ classId: lockedClassId }: StudentsTableProps) {
                   </div>
                 </Link>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatCurrency(s.monthlyFee)}
+                  {s.billingMode === "INSTALLMENT" ? "Installments" : formatCurrency(s.monthlyFee)}
                 </span>
               </div>
             ))}

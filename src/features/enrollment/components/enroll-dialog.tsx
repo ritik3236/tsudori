@@ -41,9 +41,12 @@ type Props = {
   studentId: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** When the student is on an installment plan, adding a course doesn't auto-bill
+   *  it — show a note and hide the (ignored) fee/scholarship fields. */
+  isInstallment?: boolean
 }
 
-export function EnrollDialog({ studentId, open, onOpenChange }: Props) {
+export function EnrollDialog({ studentId, open, onOpenChange, isInstallment }: Props) {
   const { data: courses } = useCourses()
   const create = useCreateEnrollment()
   const form = useForm<EnrollmentFormValues>({
@@ -77,6 +80,12 @@ export function EnrollDialog({ studentId, open, onOpenChange }: Props) {
             )}
             className="space-y-4"
           >
+            {isInstallment && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50/60 px-3 py-2.5 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                On an installment plan — this course&apos;s monthly fee won&apos;t be billed
+                automatically. Update the installment schedule to include it.
+              </div>
+            )}
             <FormField
               control={form.control}
               name="courseId"
@@ -120,7 +129,7 @@ export function EnrollDialog({ studentId, open, onOpenChange }: Props) {
               )}
             />
 
-            <FeeModeField />
+            {!isInstallment && <FeeModeField />}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button

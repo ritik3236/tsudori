@@ -127,7 +127,7 @@ export function PlatformStudentsList() {
                   </div>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatCurrency(s.monthlyFee)}
+                  {s.billingMode === "INSTALLMENT" ? "Installments" : formatCurrency(s.monthlyFee)}
                 </span>
               </div>
             ))}

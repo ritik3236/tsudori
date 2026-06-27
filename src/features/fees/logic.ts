@@ -155,3 +155,33 @@ export function planPayment(input: {
 
   return { allocations, waiveAllocations }
 }
+
+export type InstallmentPaymentPlan = {
+  allocations: { id: string; label: string | null; dueDate: string; amount: number }[]
+  // Cash beyond the whole schedule → an advance credit (mirrors the server's R8 row).
+  credit: number
+}
+
+/**
+ * Allocate a payment across an INSTALLMENT student's schedule, oldest-due-first
+ * (prepaying future installments with the leftover) — the read-only twin of the
+ * server's charge allocation, for the payment-form preview. `installments` must be
+ * ordered by due date; `outstanding` is each installment's remaining due. No
+ * forward-minting (the schedule is already fixed); leftover surfaces as `credit`.
+ */
+export function planInstallmentPayment(input: {
+  installments: { id: string; label: string | null; dueDate: string; outstanding: number }[]
+  amount: number
+}): InstallmentPaymentPlan {
+  const allocations: InstallmentPaymentPlan["allocations"] = []
+  let remaining = round2(input.amount)
+  for (const it of input.installments) {
+    if (remaining <= 0) break
+    const due = round2(it.outstanding)
+    if (due <= 0) continue
+    const take = Math.min(remaining, due)
+    allocations.push({ id: it.id, label: it.label, dueDate: it.dueDate, amount: round2(take) })
+    remaining = round2(remaining - take)
+  }
+  return { allocations, credit: round2(Math.max(0, remaining)) }
+}

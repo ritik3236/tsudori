@@ -101,7 +101,14 @@ export function StudentProfile({
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <Stat label="Monthly fee" value={formatCurrency(student.fees.monthlyFee)} />
+              <Stat
+                label={student.billingMode === "INSTALLMENT" ? "Billing" : "Monthly fee"}
+                value={
+                  student.billingMode === "INSTALLMENT"
+                    ? "Installments"
+                    : formatCurrency(student.fees.monthlyFee)
+                }
+              />
               {student.fees.totalPaid !== null && (
                 <Stat label="Total paid" value={formatCurrency(student.fees.totalPaid)} />
               )}

@@ -21,7 +21,12 @@ import { effectiveFee } from "@/features/fees/logic"
 async function feesByStudent(ids: string[]): Promise<Map<string, number>> {
   if (ids.length === 0) return new Map()
   const enrollments = await prisma.enrollment.findMany({
-    where: { studentId: { in: ids }, status: "ACTIVE" },
+    where: {
+      studentId: { in: ids },
+      status: "ACTIVE",
+      // Exclude INSTALLMENT students — no monthly fee (shown as "Installments").
+      student: { billingMode: "MONTHLY" },
+    },
     select: {
       studentId: true,
       feeOverride: true,
@@ -367,6 +372,7 @@ export async function listPlatformStudents(
       classId: s.classId,
       guardianName: s.guardianName,
       contactNumber: s.contactNumber,
+      billingMode: s.billingMode,
       monthlyFee: feeMap.get(s.id) ?? 0,
       status: s.status,
       admissionDate: s.admissionDate.toISOString(),

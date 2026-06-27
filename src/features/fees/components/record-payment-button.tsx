@@ -18,6 +18,8 @@ type RecordPaymentButtonProps = {
     paidByMonth: Record<string, number>
     waivedByMonth: Record<string, number>
   }
+  billingMode?: "MONTHLY" | "INSTALLMENT"
+  installments?: { id: string; label: string | null; dueDate: string; outstanding: number }[]
   label?: string
   variant?: ComponentProps<typeof Button>["variant"]
   size?: ComponentProps<typeof Button>["size"]
@@ -31,6 +33,8 @@ export function RecordPaymentButton({
   remainingDue,
   canWaive,
   allocationContext,
+  billingMode,
+  installments,
   label = "Record payment",
   variant = "default",
   size = "default",
@@ -53,6 +57,8 @@ export function RecordPaymentButton({
           waivedByMonth: detail.waivedByMonth,
         }
       : undefined)
+  const resolvedBillingMode = billingMode ?? detail?.billingMode
+  const resolvedInstallments = installments ?? detail?.installments
 
   return (
     <>
@@ -73,6 +79,8 @@ export function RecordPaymentButton({
         remainingDue={remainingDue}
         canWaive={canWaive}
         allocationContext={resolvedContext}
+        billingMode={resolvedBillingMode}
+        installments={resolvedInstallments}
       />
     </>
   )

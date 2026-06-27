@@ -1,6 +1,6 @@
 import "server-only"
 
-import { Prisma, PrismaClient, type EnrollmentStatus } from "@prisma/client"
+import { Prisma, PrismaClient, type BillingMode, type EnrollmentStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
 import { NotFoundError } from "@/lib/errors"
@@ -27,9 +27,12 @@ const round2 = (n: number) => Math.round(n * 100) / 100
  */
 async function ensureTuitionCharges(
   tx: Tx,
-  e: { id: string; studentId: string; instituteId: string; startDate: Date },
+  e: { id: string; studentId: string; instituteId: string; startDate: Date; billingMode: BillingMode },
   monthlyFee: number
 ): Promise<void> {
+  // INSTALLMENT students bill via their StudentInstallment schedule, never monthly
+  // accrual — this is the single guard covering all four tuition-mint callers.
+  if (e.billingMode === "INSTALLMENT") return
   const start = appYearMonth(e.startDate)
   const now = appYearMonth(nowDate())
   const rows: Prisma.FeeChargeCreateManyInput[] = []
@@ -64,6 +67,12 @@ export async function ensureChargesForStudent(
   instituteId: string,
   studentId: string
 ): Promise<void> {
+  // INSTALLMENT students have no monthly accrual — skip the whole top-up.
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, instituteId },
+    select: { billingMode: true },
+  })
+  if (!student || student.billingMode === "INSTALLMENT") return
   const enrollments = await prisma.enrollment.findMany({
     where: { instituteId, studentId, status: "ACTIVE" },
     include: { course: { select: { monthlyFee: true } } },
@@ -76,7 +85,7 @@ export async function ensureChargesForStudent(
     )
     await ensureTuitionCharges(
       prisma,
-      { id: e.id, studentId, instituteId, startDate: e.startDate },
+      { id: e.id, studentId, instituteId, startDate: e.startDate, billingMode: student.billingMode },
       monthly
     )
   }
@@ -127,7 +136,10 @@ async function ledgerByEnrollment(ids: string[]): Promise<Map<string, Ledger>> {
     if (w.chargeId) waivedByCharge.set(w.chargeId, (waivedByCharge.get(w.chargeId) ?? 0) + Number(w.amount))
   }
   for (const c of charges) {
-    const agg = out.get(c.enrollmentId)!
+    // INSTALLMENT charges have a null enrollmentId and never match the `in: ids`
+    // filter, but the column is now nullable — guard to satisfy the type.
+    const agg = c.enrollmentId ? out.get(c.enrollmentId) : undefined
+    if (!agg) continue
     const amt = Number(c.amount)
     agg.charged += amt
     agg.outstanding += Math.max(0, amt - (paidByCharge.get(c.id) ?? 0) - (waivedByCharge.get(c.id) ?? 0))
@@ -204,6 +216,7 @@ export async function enrollInTx(
     feeOverride: number | null
     discountPercent: number | null
     status: EnrollmentStatus
+    billingMode: BillingMode
   }
 ): Promise<string> {
   const monthly = effectiveFee(Number(p.course.monthlyFee), p.feeOverride, p.discountPercent)
@@ -233,9 +246,11 @@ export async function enrollInTx(
     })
   }
   if (p.status === "ACTIVE") {
+    // No-op for INSTALLMENT students (guarded inside ensureTuitionCharges); the
+    // one-time component charges above still mint — they aren't monthly accrual.
     await ensureTuitionCharges(
       tx,
-      { id: e.id, studentId: p.studentId, instituteId: p.instituteId, startDate: p.startDate },
+      { id: e.id, studentId: p.studentId, instituteId: p.instituteId, startDate: p.startDate, billingMode: p.billingMode },
       monthly
     )
   }
@@ -295,6 +310,8 @@ export async function enrollStudentInClassCourseTx(
     feeOverride: null,
     discountPercent: null,
     status: "ACTIVE",
+    // New students are created MONTHLY; switching to installments is a separate action.
+    billingMode: "MONTHLY",
   })
 }
 
@@ -320,6 +337,10 @@ export async function syncStudentEnrollmentTx(
 ): Promise<void> {
   const oldCourse = await resolveCourseForClass(tx, p.instituteId, p.oldClassId)
   const newCourse = await resolveCourseForClass(tx, p.instituteId, p.newClassId)
+  const student = await tx.student.findFirst({
+    where: { id: p.studentId, instituteId: p.instituteId },
+    select: { billingMode: true },
+  })
   const primaries = await tx.enrollment.findMany({
     where: {
       instituteId: p.instituteId,
@@ -342,7 +363,13 @@ export async function syncStudentEnrollmentTx(
     const dp = p.newFee != null ? null : e.discountPercent != null ? Number(e.discountPercent) : null
     await ensureTuitionCharges(
       tx,
-      { id: e.id, studentId: p.studentId, instituteId: p.instituteId, startDate: e.startDate },
+      {
+        id: e.id,
+        studentId: p.studentId,
+        instituteId: p.instituteId,
+        startDate: e.startDate,
+        billingMode: student?.billingMode ?? "MONTHLY",
+      },
       effectiveFee(Number(newCourse.monthlyFee), fo, dp)
     )
   }
@@ -355,7 +382,7 @@ export async function createEnrollment(
   const id = await prisma.$transaction(async (tx) => {
     const student = await tx.student.findFirst({
       where: { id: input.studentId, instituteId },
-      select: { id: true },
+      select: { id: true, billingMode: true },
     })
     if (!student) throw new NotFoundError("Student not found.")
     const course = await tx.course.findFirst({
@@ -371,6 +398,9 @@ export async function createEnrollment(
       feeOverride: input.feeOverride ?? null,
       discountPercent: input.discountPercent ?? null,
       status: input.status,
+      // INSTALLMENT students don't accrue tuition for a new course (no auto-bill);
+      // staff edit the plan explicitly. MONTHLY behaves as before.
+      billingMode: student.billingMode,
     })
   })
   return oneItem(instituteId, input.studentId, id)
@@ -407,7 +437,10 @@ export async function updateEnrollment(
   // months not yet generated (correct accrual — adjust past charges explicitly).
   const e = await prisma.enrollment.findFirstOrThrow({
     where: { id },
-    include: { course: { select: { monthlyFee: true } } },
+    include: {
+      course: { select: { monthlyFee: true } },
+      student: { select: { billingMode: true } },
+    },
   })
   if (e.status === "ACTIVE") {
     const monthly = effectiveFee(
@@ -417,7 +450,7 @@ export async function updateEnrollment(
     )
     await ensureTuitionCharges(
       prisma,
-      { id: e.id, studentId: e.studentId, instituteId, startDate: e.startDate },
+      { id: e.id, studentId: e.studentId, instituteId, startDate: e.startDate, billingMode: e.student.billingMode },
       monthly
     )
   }

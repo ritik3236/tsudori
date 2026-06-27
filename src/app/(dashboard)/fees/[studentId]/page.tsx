@@ -14,7 +14,9 @@ import { appYearMonth, nowDate } from "@/lib/date-helper"
 import { makeServerQueryClient } from "@/lib/query"
 import { getStudentFee } from "@/features/fees/service"
 import { listEnrollments } from "@/features/enrollment/service"
+import { getInstallmentPlan } from "@/features/installments/service"
 import { enrollmentKeys } from "@/features/enrollment/api"
+import { installmentKeys } from "@/features/installments/api"
 import { METHOD_LABELS } from "@/features/fees/schema"
 import { BackLink } from "@/components/shared/back-link"
 import { EmptyState } from "@/components/shared/empty-state"
@@ -24,6 +26,7 @@ import { ReversePaymentButton } from "@/features/fees/components/reverse-payment
 import { ReverseWaiverButton } from "@/features/fees/components/reverse-waiver-button"
 import { WaiveFeeButton } from "@/features/fees/components/waive-fee-button"
 import { EnrollmentsPanel } from "@/features/enrollment/components/enrollments-panel"
+import { InstallmentPlanPanel } from "@/features/installments/components/installment-plan-panel"
 
 export const metadata: Metadata = { title: "Student fees" }
 
@@ -53,6 +56,11 @@ export default async function StudentFeesPage({
   // Prefetch the enrolment ledger so the panel paints with the page (no skeleton
   // flash). Key matches EnrollmentsPanel's useEnrollments(studentId).
   const qc = makeServerQueryClient()
+  // The installment plan paints with the page (FEE_READ already required above).
+  await qc.prefetchQuery({
+    queryKey: installmentKeys.byStudent(studentId),
+    queryFn: () => getInstallmentPlan(ctx.institute.id, studentId),
+  })
   if (canViewEnrollments) {
     await qc.prefetchQuery({
       queryKey: enrollmentKeys.byStudent(studentId),
@@ -66,7 +74,12 @@ export default async function StudentFeesPage({
   // in credit, else pending), then lifetime owed and lifetime collected. The
   // per-month status lives in the badge by the name, so no "paid this month"
   // card. A waiver total is appended only when concessions exist.
-  type Kpi = { label: string; value: string; tone?: "amber" | "emerald" | "indigo" }
+  type Kpi = {
+    label: string
+    value: string
+    tone?: "amber" | "emerald" | "indigo"
+    sub?: string
+  }
   const kpis: Kpi[] = [
     fee.advance > 0
       ? { label: "Advance / credit", value: formatCurrency(fee.advance), tone: "emerald" }
@@ -80,7 +93,11 @@ export default async function StudentFeesPage({
       value: formatCurrency(fee.totalOutstanding),
       tone: fee.totalOutstanding > 0 ? "amber" : undefined,
     },
-    { label: "Total paid", value: formatCurrency(fee.totalPaid) },
+    {
+      label: "Total paid",
+      value: formatCurrency(fee.totalPaid),
+      sub: fee.totalCharged > 0 ? `of ${formatCurrency(fee.totalCharged)} fee` : undefined,
+    },
   ]
   if (fee.totalWaived > 0) {
     kpis.push({
@@ -100,9 +117,11 @@ export default async function StudentFeesPage({
     wm === 12 ? ((wy += 1), (wm = 1)) : (wm += 1)
   ) {
     const k = `${wy}-${wm}`
+    // Per-period expected (installment dues vary by month; most are 0) — not the
+    // flat current-month fee.
     const due = Math.max(
       0,
-      fee.monthlyFee - (fee.paidByMonth[k] ?? 0) - (fee.waivedByMonth[k] ?? 0)
+      (fee.expectedByMonth[k] ?? 0) - (fee.paidByMonth[k] ?? 0) - (fee.waivedByMonth[k] ?? 0)
     )
     if (due > 0) {
       waiveTarget = { year: wy, month: wm, due }
@@ -160,7 +179,9 @@ export default async function StudentFeesPage({
             {fee.guardianName ? ` · ${fee.guardianName}` : ""}
             {` · `}
             <span className="text-foreground font-medium">
-              {formatCurrency(fee.monthlyFee)}/mo
+              {fee.billingMode === "INSTALLMENT"
+                ? "Installments"
+                : `${formatCurrency(fee.monthlyFee)}/mo`}
             </span>
           </p>
         </div>
@@ -191,15 +212,20 @@ export default async function StudentFeesPage({
         )}
       >
         {kpis.map((k) => (
-          <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} />
+          <Stat key={k.label} label={k.label} value={k.value} tone={k.tone} sub={k.sub} />
         ))}
       </div>
 
-      {canViewEnrollments && (
-        <HydrationBoundary state={dehydrate(qc)}>
-          <EnrollmentsPanel studentId={fee.studentId} canManage={canManageEnrollments} />
-        </HydrationBoundary>
-      )}
+      <HydrationBoundary state={dehydrate(qc)}>
+        <InstallmentPlanPanel studentId={fee.studentId} canManage={canRecord} outstanding={fee.totalOutstanding} />
+        {canViewEnrollments && (
+          <EnrollmentsPanel
+            studentId={fee.studentId}
+            canManage={canManageEnrollments}
+            isInstallment={fee.billingMode === "INSTALLMENT"}
+          />
+        )}
+      </HydrationBoundary>
 
       {fee.oneTimeCharges.length > 0 && (
         <div>
@@ -356,6 +382,8 @@ export default async function StudentFeesPage({
             paidByMonth: fee.paidByMonth,
             waivedByMonth: fee.waivedByMonth,
           }}
+          billingMode={fee.billingMode}
+          installments={fee.installments}
           size="sm"
           className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-40 rounded-full shadow-lg lg:right-6 lg:bottom-6"
         />
@@ -368,10 +396,12 @@ function Stat({
   label,
   value,
   tone,
+  sub,
 }: {
   label: string
   value: string
   tone?: "amber" | "emerald" | "indigo"
+  sub?: string
 }) {
   return (
     <div className="bg-card rounded-2xl border p-4">
@@ -386,6 +416,7 @@ function Stat({
       >
         {value}
       </p>
+      {sub && <p className="text-muted-foreground/70 mt-0.5 text-[11px] tabular-nums">{sub}</p>}
     </div>
   )
 }
