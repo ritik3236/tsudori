@@ -1,6 +1,10 @@
 export const APP_NAME = "Tsudori"
 export const APP_TAGLINE = "Education Management Platform"
 
+// Canonical production origin. Used as the metadata base so OG/social-share and
+// canonical URLs resolve to tsudori.com instead of the per-deploy *.vercel.app host.
+export const APP_URL = "https://tsudori.com"
+
 export const DEFAULT_PAGE_SIZE = 20
 export const MAX_PAGE_SIZE = 100
 

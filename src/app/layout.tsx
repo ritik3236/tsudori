@@ -16,7 +16,7 @@ import { ServiceWorkerRegister } from "@/components/providers/service-worker-reg
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
-import { APP_NAME, APP_TAGLINE } from "@/lib/constants"
+import { APP_NAME, APP_TAGLINE, APP_URL } from "@/lib/constants"
 import { DEFAULT_FONT, FONT_CLASS_MAP } from "@/lib/fonts"
 import { DEFAULT_THEME } from "@/lib/themes"
 import "./globals.css"
@@ -52,6 +52,7 @@ const fontVars = [
 ].join(" ")
 
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: {
     default: `${APP_NAME} — ${APP_TAGLINE}`,
     template: `%s · ${APP_NAME}`,
