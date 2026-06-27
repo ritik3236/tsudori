@@ -37,8 +37,9 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/png",
         purpose: "maskable",
       },
-      // Vector extra — crisp at any size on browsers that prefer SVG.
-      { src: "/icons/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+      // Note: no SVG icon entry — PWABuilder's validator rejects SVG manifest icons
+      // (reports them as "doesn't exist" even when fetchable), which blocks packaging.
+      // The PNGs above satisfy installability; the SVGs in public/icons/ stay as sources.
     ],
   }
 }
