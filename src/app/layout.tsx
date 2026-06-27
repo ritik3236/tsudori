@@ -12,6 +12,7 @@ import {
 import { AuthUIProvider } from "@/components/providers/auth-provider"
 import { FontProvider } from "@/components/providers/font-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
+import { ServiceWorkerRegister } from "@/components/providers/service-worker-register"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
@@ -99,6 +100,7 @@ export default function RootLayout({
             <AuthUIProvider className="flex flex-1 flex-col">
               <QueryProvider>{children}</QueryProvider>
               <Toaster richColors position="top-right" />
+              <ServiceWorkerRegister />
             </AuthUIProvider>
           </FontProvider>
         </ThemeProvider>
