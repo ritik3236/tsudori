@@ -4,7 +4,9 @@ import { generateObject } from "ai"
 import { google } from "@ai-sdk/google"
 import { z } from "zod"
 
+import { can } from "@/lib/tenant"
 import type { TenantContext } from "@/lib/tenant"
+import { PERMISSIONS } from "@/lib/rbac"
 import { AppError } from "@/lib/errors"
 import { nowDate } from "@/lib/date-helper"
 import { AI_MODEL, AI_MODEL_LABEL, isAiConfigured } from "./config"
@@ -55,6 +57,7 @@ export async function generateInsights(ctx: TenantContext): Promise<InsightResul
     )
   }
 
+  const canViewFees = can(ctx, PERMISSIONS.FEE_READ)
   const snapshot = await buildInstituteSnapshot(ctx)
 
   let object: z.infer<typeof insightObjectSchema>
@@ -81,7 +84,7 @@ export async function generateInsights(ctx: TenantContext): Promise<InsightResul
     model: AI_MODEL_LABEL,
     cached: false,
   }
-  setCachedInsights(ctx.institute.id, result)
+  setCachedInsights(ctx.institute.id, canViewFees, result)
   return result
 }
 
@@ -91,7 +94,7 @@ export async function getInsights(
   opts: { refresh?: boolean } = {}
 ): Promise<InsightResult> {
   if (!opts.refresh) {
-    const cached = getCachedInsights(ctx.institute.id)
+    const cached = getCachedInsights(ctx.institute.id, can(ctx, PERMISSIONS.FEE_READ))
     if (cached) return { ...cached, cached: true }
   }
   return generateInsights(ctx)
