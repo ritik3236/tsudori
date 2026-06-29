@@ -118,7 +118,7 @@ export function attendanceAbsenceMessage(p: {
     "",
     `Your child ${p.studentName} from ${p.institutionName} was marked ${what} on ${p.date}.`,
     "",
-    "Please contact the school if this is incorrect.",
+    "Please contact us if this is incorrect.",
     "",
     "Regards,",
     p.institutionName,
