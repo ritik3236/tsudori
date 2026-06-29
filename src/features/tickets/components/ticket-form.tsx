@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { MicButton } from "@/components/shared/mic-button"
 import {
   Form,
   FormControl,
@@ -33,7 +34,7 @@ import {
 const DEFAULTS: TicketFormValues = {
   subject: "",
   description: "",
-  category: "QUESTION",
+  category: "FEATURE",
   priority: "NORMAL",
 }
 
@@ -58,9 +59,20 @@ export function TicketForm({ submitting, onSubmit, onCancel }: TicketFormProps) 
           render={({ field }) => (
             <FormItem>
               <FormLabel>Subject</FormLabel>
-              <FormControl>
-                <Input placeholder="Short summary of the issue or request" {...field} />
-              </FormControl>
+              <div className="relative">
+                <FormControl>
+                  <Input
+                    placeholder="Short summary of the issue or request"
+                    {...field}
+                    className="pr-10"
+                  />
+                </FormControl>
+                <MicButton
+                  value={field.value}
+                  onChange={field.onChange}
+                  className="absolute top-1/2 right-1.5 -translate-y-1/2"
+                />
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -131,13 +143,21 @@ export function TicketForm({ submitting, onSubmit, onCancel }: TicketFormProps) 
           render={({ field }) => (
             <FormItem>
               <FormLabel>Description (optional)</FormLabel>
-              <FormControl>
-                <Textarea
-                  rows={5}
-                  placeholder="Steps, what you expected, links… Leave blank to reuse the subject."
-                  {...field}
+              <div className="relative">
+                <FormControl>
+                  <Textarea
+                    rows={5}
+                    placeholder="Steps, what you expected, links… Leave blank to reuse the subject."
+                    {...field}
+                    className="pr-10"
+                  />
+                </FormControl>
+                <MicButton
+                  value={field.value}
+                  onChange={field.onChange}
+                  className="absolute top-2 right-1.5"
                 />
-              </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
